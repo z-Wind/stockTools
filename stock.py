@@ -1,15 +1,19 @@
+import os
 import yfinance as yf
 import datetime
 import pandas as pd
 from pyquery import PyQuery
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from dateutil.relativedelta import relativedelta
 
 
 class Stock:
-    start = datetime.datetime.strptime("2000-01-01", "%Y-%m-%d")
+    start = datetime.datetime.strptime("1970-01-02", "%Y-%m-%d")
     end = datetime.datetime.now()
     history = None
     yfinance = None
+    rawData = None
 
     def __init__(self, symbol, start=None, end=None, extraDiv={}, replaceDiv=False):
         self.symbol = symbol
@@ -44,8 +48,9 @@ class Stock:
 
         self.yfinance = yf.Ticker(self.symbol)
         hist = self.yfinance.history(
-            start="1900-01-01", end=datetime.datetime.now(), auto_adjust=False
+            start="1970-01-02", end=datetime.datetime.now(), auto_adjust=False
         )
+        self.rawData = hist
 
         data = self._calAdjClose(hist)
         index = (self.start <= data["Date"]) & (data["Date"] <= self.end)
@@ -114,19 +119,60 @@ class Stock:
 
         return totalReturn
 
+    def rollback(self, iYear):
+        interval = relativedelta(years=iYear)
+        data = self.history.iloc[::-1]
 
-def plotBar(df):
+        pairs = []
+        for i, row in data.iterrows():
+            t = row["Date"] - interval
+            start = data[data["Date"] <= t]
+            if start.empty:
+                break
+            start = start.iloc[0, :]
+            pairs.append((start, row))
+
+        t = [p[1]["Date"] for p in pairs]
+        r = [
+            (p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"]) / p[0]["Adj Close Cal"] * 100
+            for p in pairs
+        ]
+
+        df = pd.DataFrame({self.symbol: r}, index=t)
+
+        return df.sort_index()
+
+
+def plotBar(df, title_text=None):
     datas = []
     for (symbol, data) in df.iteritems():
         datas.append(go.Bar(name=symbol, x=data.index, y=data))
 
     fig = go.Figure(data=datas)
     # Change the bar mode
-    fig.update_layout(barmode="group")
-    fig.show()
+    fig.update_layout(barmode="group", title_text=title_text)
+    # fig.show()
+
+    return fig
 
 
-def compare(symbols, start="2000-01-01", end=datetime.datetime.now().strftime("%Y-%m-%d")):
+def plotArea(df, title_text=None):
+    fig = go.Figure()
+    for (symbol, data) in df.iteritems():
+        fig.add_trace(go.Scatter(name=symbol, x=data.index, y=data, fill="tozeroy", mode="none",))
+
+    fig.update_layout(title_text=title_text)
+    # fig.show()
+
+    return fig
+
+
+def compare(
+    symbols, start="2000-01-01", end=datetime.datetime.now().strftime("%Y-%m-%d"), prefix=""
+):
+    if not os.path.exists("images"):
+        os.mkdir("images")
+
     stocks = []
     for symbol in symbols:
         stocks.append(
@@ -139,23 +185,39 @@ def compare(symbols, start="2000-01-01", end=datetime.datetime.now().strftime("%
             )
         )
 
+    # year return
     data = []
     for st in stocks:
         data.append(st.yearReturn)
 
     df = pd.concat(data, axis=1)
     print(df)
+    fig = plotBar(df, title_text=f"Annual Return")
+    fig.write_html(f"images/{prefix}_YearReturn.html")
+    # fig.write_image(f"images/{prefix}_YearReturn.png", width=1920, height=1080, scale=2)
 
-    plotBar(df)
-
+    # total return
     data = {}
     for st in stocks:
         data[st.symbol] = st.totalReturn
 
     df = pd.DataFrame(data, index=["Total Return"])
     print(df)
+    fig = plotBar(df, title_text=f"Total Return")
+    fig.write_html(f"images/{prefix}_TotalReturn.html")
+    # fig.write_image(f"images/{prefix}_TotalReturn.png", width=1920, height=1080, scale=2)
 
-    plotBar(df)
+    # roll back
+    data = []
+    iYear = 5
+    for st in stocks:
+        data.append(st.rollback(iYear))
+
+    df = pd.concat(data, axis=1)
+    print(df)
+    fig = plotArea(df, title_text=f"{iYear} Years Roll Back")
+    fig.write_html(f"images/{prefix}_RollBack.html")
+    # fig.write_image(f"images/{prefix}_RollBack.png", width=1920, height=1080, scale=2)
 
 
 if __name__ == "__main__":
@@ -173,8 +235,8 @@ if __name__ == "__main__":
         {"name": "3481.TW", "replaceDiv": True},
         {"name": "2303.TW", "replaceDiv": True},
     ]
-    compare(symbols)
-    
+    compare(symbols, prefix="TW")
+
     symbols = [
         {"name": "VTI"},
         {"name": "VBR"},
@@ -186,4 +248,4 @@ if __name__ == "__main__":
         {"name": "BWX"},
         {"name": "VNQ"},
     ]
-    compare(symbols)
+    compare(symbols, prefix="USA")

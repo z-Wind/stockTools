@@ -8,6 +8,8 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 from dateutil.relativedelta import relativedelta
 
+path = "images/detail"
+
 
 class Stock:
     start = datetime.datetime.strptime("1970-01-02", "%Y-%m-%d")
@@ -16,7 +18,9 @@ class Stock:
     yfinance = None
     rawData = None
 
-    def __init__(self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False):
+    def __init__(
+        self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False
+    ):
         self.symbol = symbol
         self.remark = remark
         if start:
@@ -32,7 +36,8 @@ class Stock:
     def _getDiv_TW(self):
         try:
             dom = PyQuery(
-                "https://www.moneydj.com/ETF/X/Basic/Basic0005.xdjhtm?etfid=" + self.symbol
+                "https://www.moneydj.com/ETF/X/Basic/Basic0005.xdjhtm?etfid="
+                + self.symbol
             )
             data = dom(".datalist")
 
@@ -88,7 +93,9 @@ class Stock:
             divVal = row.Dividends
             index = data["Date"] < divDate
             if index.any():
-                data.loc[index, "Adj Ratio"] *= 1 - divVal / data.loc[index, "Close"].iloc[-1]
+                data.loc[index, "Adj Ratio"] *= (
+                    1 - divVal / data.loc[index, "Close"].iloc[-1]
+                )
 
         data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
 
@@ -144,7 +151,9 @@ class Stock:
 
         t = [p[1]["Date"] for p in pairs]
         r = [
-            (p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"]) / p[0]["Adj Close Cal"] * 100
+            (p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"])
+            / p[0]["Adj Close Cal"]
+            * 100
             for p in pairs
         ]
 
@@ -162,6 +171,7 @@ def plotBar(df, title_text=None):
     # Change the bar mode
     fig.update_layout(barmode="group", title_text=title_text)
     fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
+    fig.update_layout(hovermode="x")
     # fig.show()
 
     return fig
@@ -170,10 +180,13 @@ def plotBar(df, title_text=None):
 def plotArea(df, title_text=None):
     fig = go.Figure()
     for (symbol, data) in df.iteritems():
-        fig.add_trace(go.Scatter(name=symbol, x=data.index, y=data, fill="tozeroy", mode="none"))
+        fig.add_trace(
+            go.Scatter(name=symbol, x=data.index, y=data, fill="tozeroy", mode="none")
+        )
 
     fig.update_layout(title_text=title_text)
     fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
+    fig.update_layout(hovermode="x")
     # fig.show()
 
     return fig
@@ -182,9 +195,11 @@ def plotArea(df, title_text=None):
 def plotViolin(df, title_text=None):
     fig = go.Figure()
     for (symbol, data) in df.iteritems():
-        fig.add_trace(go.Violin(y=data, name=symbol, box_visible=True, meanline_visible=True))
-
-    fig.update_xaxes(tickfont_family="Courier New", tickfont_size=16, tickangle=45)
+        fig.add_trace(
+            go.Violin(y=data, name=symbol, box_visible=True, meanline_visible=True)
+        )
+    
+    fig.update_xaxes(tickfont_family="Courier New", tickfont_size=14, tickangle=90)
     fig.update_layout(title_text=title_text)
     fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
     # fig.show()
@@ -204,11 +219,13 @@ def plotImshow(df, title_text=None, range_color=[-1, 1]):
     return fig
 
 
-def compare(
-    symbols, start="2000-01-01", end=datetime.datetime.now().strftime("%Y-%m-%d"), prefix="",
+def genFigure(
+    symbols,
+    start="1970-01-02",
+    end=datetime.datetime.now().strftime("%Y-%m-%d"),
+    prefix="",
 ):
-    if not os.path.exists("images"):
-        os.mkdir("images")
+    os.makedirs(path, exist_ok=True)
 
     stocks = []
     for symbol in symbols:
@@ -223,27 +240,36 @@ def compare(
             )
         )
 
-    # year return
+    # annual return
     data = []
     for st in stocks:
         data.append(st.yearReturn)
 
     df = pd.concat(data, axis=1)
-    print(df)
     fig = plotBar(df, title_text=f"<b>Annual Return<b>")
-    fig.write_html(f"images/{prefix}_AnnualReturn.html")
-    # fig.write_image(f"images/{prefix}_AnnualReturn.png", width=1920, height=1080, scale=2)
+    fig.write_html(os.path.join(path, f"{prefix}_AnnualReturn.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_AnnualReturn.png", width=1920, height=1080, scale=2))
 
     # total return
-    data = {}
+    # 只取交集時間故無法直接套用 stock.totalReturn
+    data = []
     for st in stocks:
-        data[st.name] = st.totalReturn
+        s = pd.Series(
+            data=st.rawData["Adj Close Cal"].to_numpy(),
+            index=st.rawData["Date"].to_numpy(),
+            name=st.name,
+        )
+        data.append(s)
 
-    df = pd.DataFrame(data, index=["Total Return"])
-    print(df)
-    fig = plotBar(df, title_text=f"<b>Total Return<b>")
-    fig.write_html(f"images/{prefix}_TotalReturn.html")
-    # fig.write_image(f"images/{prefix}_TotalReturn.png", width=1920, height=1080, scale=2)
+    df = pd.concat(data, axis=1)
+    df = df.dropna()
+    start = df.index[0].strftime("%Y/%m/%d")
+    end = df.index[-1].strftime("%Y/%m/%d")
+    df = pd.DataFrame((df.iloc[-1,:] - df.iloc[0,:])/df.iloc[0,:]*100, columns=["Total Return"])
+    df = df.T # for df.iteritems()
+    fig = plotBar(df, title_text=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
+    fig.write_html(os.path.join(path, f"{prefix}_TotalReturn.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_TotalReturn.png", width=1920, height=1080, scale=2))
 
     # roll back
     data = []
@@ -252,32 +278,35 @@ def compare(
         data.append(st.rollback(iYear))
 
     df = pd.concat(data, axis=1)
-    print(df)
     fig = plotArea(df, title_text=f"<b>{iYear} Years Roll Back<b>")
-    fig.write_html(f"images/{prefix}_RollBack.html")
-    # fig.write_image(f"images/{prefix}_RollBack.png", width=1920, height=1080, scale=2)
+    fig.write_html(os.path.join(path, f"{prefix}_RollBack.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_RollBack.png", width=1920, height=1080, scale=2))
 
     # roll back volin
     # 只取交集時間
     df = df.dropna()
     start = (df.index[0] - pd.DateOffset(years=iYear)).strftime("%Y/%m/%d")
     end = df.index[-1].strftime("%Y/%m/%d")
-    fig = plotViolin(df, title_text=f"<b>{iYear} Years Roll Back<b><br><i>{start} ~ {end}<i>",)
-    fig.write_html(f"images/{prefix}_RollBack_Violin.html")
-    # fig.write_image(f"images/{prefix}_RollBack_Violin.png", width=1920, height=1080, scale=2)
+    fig = plotViolin(
+        df, title_text=f"<b>{iYear} Years Roll Back<b><br><i>{start} ~ {end}<i>"
+    )
+    fig.write_html(os.path.join(path, f"{prefix}_RollBack_Violin.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_RollBack_Violin.png", width=1920, height=1080, scale=2))
 
     # correlation
     data = []
     for st in stocks:
         s = pd.Series(
-            data=st.rawData["Close"].to_numpy(), index=st.rawData["Date"].to_numpy(), name=st.name
+            data=st.rawData["Close"].to_numpy(),
+            index=st.rawData["Date"].to_numpy(),
+            name=st.name,
         )
         data.append(s)
 
     df = pd.concat(data, axis=1)
     fig = plotImshow(df.corr(), title_text=f"<b>Correlation of Close<b>")
-    fig.write_html(f"images/{prefix}_Correlation_Close.html")
-    # fig.write_image(f"images/{prefix}_Correlation_Close.png", width=1920, height=1080, scale=2)
+    fig.write_html(os.path.join(path, f"{prefix}_Correlation_Close.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_Correlation_Close.png", width=1920, height=1080, scale=2))
 
     data = []
     for st in stocks:
@@ -290,8 +319,70 @@ def compare(
 
     df = pd.concat(data, axis=1)
     fig = plotImshow(df.corr(), title_text=f"<b>Correlation of Adj Close <b>")
-    fig.write_html(f"images/{prefix}_Correlation_AdjClose.html")
-    # fig.write_image(f"images/{prefix}_Correlation_AdjClose.png", width=1920, height=1080, scale=2)
+    fig.write_html(os.path.join(path, f"{prefix}_Correlation_AdjClose.html"))
+    # fig.write_image(os.path.join(path, f"{prefix}_Correlation_AdjClose.png", width=1920, height=1080, scale=2))
+
+
+def report(
+    symbols,
+    start="1970-01-02",
+    end=datetime.datetime.now().strftime("%Y-%m-%d"),
+    prefix="",
+):
+    genFigure(symbols, start=start, end=end, prefix=prefix)
+    
+    template = """
+<html>
+    <head>
+        <title>Report</title>
+        <meta charset="UTF-8">
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <script type="text/javascript" src="E_9_1.js"></script>
+    </head>
+    <body>
+        <div id=totalReturn>
+        </div>
+        <div id=annualReturn>
+        </div>
+        <div id=rollBackVolin>
+        </div>
+        <div id=rollBack>
+        </div>
+        <div id=correlation style="display: flex">
+            <div id=correlationClose>
+            </div>
+            <div id=correlationAdjClose>
+            </div>
+        </div>
+    </body>
+</html>"""
+
+    dom = PyQuery(template)
+    dom("head title").html(f"{prefix} Report")
+    totalReturn = PyQuery(filename=os.path.join(path, f"{prefix}_TotalReturn.html"))
+    annualReturn = PyQuery(filename=os.path.join(path, f"{prefix}_AnnualReturn.html"))
+    rollBack = PyQuery(filename=os.path.join(path, f"{prefix}_RollBack.html"))
+    rollBackVolin = PyQuery(
+        filename=os.path.join(path, f"{prefix}_RollBack_Violin.html")
+    )
+    correlationClose = PyQuery(
+        filename=os.path.join(path, f"{prefix}_Correlation_Close.html")
+    )
+    correlationAdjClose = PyQuery(
+        filename=os.path.join(path, f"{prefix}_Correlation_AdjClose.html")
+    )
+
+    dom("#totalReturn").html(totalReturn("body"))
+    dom("#annualReturn").html(annualReturn("body"))
+    dom("#rollBack").html(rollBack("body"))
+    dom("#rollBackVolin").html(rollBackVolin("body"))
+    dom("#correlationClose").html(correlationClose("body"))
+    dom("#correlationAdjClose").html(correlationAdjClose("body"))
+
+    with open(
+        os.path.join(path, f"../{prefix}_Report.html"), "w", encoding="UTF-8"
+    ) as f:
+        f.write(dom.outerHtml())
 
 
 if __name__ == "__main__":
@@ -309,7 +400,7 @@ if __name__ == "__main__":
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True},
         {"name": "2303.TW", "remark": "聯電", "replaceDiv": True},
     ]
-    compare(symbols, prefix="TW")
+    report(symbols, start="1995-1-1", prefix="TW")
 
     symbols = [
         {"name": "VTI", "remark": "美股"},
@@ -322,4 +413,4 @@ if __name__ == "__main__":
         {"name": "BWX", "remark": "國際債排美"},
         {"name": "VNQ", "remark": "美房地產"},
     ]
-    compare(symbols, prefix="USA")
+    report(symbols, prefix="US")

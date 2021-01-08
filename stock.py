@@ -1,35 +1,50 @@
 import os
 import yfinance as yf
-import datetime
 import pandas as pd
-from pyquery import PyQuery
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
+
+from datetime import datetime
+from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
 
 path = "images/detail"
 
 
 class Stock:
-    start = datetime.datetime.strptime("1970-01-02", "%Y-%m-%d")
-    end = datetime.datetime.now()
+    start = datetime.strptime("1970-01-02", "%Y-%m-%d")
+    end = datetime.now()
     history = None
     yfinance = None
     rawData = None
 
-    def __init__(self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False):
+    def __init__(
+        self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False, fromPath=""
+    ):
+        """
+        symbol: 代碼
+        remark: 註解，方便辨識
+        start:  開始時間
+        end:    結束時間
+        =======================================
+        extraDiv:   額外的股息資料
+        replaceDiv: 取代原本的股息資料
+        =======================================
+        fromPath: 外部匯入股價資訊，需有以下欄位資訊
+        Date     |   Close |  Adj Close   |   Dividends  |    Stock Splits
+        %Y-%m-%d |   Float |  Float       |   Float      |    Int
+        """
         self.symbol = symbol
         self.remark = remark
         if start:
-            self.start = datetime.datetime.strptime(start, "%Y-%m-%d")
+            self.start = datetime.strptime(start, "%Y-%m-%d")
         if end:
-            self.end = datetime.datetime.strptime(end, "%Y-%m-%d")
+            self.end = datetime.strptime(end, "%Y-%m-%d")
 
         self.extraDiv = extraDiv
         self.replaceDiv = self._getDiv_TW() if replaceDiv else {}
 
-        self.history = self._getHistory()
+        self.history = self._getHistory(fromPath)
 
     def _getDiv_TW(self):
         try:
@@ -41,19 +56,40 @@ class Stock:
             replaceDiv = {}
             for i in data.find(".col02").items():
                 replaceDiv[i.text()] = float(i.nextAll(".col07").text())
-        except:
+        except Exception as e:
+            print(e)
             return {}
 
         return replaceDiv
 
-    def _getHistory(self):
+    def _getData(self, path):
+        # 需有以下資訊
+        # Date     |   Close |  Adj Close   |   Dividends  |    Stock Splits
+        # %Y-%m-%d |   Float |  Float       |   Float      |    Int
+        dfs = []
+        for dirPath, dirNames, fileNames in os.walk(path):
+            for f in fileNames:
+                dfs.append(pd.read_csv(os.path.join(dirPath, f)))
+
+        df = pd.concat(dfs, ignore_index=True)
+        df.loc[:, "Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
+        df = df[df["Adj Close"] != 0]
+
+        assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(df.columns)
+
+        df = df.set_index("Date")
+
+        return df
+
+    def _getHistory(self, fromPath):
         if self.history:
             return self.history
 
-        self.yfinance = yf.Ticker(self.symbol)
-        hist = self.yfinance.history(
-            start="1970-01-02", end=datetime.datetime.now(), auto_adjust=False
-        )
+        if fromPath:
+            hist = self._getData(fromPath)
+        else:
+            self.yfinance = yf.Ticker(self.symbol)
+            hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
 
         data = self._calAdjClose(hist)
         self.rawData = data
@@ -70,18 +106,24 @@ class Stock:
         div = div[div["Dividends"] != 0]
 
         for date, divVal in self.extraDiv.items():
-            dt = datetime.datetime.strptime(date, "%Y/%m/%d")
+            dt = datetime.strptime(date, "%Y/%m/%d")
             div.loc[dt, "Dividends"] = divVal
 
         for date, divVal in self.replaceDiv.items():
-            dt = datetime.datetime.strptime(date, "%Y/%m/%d")
+            dt = datetime.strptime(date, "%Y/%m/%d")
             div.loc[dt, "Dividends"] = divVal
 
         div = div.reset_index()
         print(self.name)
-        print(div)
 
         data = df.reset_index()
+        if div.empty:
+            print("empty Dividends")
+            data.loc[:, "Adj Close Cal"] = data["Adj Close"]
+            return data
+
+        print(div)
+
         data.loc[:, "Adj Close Cal"] = 0.0
         data.loc[:, "Adj Ratio"] = 1.0
 
@@ -132,6 +174,11 @@ class Stock:
         return totalReturn
 
     def rollback(self, iYear):
+        start = self.rawData["Date"].iloc[0]
+        end = self.rawData["Date"].iloc[-1]
+        if end < start + relativedelta(years=iYear):
+            raise ValueError(f"{self.name}: raw data {start} - {end} 間隔時間小於 iYear:{iYear}")
+
         interval = relativedelta(years=iYear)
         data = self.history.iloc[::-1]
 
@@ -156,11 +203,11 @@ class Stock:
 
 
 def plotBar(df, title_text=None):
-    datas = []
+    dataList = []
     for (symbol, data) in df.iteritems():
-        datas.append(go.Bar(name=symbol, x=data.index, y=data))
+        dataList.append(go.Bar(name=symbol, x=data.index, y=data))
 
-    fig = go.Figure(data=datas)
+    fig = go.Figure(data=dataList)
     # Change the bar mode
     fig.update_layout(barmode="group", title_text=title_text)
     fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
@@ -211,15 +258,15 @@ def plotImshow(df, title_text=None, range_color=[-1, 1]):
 def genFigure(
     symbols,
     start="1970-01-02",
-    end=datetime.datetime.now().strftime("%Y-%m-%d"),
+    end=datetime.now().strftime("%Y-%m-%d"),
     prefix="",
     iYear=5,
     image=False,
 ):
     os.makedirs(path, exist_ok=True)
-    if datetime.datetime.strptime(end, "%Y-%m-%d") < datetime.datetime.strptime(
-        start, "%Y-%m-%d"
-    ) + relativedelta(years=iYear):
+    if datetime.strptime(end, "%Y-%m-%d") < datetime.strptime(start, "%Y-%m-%d") + relativedelta(
+        years=iYear
+    ):
         raise ValueError(f"{start} - {end} 間隔時間小於 iYear:{iYear}")
 
     stocks = []
@@ -232,6 +279,7 @@ def genFigure(
                 end=end,
                 extraDiv=symbol.get("extraDiv", {}),
                 replaceDiv=symbol.get("replaceDiv", False),
+                fromPath=symbol.get("fromPath", False),
             )
         )
 
@@ -306,7 +354,7 @@ def genFigure(
     data = []
     for st in stocks:
         s = pd.Series(
-            data=st.rawData["Close"].to_numpy(), index=st.rawData["Date"].to_numpy(), name=st.name,
+            data=st.rawData["Close"].to_numpy(), index=st.rawData["Date"].to_numpy(), name=st.name
         )
         data.append(s)
 
@@ -342,7 +390,7 @@ def genFigure(
 def report(
     symbols,
     start="1970-01-02",
-    end=datetime.datetime.now().strftime("%Y-%m-%d"),
+    end=datetime.now().strftime("%Y-%m-%d"),
     prefix="",
     iYear=5,
     image=False,
@@ -399,9 +447,10 @@ def report(
 
 if __name__ == "__main__":
     symbols = [
-        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
-        {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
         {"name": "^TWII", "remark": "台灣加權指數"},
+        {"name": "^0050", "remark": "0050報酬指數", "fromPath": os.path.join("./extraData", "臺灣50指數")},
+        {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
+        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True},
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},

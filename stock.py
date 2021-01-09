@@ -130,6 +130,8 @@ class Stock:
         for i, row in div.iterrows():
             divDate = row.Date
             divVal = row.Dividends
+            if data["Date"][data["Date"] >= divDate].empty:
+                continue
             index = data["Date"] < divDate
             if index.any():
                 data.loc[index, "Adj Ratio"] *= 1 - divVal / data.loc[index, "Close"].iloc[-1]

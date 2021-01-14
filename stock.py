@@ -120,7 +120,7 @@ class Stock:
         if div.empty:
             print("empty Dividends")
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
-            return data
+            return data.sort_values("Date")
 
         print(div)
 
@@ -138,7 +138,7 @@ class Stock:
 
         data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
 
-        return data
+        return data.sort_values("Date")
 
     @property
     def name(self):
@@ -224,7 +224,7 @@ def plotArea(df, title_text=None):
     for (symbol, data) in df.iteritems():
         fig.add_trace(go.Scatter(name=symbol, x=data.index, y=data, fill="tozeroy", mode="none"))
 
-    fig.update_layout(title_text=title_text)
+    fig.update_layout(title_text=title_text, xaxis_title="End Date")
     fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
     fig.update_layout(hovermode="x")
     # fig.show()
@@ -343,9 +343,18 @@ def genFigure(
     if df.index.empty:
         raise ValueError("無交集時間")
 
-    start = (df.index[0] - pd.DateOffset(years=iYear)).strftime("%Y/%m/%d")
-    end = df.index[-1].strftime("%Y/%m/%d")
-    fig = plotViolin(df, title_text=f"<b>{iYear} Years Roll Back<b><br><i>{start} ~ {end}<i>")
+    start = df.index[0] - pd.DateOffset(years=iYear)
+    end = df.index[-1]
+    fig = plotViolin(
+        df,
+        title_text=(
+            f"<b>{iYear} Years Roll Back<b><br>"
+            f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
+            f" {(end-relativedelta(years=iYear)).strftime('%Y/%m/%d')}<i><br>"
+            f"End  : <i>{(start+relativedelta(years=iYear)).strftime('%Y/%m/%d')} ~"
+            f" {end.strftime('%Y/%m/%d')}<i>"
+        ),
+    )
     fig.write_html(os.path.join(path, f"{prefix}_RollBack_Violin.html"))
     if image:
         fig.write_image(
@@ -478,3 +487,10 @@ if __name__ == "__main__":
         {"name": "VNQ", "remark": "美房地產"},
     ]
     report(symbols, prefix="US")
+
+    symbols = [
+        # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
+        {"name": "VOO", "remark": "Vanguard S&P 500"},
+        {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
+    ]
+    report(symbols, start="1911-1-1", prefix="Mix", iYear=5)

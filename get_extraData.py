@@ -22,6 +22,7 @@ def gen_iter_date_by_month(start, end):
 def getDatas(path):
     datas = {}
     for dirPath, dirNames, fileNames in os.walk(path):
+        fileNames.sort()
         # 移除最後一筆，以免資料不全
         os.remove(os.path.join(dirPath, fileNames[-1]))
         del fileNames[-1]

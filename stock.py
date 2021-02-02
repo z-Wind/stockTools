@@ -459,6 +459,11 @@ def report(
 if __name__ == "__main__":
     symbols = [
         {"name": "^TWII", "remark": "台灣加權指數"},
+        {
+            "name": "^TAIEX",
+            "remark": "台灣加權報酬指數",
+            "fromPath": os.path.join("./extraData", "臺灣加權股價指數"),
+        },
         {"name": "^0050", "remark": "0050報酬指數", "fromPath": os.path.join("./extraData", "臺灣50指數")},
         {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
         {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},

@@ -19,7 +19,7 @@ class Stock:
     rawData = None
 
     def __init__(
-        self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False, fromPath=""
+        self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False, fromPath="", dateDuplcatedCombine = False,
     ):
         """
         symbol: 代碼
@@ -44,6 +44,7 @@ class Stock:
         self.extraDiv = extraDiv
         self.replaceDiv = self._getDiv_TW() if replaceDiv else {}
 
+        self.dateDuplcatedCombine = dateDuplcatedCombine
         self.history = self._getHistory(fromPath)
 
     def _getDiv_TW(self):
@@ -90,6 +91,15 @@ class Stock:
         else:
             self.yfinance = yf.Ticker(self.symbol)
             hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
+        
+        # 檢查 date 是否重覆
+        df = hist[hist.index.duplicated(keep=False)]
+        if not df.empty:
+            print(self.name, df)
+            if not self.dateDuplcatedCombine:
+                assert not hist.index.has_duplicates
+            else:
+                hist = hist.groupby(level=0).sum()
 
         data = self._calAdjClose(hist)
         self.rawData = data
@@ -282,6 +292,7 @@ def genFigure(
                 extraDiv=symbol.get("extraDiv", {}),
                 replaceDiv=symbol.get("replaceDiv", False),
                 fromPath=symbol.get("fromPath", False),
+                dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
             )
         )
 
@@ -471,7 +482,7 @@ if __name__ == "__main__":
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True},
-        {"name": "2330.TW", "remark": "台積電", "replaceDiv": True},
+        {"name": "2330.TW", "remark": "台積電", "replaceDiv": True, "dateDuplcatedCombine":True},
         {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True},
         {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True},
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True},

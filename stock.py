@@ -7,6 +7,7 @@ import plotly.express as px
 from datetime import datetime
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
+from FFI import rust_lib
 
 path = "images/detail"
 
@@ -19,7 +20,15 @@ class Stock:
     rawData = None
 
     def __init__(
-        self, symbol, remark="", start=None, end=None, extraDiv={}, replaceDiv=False, fromPath="", dateDuplcatedCombine = False,
+        self,
+        symbol,
+        remark="",
+        start=None,
+        end=None,
+        extraDiv={},
+        replaceDiv=False,
+        fromPath="",
+        dateDuplcatedCombine=False,
     ):
         """
         symbol: 代碼
@@ -91,7 +100,7 @@ class Stock:
         else:
             self.yfinance = yf.Ticker(self.symbol)
             hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
-        
+
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]
         if not df.empty:
@@ -255,6 +264,31 @@ def plotViolin(df, title_text=None):
     return fig
 
 
+def plotBox(df, title_text=None):
+    fig = go.Figure()
+    for symbol, data in df.groupby(level=0):
+        fig.add_trace(
+            go.Box(
+                name=symbol,
+                x=data.columns,
+                q1=data.loc[:, "25%", :].values[0],
+                median=data.loc[:, "50%", :].values[0],
+                q3=data.loc[:, "75%", :].values[0],
+                lowerfence=data.loc[:, "min", :].values[0],
+                upperfence=data.loc[:, "max", :].values[0],
+                mean=data.loc[:, "mean", :].values[0],
+                sd=data.loc[:, "std", :].values[0],
+            ),
+        )
+
+    fig.update_layout(boxmode="group", title_text=title_text)
+    fig.update_layout(font_family="Courier New", title_font_family="Times New Roman")
+    fig.update_layout(hovermode="x")
+    # fig.show()
+
+    return fig
+
+
 def plotImshow(df, title_text=None, range_color=[-1, 1]):
     fig = px.imshow(df, x=df.index, y=df.columns, range_color=range_color)
 
@@ -302,7 +336,7 @@ def genFigure(
         data.append(st.yearReturn)
 
     df = pd.concat(data, axis=1)
-    fig = plotBar(df, title_text=f"<b>Annual Return<b>")
+    fig = plotBar(df, title_text="<b>Annual Return<b>")
     fig.write_html(os.path.join(path, f"{prefix}_AnnualReturn.html"))
     if image:
         fig.write_image(
@@ -381,7 +415,7 @@ def genFigure(
         data.append(s)
 
     df = pd.concat(data, axis=1)
-    fig = plotImshow(df.corr(), title_text=f"<b>Correlation of Close<b>")
+    fig = plotImshow(df.corr(), title_text="<b>Correlation of Close<b>")
     fig.write_html(os.path.join(path, f"{prefix}_Correlation_Close.html"))
     if image:
         fig.write_image(
@@ -398,11 +432,83 @@ def genFigure(
         data.append(s)
 
     df = pd.concat(data, axis=1)
-    fig = plotImshow(df.corr(), title_text=f"<b>Correlation of Adj Close <b>")
+    fig = plotImshow(df.corr(), title_text="<b>Correlation of Adj Close <b>")
     fig.write_html(os.path.join(path, f"{prefix}_Correlation_AdjClose.html"))
     if image:
         fig.write_image(
             os.path.join(path, f"{prefix}_Correlation_AdjClose.png"),
+            width=1920,
+            height=1080,
+            scale=2,
+        )
+
+    # active vs passive
+    data = {}
+
+    for st in stocks:
+        df = st.history.set_index("Date")
+        if "Open" not in df.columns:
+            df["Open"] = 0
+        if "High" not in df.columns:
+            df["High"] = 0
+        if "Low" not in df.columns:
+            df["Low"] = 0
+        if "Volume" not in df.columns:
+            df["Volume"] = 0
+        df = df[["Open", "High", "Low", "Close", "Adj Close Cal", "Volume"]]
+        df = df.rename({"Adj Close Cal": "CloseAdj"}, axis="columns")
+        data[st.name] = df
+
+    df = pd.concat(data, axis=1)
+    # 只取交集時間
+    df = df.dropna()
+    if df.index.empty:
+        raise ValueError("無交集時間")
+
+    data_stat_all = {}
+    data_stat_year = {}
+    for st in stocks:
+        df1 = df[st.name]
+        df1.loc[:, "Volume"] = df1["Volume"].astype(int)
+        activeAll, activeYear, holdAll, holdYear, yearReturn = rust_lib.getSymbolStatistic(df1)
+        data_stat_all[f"{st.symbol:7s} A {st.remark}"] = activeAll * 100
+        data_stat_all[f"{st.symbol:7s} P {st.remark}"] = holdAll * 100
+        data_stat_year[f"{st.symbol:7s} A {st.remark}"] = activeYear * 100
+        data_stat_year[f"{st.symbol:7s} P {st.remark}"] = holdYear * 100
+
+    data_stat_all = pd.concat(data_stat_all)
+    data_stat_year = pd.concat(data_stat_year)
+
+    start = df.index[0]
+    end = df.index[-1]
+    fig = plotBox(
+        data_stat_all,
+        title_text=(
+            f"<b>Total Return Active vs Passive<b><br>"
+            f"<i>{start.strftime('%Y/%m/%d')} ~"
+            f" {end.strftime('%Y/%m/%d')}<i>"
+        ),
+    )
+    fig.write_html(os.path.join(path, f"{prefix}_Total_Return_Active_Passive.html"))
+    if image:
+        fig.write_image(
+            os.path.join(path, f"{prefix}_Total_Return_Active_Passive.png"),
+            width=1920,
+            height=1080,
+            scale=2,
+        )
+    fig = plotBox(
+        data_stat_year,
+        title_text=(
+            f"<b>Annual Return Active vs Passive<b><br>"
+            f"<i>{start.strftime('%Y/%m/%d')} ~"
+            f" {end.strftime('%Y/%m/%d')}<i>"
+        ),
+    )
+    fig.write_html(os.path.join(path, f"{prefix}_Year_Return_Active_Passive.html"))
+    if image:
+        fig.write_image(
+            os.path.join(path, f"{prefix}_Year_Return_Active_Passive.png"),
             width=1920,
             height=1080,
             scale=2,
@@ -430,7 +536,11 @@ def report(
     <body>
         <div id=totalReturn>
         </div>
+        <div id=totalReturnStatic>
+        </div>
         <div id=annualReturn>
+        </div>
+        <div id=annualReturnStatic>
         </div>
         <div id=rollBackVolin>
         </div>
@@ -442,6 +552,7 @@ def report(
             <div id=correlationAdjClose>
             </div>
         </div>
+        
     </body>
 </html>"""
 
@@ -455,6 +566,12 @@ def report(
     correlationAdjClose = PyQuery(
         filename=os.path.join(path, f"{prefix}_Correlation_AdjClose.html")
     )
+    totalReturnStatic = PyQuery(
+        filename=os.path.join(path, f"{prefix}_Total_Return_Active_Passive.html")
+    )
+    annualReturnStatic = PyQuery(
+        filename=os.path.join(path, f"{prefix}_Year_Return_Active_Passive.html")
+    )
 
     dom("#totalReturn").html(totalReturn("body"))
     dom("#annualReturn").html(annualReturn("body"))
@@ -462,6 +579,8 @@ def report(
     dom("#rollBackVolin").html(rollBackVolin("body"))
     dom("#correlationClose").html(correlationClose("body"))
     dom("#correlationAdjClose").html(correlationAdjClose("body"))
+    dom("#totalReturnStatic").html(totalReturnStatic("body"))
+    dom("#annualReturnStatic").html(annualReturnStatic("body"))
 
     with open(os.path.join(path, f"../{prefix}_Report.html"), "w", encoding="UTF-8") as f:
         f.write(dom.outerHtml())
@@ -482,7 +601,7 @@ if __name__ == "__main__":
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True},
-        {"name": "2330.TW", "remark": "台積電", "replaceDiv": True, "dateDuplcatedCombine":True},
+        {"name": "2330.TW", "remark": "台積電", "replaceDiv": True, "dateDuplcatedCombine": True},
         {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True},
         {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True},
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True},

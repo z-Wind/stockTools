@@ -84,7 +84,7 @@ class Stock:
             for f in fileNames:
                 dfs.append(pd.read_csv(os.path.join(dirPath, f)))
 
-        df = pd.concat(dfs, ignore_index=True)
+        df = pd.concat(dfs, ignore_index=True).copy()
         df.loc[:, "Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
         df = df[df["Adj Close"] != 0]
 
@@ -121,7 +121,7 @@ class Stock:
         return data
 
     def _calAdjClose(self, df):
-        div = df[["Dividends"]]
+        div = df[["Dividends"]].copy()
         if self.replaceDiv:
             div.loc[:, "Dividends"] = 0
 
@@ -138,7 +138,7 @@ class Stock:
         div = div.reset_index()
         print(self.name)
 
-        data = df.reset_index()
+        data = df.reset_index().copy()
         if div.empty:
             print("empty Dividends")
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
@@ -581,7 +581,7 @@ class Figure:
 
         data_stat_year = {}
         for st in self.stocks:
-            df1 = df[st.name]
+            df1 = df[st.name].copy()
             df1 = df1.dropna()
             df1.loc[:, "Volume"] = df1["Volume"].astype(int)
 
@@ -608,7 +608,7 @@ class Figure:
 
         data_stat_all = {}
         for st in self.stocks:
-            df1 = df[st.name]
+            df1 = df[st.name].copy()
             df1.loc[:, "Volume"] = df1["Volume"].astype(int)
 
             with rust_lib.Stock(df1) as stock:

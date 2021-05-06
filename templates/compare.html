@@ -1,0 +1,34 @@
+<html>
+    <head>
+        <title>{{title}}</title>
+        <meta charset="UTF-8">
+    </head>
+    <body bgcolor="#000000">
+        <div id=totalReturn></div>
+        <div id=totalReturnStatic></div>
+        <div id=annualReturn></div>
+        <div id=annualReturnStatic></div>
+        <div id=rollBackVolin></div>
+        <div id=rollBack></div>
+        <div id=correlation style="display: flex">
+            <div id=correlationClose></div>
+            <div id=correlationAdjClose></div>
+        </div>
+        
+        <!-- Plotly.js -->
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <script type="text/javascript">
+            var config = {responsive: true}
+            
+            {% for key,item in plots.items() %}
+                var {{key}} = {{ item|safe }};
+
+                Plotly.plot("{{key}}",
+                {{key}}.data,
+                {{key}}.layout || {},
+                config);
+            {% endfor %}            
+
+        </script>
+    </body>
+</html>

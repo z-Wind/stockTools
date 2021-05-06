@@ -29,15 +29,15 @@ class Stat(Structure):
     def __repr__(self):
         return (
             "(Stat: "
-            + f"{self.year}, "
-            + f"{self.count}, "
-            + f"{self.mean}, "
-            + f"{self.std}, "
-            + f"{self.min}, "
-            + f"{self.q1}, "
-            + f"{self.q2}, "
-            + f"{self.q3}, "
-            + f"{self.max})"
+            f"{self.year}, "
+            f"{self.count}, "
+            f"{self.mean}, "
+            f"{self.std}, "
+            f"{self.min}, "
+            f"{self.q1}, "
+            f"{self.q2}, "
+            f"{self.q3}, "
+            f"{self.max})"
         )
 
     def __str__(self):
@@ -68,13 +68,13 @@ class Price(Structure):
     def __repr__(self):
         return (
             "(Price: "
-            + f"{self.date}, "
-            + f"{self.open}, "
-            + f"{self.high}, "
-            + f"{self.low}, "
-            + f"{self.close}, "
-            + f"{self.close_adj}, "
-            + f"{self.volume})"
+            f"{self.date}, "
+            f"{self.open}, "
+            f"{self.high}, "
+            f"{self.low}, "
+            f"{self.close}, "
+            f"{self.close_adj}, "
+            f"{self.volume})"
         )
 
     def __str__(self):
@@ -127,6 +127,8 @@ class Stock:
     def _convert(self, df):
         assert ptypes.is_datetime64_dtype(df.index)
         assert (df.columns == ["Open", "High", "Low", "Close", "CloseAdj", "Volume"]).all()
+        assert not df.isnull().values.any()  # 任意為 nan
+        assert not (df == 0).values.all(axis=1).any()  # 任意單 row 全為 0
         df = df.sort_index()
 
         data = []

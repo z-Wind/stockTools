@@ -1,4 +1,5 @@
 # stockTools
+[![Get Data and Deploy](https://github.com/z-Wind/stockTools/actions/workflows/deploy.yml/badge.svg)](https://github.com/z-Wind/stockTools/actions/workflows/deploy.yml)
 
 ## 範例
 * [TW_Report](https://z-wind.github.io/stockTools/TW_Report.html)

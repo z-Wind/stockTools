@@ -86,6 +86,7 @@ class Stock:
 
         df = pd.concat(dfs, ignore_index=True).copy()
         df.loc[:, "Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
+        # 去掉 0
         df = df[df["Adj Close"] != 0]
 
         assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(df.columns)
@@ -112,6 +113,9 @@ class Stock:
                 assert not hist.index.has_duplicates
             else:
                 hist = hist.groupby(level=0).sum()
+
+        # 去掉 0
+        df = df[df["Close"] != 0]
 
         data = self._calAdjClose(hist)
         self.rawData = data
@@ -232,14 +236,8 @@ class Figure:
         # "autosize": False,
         "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
         "font": {"family": "Courier New", "color": "#ffffff"},
-        "xaxis": {
-            "tickfont": {"family": "Courier New", "size": 14},
-            "automargin": True,
-        },
-        "yaxis": {
-            "tickfont": {"family": "Courier New"},
-            "automargin": True,
-        },
+        "xaxis": {"tickfont": {"family": "Courier New", "size": 14}, "automargin": True},
+        "yaxis": {"tickfont": {"family": "Courier New"}, "automargin": True},
         "plot_bgcolor": "#000",
         "paper_bgcolor": "#000",
     }
@@ -302,12 +300,7 @@ class Figure:
     def _plotBar(self, df, title=None):
         dataList = []
         for (symbol, data) in df.iteritems():
-            data = {
-                "type": "bar",
-                "name": symbol,
-                "x": data.index,
-                "y": data,
-            }
+            data = {"type": "bar", "name": symbol, "x": data.index, "y": data}
             dataList.append(data)
 
         layout = {
@@ -319,10 +312,7 @@ class Figure:
         }
         layout = self._mergeDict(layout, self.default_layout)
 
-        graph = {
-            "data": dataList,
-            "layout": layout,
-        }
+        graph = {"data": dataList, "layout": layout}
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -349,10 +339,7 @@ class Figure:
         }
         layout = self._mergeDict(layout, self.default_layout)
 
-        graph = {
-            "data": dataList,
-            "layout": layout,
-        }
+        graph = {"data": dataList, "layout": layout}
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -375,15 +362,12 @@ class Figure:
             # "font": {"family": "Courier New"},
             "xaxis": {
                 # "tickfont": {"family": "Courier New", "size": 14},
-                "tickangle": 90,
+                "tickangle": 90
             },
         }
         layout = self._mergeDict(layout, self.default_layout)
 
-        graph = {
-            "data": dataList,
-            "layout": layout,
-        }
+        graph = {"data": dataList, "layout": layout}
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -421,10 +405,7 @@ class Figure:
         }
         layout = self._mergeDict(layout, self.default_layout)
 
-        graph = {
-            "data": [data],
-            "layout": layout,
-        }
+        graph = {"data": [data], "layout": layout}
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -456,10 +437,7 @@ class Figure:
         }
         layout = self._mergeDict(layout, self.default_layout)
 
-        graph = {
-            "data": dataList,
-            "layout": layout,
-        }
+        graph = {"data": dataList, "layout": layout}
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -595,8 +573,7 @@ class Figure:
         data_stat_year = pd.concat(data_stat_year)
 
         annual_return = self._plotBox(
-            data_stat_year,
-            title=("<b>Annual Return Active vs Passive<b>"),
+            data_stat_year, title=("<b>Annual Return Active vs Passive<b>")
         )
 
         # =========================================================================

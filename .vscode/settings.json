@@ -10,5 +10,9 @@
         "plotly",
         "pyquery",
         "yfinance"
+    ],
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "100"
     ]
 }

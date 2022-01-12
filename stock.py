@@ -178,14 +178,14 @@ class Stock:
     def yearReturn(self):
         data = self.history
 
+        first = data.iloc[0]["Adj Close Cal"]
         years = data.Date.dt.year.drop_duplicates()
-
         yearReturn = {}
         for y in years:
             yearData = data[data.Date.dt.year == y]
-            first = yearData.iloc[0]["Adj Close Cal"]
             end = yearData.iloc[-1]["Adj Close Cal"]
             yearReturn[y] = (end - first) / first * 100
+            first = end
 
         df = pd.DataFrame(yearReturn, index=[self.name])
 

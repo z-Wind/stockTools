@@ -50,7 +50,7 @@ def getDatas(path):
     return datas
 
 
-def save_0050_index(s):
+def save_TAI50I_index(s):
     symbol = "臺灣50指數"
     savePath = os.path.join("./extraData", symbol)
     os.makedirs(savePath, exist_ok=True)
@@ -82,6 +82,67 @@ def save_0050_index(s):
         df = df[df["Adj Close"] != 0]
         df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False)
 
+def save_TAI100I_index(s):
+    symbol = "臺灣中型100指數"
+    savePath = os.path.join("./extraData", symbol)
+    os.makedirs(savePath, exist_ok=True)
+    datas = getDatas(savePath)
+
+    start = datetime(2004, 11, 1)
+    end = datetime.now() + relativedelta(day=1)  # 設定為當月的 1 號
+
+    for day in gen_iter_date_by_month(start, end):
+        d = day.strftime("%Y%m%d")
+        if datas.get(d, False):
+            print(symbol, d, "already exists")
+            continue
+
+        print(symbol, d, "saving...")
+
+        url = f"https://www.twse.com.tw/indicesReport/TAI100I?response=csv&date={d}"
+
+        c = s.get(url).content
+        df = pd.read_csv(io.StringIO(c.decode("big5"))).drop("Unnamed: 3", axis=1)
+        df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
+        df.loc[:, "Close"] = df["臺灣中型100指數"].apply(process_data).astype(float)
+        df.loc[:, "Adj Close"] = df["臺灣中型100報酬指數"].apply(process_data).astype(float)
+        df.loc[:, "Dividends"] = 0
+        df.loc[:, "Stock Splits"] = 0
+        time.sleep(5)
+
+        df = df[df["Adj Close"] != 0]
+        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False)
+
+def save_TAIDIVIDI_index(s):
+    symbol = "臺灣高股息指數"
+    savePath = os.path.join("./extraData", symbol)
+    os.makedirs(savePath, exist_ok=True)
+    datas = getDatas(savePath)
+
+    start = datetime(2007, 1, 1)
+    end = datetime.now() + relativedelta(day=1)  # 設定為當月的 1 號
+
+    for day in gen_iter_date_by_month(start, end):
+        d = day.strftime("%Y%m%d")
+        if datas.get(d, False):
+            print(symbol, d, "already exists")
+            continue
+
+        print(symbol, d, "saving...")
+
+        url = f"https://www.twse.com.tw/indicesReport/TAIDIVIDI?response=csv&date={d}"
+
+        c = s.get(url).content
+        df = pd.read_csv(io.StringIO(c.decode("big5"))).drop("Unnamed: 3", axis=1)
+        df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
+        df.loc[:, "Close"] = df["臺灣高股息指數"].apply(process_data).astype(float)
+        df.loc[:, "Adj Close"] = df["臺灣高股息報酬指數"].apply(process_data).astype(float)
+        df.loc[:, "Dividends"] = 0
+        df.loc[:, "Stock Splits"] = 0
+        time.sleep(5)
+
+        df = df[df["Adj Close"] != 0]
+        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False)
 
 def save_TAIEX_index(s):
     symbol = "臺灣加權股價指數"
@@ -131,5 +192,7 @@ def save_TAIEX_index(s):
 
 if __name__ == "__main__":
     with requests.Session() as s:
-        save_0050_index(s)
+        save_TAI50I_index(s)
+        save_TAI100I_index(s)
         save_TAIEX_index(s)
+        save_TAIDIVIDI_index(s)

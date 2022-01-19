@@ -21,6 +21,7 @@ class Stock:
     history = None
     yfinance = None
     rawData = None
+    name_width = 7
 
     def __init__(
         self,
@@ -32,6 +33,7 @@ class Stock:
         replaceDiv=False,
         fromPath="",
         dateDuplcatedCombine=False,
+        name_width = 7,
     ):
         """
         symbol: 代碼
@@ -48,6 +50,7 @@ class Stock:
         """
         self.symbol = symbol
         self.remark = remark
+        self.name_width = name_width
         if start:
             self.start = datetime.strptime(start, "%Y-%m-%d")
         if end:
@@ -170,7 +173,7 @@ class Stock:
     def name(self):
         symbol = self.symbol.replace(".TW", "")
         if self.remark:
-            return f"{symbol:7s}{self.remark}"
+            return f"{symbol:{self.name_width}s} {self.remark}"
         else:
             return symbol
 
@@ -241,6 +244,7 @@ class Figure:
         "plot_bgcolor": "#000",
         "paper_bgcolor": "#000",
     }
+    name_width = 7
 
     def __init__(
         self,
@@ -250,6 +254,7 @@ class Figure:
         prefix="",
         iYear=5,
         image=False,
+        name_width=7,
     ):
         self.symbols = symbols
         self.start = start
@@ -257,6 +262,7 @@ class Figure:
         self.prefix = prefix
         self.iYear = iYear
         self.image = image
+        self.name_width = name_width
 
         if datetime.strptime(end, "%Y-%m-%d") < datetime.strptime(
             start, "%Y-%m-%d"
@@ -275,6 +281,7 @@ class Figure:
                     replaceDiv=symbol.get("replaceDiv", False),
                     fromPath=symbol.get("fromPath", False),
                     dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
+                    name_width=name_width,
                 )
             )
 
@@ -567,8 +574,8 @@ class Figure:
                 activeYear = stock.stat_active_year()
                 holdYear = stock.stat_hold_year()
 
-            data_stat_year[f"{st.symbol:7s} A {st.remark}"] = activeYear * 100
-            data_stat_year[f"{st.symbol:7s} P {st.remark}"] = holdYear * 100
+            data_stat_year[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeYear * 100
+            data_stat_year[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdYear * 100
 
         data_stat_year = pd.concat(data_stat_year)
 
@@ -592,8 +599,8 @@ class Figure:
                 activeAll = stock.stat_active_all()
                 holdAll = stock.stat_hold_all()
 
-            data_stat_all[f"{st.symbol:7s} A {st.remark}"] = activeAll * 100
-            data_stat_all[f"{st.symbol:7s} P {st.remark}"] = holdAll * 100
+            data_stat_all[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeAll * 100
+            data_stat_all[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdAll * 100
 
         data_stat_all = pd.concat(data_stat_all)
 
@@ -619,10 +626,11 @@ def report(
     iYear=5,
     image=False,
     path=os.path.join(os.path.dirname(__file__), "report"),
+    name_width=7,
 ):
     os.makedirs(path, exist_ok=True)
     plots = {}
-    fig = Figure(symbols, start=start, end=end, prefix=prefix, iYear=iYear, image=image)
+    fig = Figure(symbols, start=start, end=end, prefix=prefix, iYear=iYear, image=image, name_width=name_width)
 
     plots["totalReturn"] = fig.total_return()
     plots["totalReturnStatic"], plots["annualReturnStatic"] = fig.active_vs_passive()
@@ -639,20 +647,31 @@ def report(
 
 if __name__ == "__main__":
     symbols = [
-        {"name": "^TWII", "remark": "台灣加權指數"},
+        {"name": "^TWII", "remark": "臺灣加權指數"},
         {
             "name": "^TAIEX",
-            "remark": "台灣加權報酬指數",
+            "remark": "臺灣加權報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
         },
         {
-            "name": "^0050",
-            "remark": "0050報酬指數",
+            "name": "^TAI50I",
+            "remark": "臺灣50報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
         },
-        {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
+        {
+            "name": "^TAI100I",
+            "remark": "臺灣中型100報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
+        },
+        {
+            "name": "^TAIDIVIDI",
+            "remark": "臺灣高股息報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
+        },
+        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
         {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True},
+        {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True},
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True},
@@ -663,7 +682,7 @@ if __name__ == "__main__":
         {"name": "2303.TW", "remark": "聯電", "replaceDiv": True},
         {"name": "2308.TW", "remark": "台達電", "replaceDiv": True},
     ]
-    report(symbols, start="1911-1-1", prefix="TW", iYear=5)
+    report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=10)
 
     symbols = [
         {"name": "VTI", "remark": "美股"},
@@ -676,11 +695,11 @@ if __name__ == "__main__":
         {"name": "BWX", "remark": "國際債排美"},
         {"name": "VNQ", "remark": "美房地產"},
     ]
-    report(symbols, prefix="US")
+    report(symbols, prefix="US", name_width=4)
 
     symbols = [
         # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
         {"name": "VOO", "remark": "Vanguard S&P 500"},
-        {"name": "0050.TW", "remark": "元大台灣50", "replaceDiv": True},
+        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
     ]
     report(symbols, start="1911-1-1", prefix="Mix", iYear=5)

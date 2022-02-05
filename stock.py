@@ -33,7 +33,7 @@ class Stock:
         replaceDiv=False,
         fromPath="",
         dateDuplcatedCombine=False,
-        name_width = 7,
+        name_width=7,
     ):
         """
         symbol: 代碼
@@ -630,7 +630,15 @@ def report(
 ):
     os.makedirs(path, exist_ok=True)
     plots = {}
-    fig = Figure(symbols, start=start, end=end, prefix=prefix, iYear=iYear, image=image, name_width=name_width)
+    fig = Figure(
+        symbols,
+        start=start,
+        end=end,
+        prefix=prefix,
+        iYear=iYear,
+        image=image,
+        name_width=name_width,
+    )
 
     plots["totalReturn"] = fig.total_return()
     plots["totalReturnStatic"], plots["annualReturnStatic"] = fig.active_vs_passive()

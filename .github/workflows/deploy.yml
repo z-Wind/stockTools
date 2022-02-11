@@ -42,7 +42,7 @@ jobs:
           git config --global user.name 'z-Wind'
           git config --global user.email 'zpsyhapcst@gmail.com'
           git add .
-          git diff --exit-code || git commit -m "Regularly update extra Data"
+          git diff --cached --exit-code || git commit -m "Regularly update extra Data"
           git push
 
       - name: Build

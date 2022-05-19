@@ -1,6 +1,7 @@
 import os
 import yfinance as yf
 import pandas as pd
+import time
 
 from datetime import datetime
 from pyquery import PyQuery
@@ -105,8 +106,19 @@ class Stock:
         if fromPath:
             hist = self._getData(fromPath)
         else:
-            self.yfinance = yf.Ticker(self.symbol)
-            hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
+            while True:
+                self.yfinance = yf.Ticker(self.symbol)
+                hist = self.yfinance.history(
+                    start="1970-01-02", end=datetime.now(), auto_adjust=False
+                )
+                try:
+                    assert set(
+                        ["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]
+                    ).issubset(hist.reset_index().columns)
+                    break
+                except:
+                    time.sleep(30)
+                    continue
 
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]
@@ -118,7 +130,7 @@ class Stock:
                 hist = hist.groupby(level=0).sum()
 
         # 去掉 0
-        df = df[df["Close"] != 0]
+        hist = hist[hist["Close"] != 0]
 
         data = self._calAdjClose(hist)
         self.rawData = data

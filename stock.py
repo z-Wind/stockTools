@@ -106,7 +106,8 @@ class Stock:
         if fromPath:
             hist = self._getData(fromPath)
         else:
-            while True:
+            n = 0
+            while n < 60:
                 self.yfinance = yf.Ticker(self.symbol)
                 hist = self.yfinance.history(
                     start="1970-01-02", end=datetime.now(), auto_adjust=False
@@ -116,9 +117,16 @@ class Stock:
                         ["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]
                     ).issubset(hist.reset_index().columns)
                     break
-                except:
-                    time.sleep(30)
+                except AssertionError:
+                    time.sleep(60)
+                    n += 1
                     continue
+            if n >= 60:
+                print(self.symbol)
+                print(hist.reset_index().columns)
+                assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
+                    hist.reset_index().columns
+                )
 
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]

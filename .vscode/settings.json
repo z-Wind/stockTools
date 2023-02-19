@@ -11,8 +11,7 @@
         "pyquery",
         "yfinance"
     ],
-    "python.formatting.blackArgs": [
-        "--line-length",
-        "100"
-    ]
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": "file:///d%3A/HD/Backup/Knowledge/myCode/Python/stockTools/.github/workflows/deploy.yml"
+    }
 }

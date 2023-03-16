@@ -63,17 +63,21 @@ def save_twse_index(s, symbol, url_symbol, start):
             print(symbol, d, "already exists")
             continue
 
-        print(symbol, d, "saving...")
-
         url = f"https://www.twse.com.tw/indicesReport/{url_symbol}?response=csv&date={d}"
-
+        print(symbol, url_symbol, d, "saving...", f"from {url}")
+        
         c = s.get(url).content
         try:
-            df = pd.read_csv(io.StringIO(c.decode("big5"))).drop("Unnamed: 3", axis=1)
+            df = pd.read_csv(io.StringIO(c.decode("big5")), skiprows=[0])
+            print("raw data")
+            print(df)
+            df = df.dropna(axis=1)
         except pd.errors.EmptyDataError:
             print(symbol, d, "is empty")
             return
-
+        
+        print("after drop")
+        print(df)
         df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
         df.loc[:, "Close"] = df[symbol].apply(process_data).astype(float)
         df.loc[:, "Adj Close"] = df[symbol.replace("指數", "報酬指數")].apply(process_data).astype(float)

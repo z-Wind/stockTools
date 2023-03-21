@@ -50,7 +50,7 @@ def getDatas(path):
     return datas
 
 
-def save_twse_index(s, symbol, url_symbol, start):
+def save_twse_ftse_index(s, symbol, url_symbol, start):
     savePath = os.path.join("./extraData", symbol)
     os.makedirs(savePath, exist_ok=True)
     datas = getDatas(savePath)
@@ -63,20 +63,20 @@ def save_twse_index(s, symbol, url_symbol, start):
             print(symbol, d, "already exists")
             continue
 
-        url = f"https://www.twse.com.tw/indicesReport/{url_symbol}?response=csv&date={d}"
+        url = f"https://www.twse.com.tw/rwd/zh/FTSE/{url_symbol}?response=csv&date={d}"
         print(symbol, url_symbol, d, "saving...", f"from {url}")
         
         c = s.get(url).content
         try:
-            df = pd.read_csv(io.StringIO(c.decode("big5")), skiprows=[0])
+            df = pd.read_csv(io.StringIO(c.decode("big5")), header=1)
             print("raw data")
             print(df)
-            df = df.dropna(axis=1)
         except pd.errors.EmptyDataError:
             print(symbol, d, "is empty")
             return
         
         print("after drop")
+        df = df.dropna(axis=1)
         print(df)
         df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
         df.loc[:, "Close"] = df[symbol].apply(process_data).astype(float)
@@ -91,15 +91,15 @@ def save_twse_index(s, symbol, url_symbol, start):
 
 
 def save_TAI50I_index(s):
-    save_twse_index(s, "臺灣50指數", "TAI50I", start=datetime(2002, 10, 1))
+    save_twse_ftse_index(s, "臺灣50指數", "TAI50I", start=datetime(2002, 10, 1))
 
 
 def save_TAI100I_index(s):
-    save_twse_index(s, "臺灣中型100指數", "TAI100I", start=datetime(2004, 11, 1))
+    save_twse_ftse_index(s, "臺灣中型100指數", "TAI100I", start=datetime(2004, 11, 1))
 
 
 def save_TAIDIVIDI_index(s):
-    save_twse_index(s, "臺灣高股息指數", "TAIDIVIDI", start=datetime(2007, 1, 1))
+    save_twse_ftse_index(s, "臺灣高股息指數", "TAIDIVIDI", start=datetime(2007, 1, 1))
 
 
 def save_TAIEX_index(s):
@@ -117,22 +117,30 @@ def save_TAIEX_index(s):
             print(symbol, d, "already exists")
             continue
 
-        print(symbol, d, "saving...")
+        histURL = f"https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST?response=csv&date={d}"
+        totalReturnURL = f"https://www.twse.com.tw/rwd/zh/TAIEX/MFI94U?response=csv&date={d}"
 
-        histURL = f"https://www.twse.com.tw/indicesReport/MI_5MINS_HIST?response=csv&date={d}"
-        totalReturnURL = f"https://www.twse.com.tw/indicesReport/MFI94U?response=csv&date={d}"
-
+        print(symbol, d, "get history...", f"from {histURL}")
         c = s.get(histURL).content
         try:
-            hist = pd.read_csv(io.StringIO(c.decode("big5")), header=1).drop("Unnamed: 5", axis=1)
+            hist = pd.read_csv(io.StringIO(c.decode("big5")), header=1)
+            print("hist raw data")
+            print(hist)
+            print("after drop")
+            hist = hist.dropna(axis=1)
+            print(hist)
         except pd.errors.EmptyDataError:
             print(symbol, d, "is empty")
             return
 
+        print(symbol, d, "get total return...", f"from {totalReturnURL}")
         c = s.get(totalReturnURL).content
-        totalReturn = pd.read_csv(io.StringIO(c.decode("big5")), header=1).drop(
-            "Unnamed: 2", axis=1
-        )
+        totalReturn = pd.read_csv(io.StringIO(c.decode("big5")), header=1)
+        print("totalReturn raw data")
+        print(totalReturn)
+        print("after drop")
+        totalReturn = totalReturn.dropna(axis=1)
+        print(totalReturn)
 
         df = hist.join(totalReturn)
         assert df[df["日期"] != df["日　期"]].empty

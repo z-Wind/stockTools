@@ -11,4 +11,4 @@ COPY --from=rust-lib /app/FFI /app/FFI
 COPY templates /app/templates
 COPY stock.py get_extraData.py /app
 RUN pip install \
-    "yfinance==0.1.70" "pandas==1.2.3" "pyquery==1.4.3" "flask==2.0.0" "plotly==4.14.3" "requests==2.27.1" "numpy==1.20.3"
+    "yfinance==0.2.18" "pandas==2.0.1" "pyquery==2.0.0" "flask==2.3.1" "plotly==5.14.1" "requests==2.29.0" "numpy==1.24.3"

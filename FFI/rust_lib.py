@@ -143,7 +143,7 @@ class Stock:
                     low=row[3],
                     close=row[4],
                     close_adj=row[5],
-                    volume=row[6],
+                    volume=int(row[6]),
                 )
             )
         return data

@@ -65,7 +65,7 @@ def save_twse_ftse_index(s, symbol, url_symbol, start):
 
         url = f"https://www.twse.com.tw/rwd/zh/FTSE/{url_symbol}?response=csv&date={d}"
         print(symbol, url_symbol, d, "saving...", f"from {url}")
-        
+
         c = s.get(url).content
         try:
             df = pd.read_csv(io.StringIO(c.decode("big5")), header=1)
@@ -74,7 +74,7 @@ def save_twse_ftse_index(s, symbol, url_symbol, start):
         except pd.errors.EmptyDataError:
             print(symbol, d, "is empty")
             return
-        
+
         print("after drop")
         df = df.dropna(axis=1)
         print(df)
@@ -87,7 +87,7 @@ def save_twse_ftse_index(s, symbol, url_symbol, start):
         time.sleep(5)
 
         df = df[df["Adj Close"] != 0]
-        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False, line_terminator="\n")
+        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False, lineterminator="\n")
 
 
 def save_TAI50I_index(s):
@@ -157,7 +157,7 @@ def save_TAIEX_index(s):
         time.sleep(5)
 
         df = df[df["Adj Close"] != 0]
-        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False, line_terminator="\n")
+        df.to_csv(os.path.join(savePath, f"{d}.csv"), index=False, lineterminator="\n")
 
 
 if __name__ == "__main__":

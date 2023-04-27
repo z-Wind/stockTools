@@ -142,7 +142,9 @@ class Stock:
 
         data = self._calAdjClose(hist)
         self.rawData = data
-        index = (self.start <= data["Date"]) & (data["Date"] <= self.end)
+        index = (self.start.date() <= data["Date"].dt.date) & (
+            data["Date"].dt.date <= self.end.date()
+        )
         data = data[index]
 
         return data
@@ -326,7 +328,7 @@ class Figure:
 
     def _plotBar(self, df, title=None):
         dataList = []
-        for (symbol, data) in df.iteritems():
+        for symbol, data in df.items():
             data = {"type": "bar", "name": symbol, "x": data.index, "y": data}
             dataList.append(data)
 
@@ -346,7 +348,7 @@ class Figure:
 
     def _plotArea(self, df, title=None):
         dataList = []
-        for (symbol, data) in df.iteritems():
+        for symbol, data in df.items():
             data = {
                 "type": "scatter",
                 "name": symbol,
@@ -373,7 +375,7 @@ class Figure:
 
     def _plotViolin(self, df, title=None):
         dataList = []
-        for (symbol, data) in df.iteritems():
+        for symbol, data in df.items():
             data = {
                 "type": "violin",
                 "name": symbol,
@@ -483,7 +485,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.history["Adj Close Cal"].to_numpy(),
-                index=st.history["Date"].to_numpy(),
+                index=st.history["Date"].dt.tz_localize(None).to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -495,7 +497,7 @@ class Figure:
         df = pd.DataFrame(
             (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100, columns=["Total Return"]
         )
-        df = df.T  # for df.iteritems()
+        df = df.T  # for df.items()
 
         return self._plotBar(df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
 
@@ -539,7 +541,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.rawData["Close"].to_numpy(),
-                index=st.rawData["Date"].to_numpy(),
+                index=st.rawData["Date"].dt.tz_localize(None).to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -553,7 +555,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.rawData["Adj Close Cal"].to_numpy(),
-                index=st.rawData["Date"].to_numpy(),
+                index=st.rawData["Date"].dt.tz_localize(None).to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -569,7 +571,9 @@ class Figure:
         data = {}
 
         for st in self.stocks:
-            df = st.history.set_index("Date")
+            df = st.history
+            df["Date"] = df["Date"].dt.tz_localize(None)
+            df = df.set_index("Date")
             if "Open" not in df.columns:
                 df["Open"] = 0
             if "High" not in df.columns:

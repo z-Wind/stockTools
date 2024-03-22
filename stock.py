@@ -701,6 +701,7 @@ if __name__ == "__main__":
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
         },
         {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
+        {"name": "00631L.TW", "remark": "元大台灣50正2", "replaceDiv": True},
         {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True},
         {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True},
@@ -713,15 +714,19 @@ if __name__ == "__main__":
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True},
         {"name": "2303.TW", "remark": "聯電", "replaceDiv": True},
         {"name": "2308.TW", "remark": "台達電", "replaceDiv": True},
+        {"name": "2454.TW", "remark": "聯發科", "replaceDiv": True},
     ]
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=10)
 
     symbols = [
         {"name": "VTI", "remark": "美股"},
         {"name": "VBR", "remark": "美小型價值股"},
+        {"name": "VEA", "remark": "歐太平洋股"},
         {"name": "VPL", "remark": "太平洋股"},
         {"name": "VGK", "remark": "歐股"},
         {"name": "VWO", "remark": "新興市場股"},
+        {"name": "VXUS", "remark": "國際大中小型股排美"},
+        {"name": "VEU", "remark": "國際大中型股排美"},
         {"name": "BND", "remark": "美債"},
         {"name": "BNDX", "remark": "國際債排美"},
         {"name": "BWX", "remark": "國際債排美"},

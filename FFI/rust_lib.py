@@ -136,14 +136,14 @@ class Stock:
         for _, row in df.reset_index().iterrows():
             data.append(
                 Price(
-                    date=row[0].strftime("%Y-%m-%d").encode("utf-8"),
+                    date=row.iloc[0].strftime("%Y-%m-%d").encode("utf-8"),
                     # date=f"{row[0].year}-{row[0].month}-{row[0].day}".encode("utf-8"),
-                    open=row[1],
-                    high=row[2],
-                    low=row[3],
-                    close=row[4],
-                    close_adj=row[5],
-                    volume=int(row[6]),
+                    open=row.iloc[1],
+                    high=row.iloc[2],
+                    low=row.iloc[3],
+                    close=row.iloc[4],
+                    close_adj=row.iloc[5],
+                    volume=int(row.iloc[6]),
                 )
             )
         return data

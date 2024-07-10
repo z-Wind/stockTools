@@ -60,7 +60,7 @@ pub extern "C" fn stock_new(data: *const Price, data_len: size_t) -> *mut stock:
     let data = unsafe {
         assert!(!data.is_null());
 
-        slice::from_raw_parts(data, data_len as usize)
+        slice::from_raw_parts(data, data_len)
     };
     let data: Vec<stock::Price> = data.iter().map(|x| x.into()).collect();
 
@@ -78,7 +78,7 @@ pub extern "C" fn stock_free(ptr: *mut stock::Stock) {
         return;
     }
     unsafe {
-        Box::from_raw(ptr);
+        let _ = Box::from_raw(ptr);
     }
 }
 
@@ -124,10 +124,10 @@ pub extern "C" fn stock_stat_active_year(
         &mut *ptr
     };
 
-    let mut data = unsafe {
+    let data = unsafe {
         assert!(!result.is_null());
 
-        slice::from_raw_parts_mut(result, result_len as usize)
+        slice::from_raw_parts_mut(result, result_len)
     };
 
     let stats = stock.stat_active_year();
@@ -154,10 +154,10 @@ pub extern "C" fn stock_stat_hold_year(
         &mut *ptr
     };
 
-    let mut data = unsafe {
+    let data = unsafe {
         assert!(!result.is_null());
 
-        slice::from_raw_parts_mut(result, result_len as usize)
+        slice::from_raw_parts_mut(result, result_len)
     };
 
     let stats = stock.stat_hold_year();
@@ -185,10 +185,10 @@ pub extern "C" fn stock_year_return(
         &mut *ptr
     };
 
-    let mut data = unsafe {
+    let data = unsafe {
         assert!(!result.is_null());
 
-        slice::from_raw_parts_mut(result, result_len as usize)
+        slice::from_raw_parts_mut(result, result_len)
     };
 
     let vals = stock.cal_years_return();

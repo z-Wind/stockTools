@@ -35,6 +35,7 @@ class Stock:
         fromPath="",
         dateDuplcatedCombine=False,
         name_width=7,
+        daily_return_mul=None,
     ):
         """
         symbol: 代碼
@@ -59,6 +60,7 @@ class Stock:
 
         self.extraDiv = extraDiv
         self.replaceDiv = self._getDiv_TW() if replaceDiv else {}
+        self.daily_return_mul = daily_return_mul
 
         self.dateDuplcatedCombine = dateDuplcatedCombine
         self.history = self._getHistory(fromPath)
@@ -95,7 +97,7 @@ class Stock:
 
         assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(df.columns)
 
-        df = df.set_index("Date")
+        df = df.infer_objects().set_index("Date")
 
         return df
 
@@ -141,6 +143,10 @@ class Stock:
         hist = hist[hist["Close"] != 0]
 
         data = self._calAdjClose(hist)
+        if self.daily_return_mul:
+            data = self._adj_hist_by_daily_return_mul(data)
+            self.symbol = f"{self.symbol}x{self.daily_return_mul}"
+
         self.rawData = data
         index = (self.start.date() <= data["Date"].dt.date) & (
             data["Date"].dt.date <= self.end.date()
@@ -190,6 +196,15 @@ class Stock:
         data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
 
         return data.sort_values("Date")
+
+    def _adj_hist_by_daily_return_mul(self, df):
+        result = df.copy()
+        result.loc[0, "Adj Close Cal"] = result.loc[0, "Close"]
+        for i in range(1, len(df["Adj Close Cal"])):
+            day_return = (result.loc[i, "Close"] - result.loc[i-1, "Close"]) / result.loc[i-1, "Close"]
+            result.loc[i, "Adj Close Cal"] = result.loc[i-1, "Adj Close Cal"] * (1 + day_return * self.daily_return_mul)
+
+        return result
 
     @property
     def name(self):
@@ -304,6 +319,7 @@ class Figure:
                     fromPath=symbol.get("fromPath", False),
                     dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
                     name_width=name_width,
+                    daily_return_mul=symbol.get("daily_return_mul", None)
                 )
             )
 
@@ -473,11 +489,17 @@ class Figure:
 
     def annual_return(self):
         data = []
+        start = self.stocks[0].rawData["Date"].iloc[0].tz_localize(None)
+        end = self.stocks[0].rawData["Date"].iloc[-1].tz_localize(None)
         for st in self.stocks:
             data.append(st.yearReturn)
+            start = min(start, st.rawData["Date"].iloc[0].tz_localize(None))
+            end = max(end, st.rawData["Date"].iloc[-1].tz_localize(None))
 
         df = pd.concat(data, axis=1)
-        return self._plotBar(df, title="<b>Annual Return<b>")
+        start = start.strftime("%Y/%m/%d");
+        end = end.strftime("%Y/%m/%d");
+        return self._plotBar(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
 
     def total_return(self):
         # 只取交集時間故無法直接套用 stock.totalReturn
@@ -509,8 +531,15 @@ class Figure:
             data.append(st.rollback(self.iYear))
 
         df = pd.concat(data, axis=1)
+        start = df.index[0] - pd.DateOffset(years=self.iYear)
+        end = df.index[-1]
 
-        area = self._plotArea(df, title=f"<b>{self.iYear} Years Roll Back<b>")
+        area = self._plotArea(df, title=(
+                                        f"<b>{self.iYear} Years Roll Back<b><br>"
+                                        f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
+                                        f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
+                                        f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
+                                        f" {end.strftime('%Y/%m/%d')}<i>"))
 
         # =========================================================================
         # violin
@@ -547,7 +576,9 @@ class Figure:
             data.append(s)
 
         df = pd.concat(data, axis=1)
-        close = self._plotHeatmap(df.corr(), title="<b>Correlation of Close<b>")
+        start = df.dropna().index[0].strftime("%Y/%m/%d")
+        end = df.dropna().index[-1].strftime("%Y/%m/%d")
+        close = self._plotHeatmap(df.corr(), title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>")
 
         # =========================================================================
         # closeAdj
@@ -561,7 +592,9 @@ class Figure:
             data.append(s)
 
         df = pd.concat(data, axis=1)
-        closeAdj = self._plotHeatmap(df.corr(), title="<b>Correlation of Adj Close <b>")
+        start = df.dropna().index[0].strftime("%Y/%m/%d")
+        end = df.dropna().index[-1].strftime("%Y/%m/%d")
+        closeAdj = self._plotHeatmap(df.corr(), title=f"<b>Correlation of Adj Close <b><br><i>{start} ~ {end}<i>")
 
         return close, closeAdj
 
@@ -572,7 +605,9 @@ class Figure:
 
         for st in self.stocks:
             df = st.history
-            df["Date"] = df["Date"].dt.tz_localize(None)
+            date = df["Date"].dt.tz_localize(None)
+            df = df.drop(["Date"], axis=1)
+            df["Date"] = date
             df = df.set_index("Date")
             if "Open" not in df.columns:
                 df["Open"] = 0
@@ -587,6 +622,8 @@ class Figure:
             data[st.name] = df
 
         df = pd.concat(data, axis=1)
+        start = df.index[0].strftime("%Y/%m/%d")
+        end = df.index[-1].strftime("%Y/%m/%d")
 
         data_stat_year = {}
         for st in self.stocks:
@@ -604,7 +641,7 @@ class Figure:
         data_stat_year = pd.concat(data_stat_year)
 
         annual_return = self._plotBox(
-            data_stat_year, title=("<b>Annual Return Active vs Passive<b>")
+            data_stat_year, title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>")
         )
 
         # =========================================================================
@@ -681,6 +718,11 @@ if __name__ == "__main__":
     symbols = [
         {"name": "^TWII", "remark": "臺灣加權指數"},
         {
+            "name": "^TWII",
+            "remark": "臺灣加權指數正2",
+            "daily_return_mul": 2,
+        },
+        {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
@@ -691,14 +733,32 @@ if __name__ == "__main__":
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
         },
         {
+            "name": "^TAI50I",
+            "remark": "臺灣50正2",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+            "daily_return_mul": 2,
+        },
+        {
             "name": "^TAI100I",
             "remark": "臺灣中型100報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
         },
         {
+            "name": "^TAI100I",
+            "remark": "臺灣中型100正2",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
+            "daily_return_mul": 2,
+        },
+        {
             "name": "^TAIDIVIDI",
             "remark": "臺灣高股息報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
+        },
+        {
+            "name": "^TAIDIVIDI",
+            "remark": "臺灣高股息報酬指數正2",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
+            "daily_return_mul": 2,
         },
         {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
         {"name": "00631L.TW", "remark": "元大台灣50正2", "replaceDiv": True},
@@ -716,27 +776,38 @@ if __name__ == "__main__":
         {"name": "2308.TW", "remark": "台達電", "replaceDiv": True},
         {"name": "2454.TW", "remark": "聯發科", "replaceDiv": True},
     ]
-    report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=10)
+    report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 
     symbols = [
         {"name": "VTI", "remark": "美股"},
+        {"name": "VTI", "remark": "美股正2", "daily_return_mul": 2},
         {"name": "VBR", "remark": "美小型價值股"},
         {"name": "VEA", "remark": "歐太平洋股"},
+        {"name": "VEA", "remark": "歐太平洋股正2", "daily_return_mul": 2},
         {"name": "VPL", "remark": "太平洋股"},
+        {"name": "VPL", "remark": "太平洋股正2", "daily_return_mul": 2},
         {"name": "VGK", "remark": "歐股"},
+        {"name": "VGK", "remark": "歐股正2", "daily_return_mul": 2},
         {"name": "VWO", "remark": "新興市場股"},
+        {"name": "VWO", "remark": "新興市場股正2", "daily_return_mul": 2},
         {"name": "VXUS", "remark": "國際大中小型股排美"},
+        {"name": "VXUS", "remark": "國際大中小型股排美正2", "daily_return_mul": 2},
         {"name": "VEU", "remark": "國際大中型股排美"},
+        {"name": "VEU", "remark": "國際大中型股排美正2", "daily_return_mul": 2},
         {"name": "BND", "remark": "美債"},
+        {"name": "BND", "remark": "美債正2", "daily_return_mul": 2},
         {"name": "BNDX", "remark": "國際債排美"},
+        {"name": "BNDX", "remark": "國際債排美正2", "daily_return_mul": 2},
         {"name": "BWX", "remark": "國際債排美"},
+        {"name": "BWX", "remark": "國際債排美正2", "daily_return_mul": 2},
         {"name": "VNQ", "remark": "美房地產"},
+        {"name": "VNQ", "remark": "美房地產正2", "daily_return_mul": 2},
     ]
-    report(symbols, prefix="US", name_width=4)
+    report(symbols, prefix="US", name_width=6)
 
-    symbols = [
-        # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
-        {"name": "VOO", "remark": "Vanguard S&P 500"},
-        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
-    ]
-    report(symbols, start="1911-1-1", prefix="Mix", iYear=5)
+    # symbols = [
+        # # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
+        # {"name": "VOO", "remark": "Vanguard S&P 500"},
+        # {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
+    # ]
+    # report(symbols, start="1911-1-1", prefix="Mix", iYear=5)

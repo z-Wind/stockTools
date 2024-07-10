@@ -30,10 +30,10 @@ impl From<stock_c_ffi::Price> for Price {
         let date = c_str.to_str().unwrap();
 
         let date = NaiveDate::parse_from_str(date, "%Y-%m-%d")
-            .expect(&format!("price date {} 轉換失敗，格式為 %Y-%m-%d", date));
+            .unwrap_or_else(|_| panic!("price date {} 轉換失敗，格式為 %Y-%m-%d", date));
 
         Price {
-            date: date,
+            date,
             open: p.open,
             high: p.high,
             low: p.low,
@@ -54,10 +54,10 @@ impl From<&stock_c_ffi::Price> for Price {
         let date = c_str.to_str().unwrap();
 
         let date = NaiveDate::parse_from_str(date, "%Y-%m-%d")
-            .expect(&format!("price date {} 轉換失敗，格式為 %Y-%m-%d", date));
+            .unwrap_or_else(|_| panic!("price date {} 轉換失敗，格式為 %Y-%m-%d", date));
 
         Price {
-            date: date,
+            date,
             open: p.open,
             high: p.high,
             low: p.low,
@@ -68,6 +68,7 @@ impl From<&stock_c_ffi::Price> for Price {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Return {
     start: NaiveDate,
@@ -75,6 +76,7 @@ struct Return {
     value: f64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Stock {
     symbol: String,
@@ -128,28 +130,28 @@ impl Stock {
             let mut record = record.expect("reader.records() Fail");
             record.trim();
 
-            let date = NaiveDate::parse_from_str(&record[0], "%Y-%m-%d").expect(&format!(
+            let date = NaiveDate::parse_from_str(&record[0], "%Y-%m-%d").unwrap_or_else(|_| panic!(
                 "price date {} 轉換失敗，格式為 %Y-%m-%d",
                 &record[0]
             ));
             let open: f64 = record[1]
                 .parse()
-                .expect(&format!("price open {} 轉換失敗", &record[1]));
+                .unwrap_or_else(|_| panic!("price open {} 轉換失敗", &record[1]));
             let high: f64 = record[2]
                 .parse()
-                .expect(&format!("price high {} 轉換失敗", &record[2]));
+                .unwrap_or_else(|_| panic!("price high {} 轉換失敗", &record[2]));
             let low: f64 = record[3]
                 .parse()
-                .expect(&format!("price low {} 轉換失敗", &record[3]));
+                .unwrap_or_else(|_| panic!("price low {} 轉換失敗", &record[3]));
             let close: f64 = record[4]
                 .parse()
-                .expect(&format!("price close {} 轉換失敗", &record[4]));
+                .unwrap_or_else(|_| panic!("price close {} 轉換失敗", &record[4]));
             let close_adj: f64 = record[5]
                 .parse()
-                .expect(&format!("price close_adj {} 轉換失敗", &record[5]));
+                .unwrap_or_else(|_| panic!("price close_adj {} 轉換失敗", &record[5]));
             let volume: u64 = record[6]
                 .parse()
-                .expect(&format!("price volume {} 轉換失敗", &record[6]));
+                .unwrap_or_else(|_| panic!("price volume {} 轉換失敗", &record[6]));
 
             let price = Price {
                 date,
@@ -167,10 +169,10 @@ impl Stock {
     }
 
     fn cal_return(&mut self) {
-        let d = NaiveDate::from_ymd(2015, 3, 14);
+        let d = NaiveDate::from_ymd_opt(2015, 3, 14).unwrap();
         assert_eq!(d.year(), 2015);
 
-        if let Some(_) = self.all_return {
+        if self.all_return.is_some() {
             return;
         }
 
@@ -187,7 +189,7 @@ impl Stock {
                 if start_year == end.date.year() {
                     years_result
                         .entry(start_year)
-                        .or_insert(Vec::new())
+                        .or_default()
                         .push(Rc::clone(&r));
                 }
                 result.push(Rc::clone(&r));
@@ -206,7 +208,7 @@ impl Stock {
     }
 
     fn cal_years(&mut self) {
-        if let Some(_) = self.years {
+        if self.years.is_some() {
             return;
         }
 
@@ -347,7 +349,7 @@ mod tests {
         match stock {
             Ok(stock) => {
                 assert_eq!(stock.symbol, "VTI");
-                assert!(stock.data.len() > 0);
+                assert!(!stock.data.is_empty());
                 println!("{:?}", stock.data[0]);
             }
             Err(e) => panic!("{}", e),

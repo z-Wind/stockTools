@@ -202,11 +202,10 @@ class Stock:
 
     def _adj_hist_by_daily_return_mul(self, df):
         result = df.copy()
-        result.loc[0, "Adj Close Cal"] = result.loc[0, "Close"]
+        result["Adj Close Cal"].iat[0] = result["Close"].iat[0]
         for i in range(1, len(df["Adj Close Cal"])):
-            day_return = (result.loc[i, "Close"] - result.loc[i-1, "Close"]) / result.loc[i-1, "Close"]
-            result.loc[i, "Adj Close Cal"] = result.loc[i-1, "Adj Close Cal"] * (1 + day_return * self.daily_return_mul)
-
+            day_return = (result["Close"].iat[i] - result["Close"].iat[i-1]) / result["Close"].iat[i-1]
+            result["Adj Close Cal"].iat[i] = result["Adj Close Cal"].iat[i-1] * (1 + day_return * self.daily_return_mul)
         return result
 
     @property
@@ -767,7 +766,8 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
         },
         {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
-        {"name": "00631L.TW", "remark": "元大台灣50正2", "replaceDiv": True},
+        {"name": "00631L.TW", "remark": "元大台灣50正2"},
+        {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True},
         {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True},
         {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True},

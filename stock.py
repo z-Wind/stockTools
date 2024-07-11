@@ -7,7 +7,7 @@ from datetime import datetime
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
 from flask import render_template
-from FFI import rust_lib
+from FFI import rust_pyo3
 
 from flask import Flask
 import json
@@ -146,6 +146,9 @@ class Stock:
         if self.daily_return_mul:
             data = self._adj_hist_by_daily_return_mul(data)
             self.symbol = f"{self.symbol}x{self.daily_return_mul}"
+
+        # remove timezone
+        data["Date"] = data["Date"].dt.tz_localize(None)
 
         self.rawData = data
         index = (self.start.date() <= data["Date"].dt.date) & (
@@ -489,12 +492,12 @@ class Figure:
 
     def annual_return(self):
         data = []
-        start = self.stocks[0].rawData["Date"].iloc[0].tz_localize(None)
-        end = self.stocks[0].rawData["Date"].iloc[-1].tz_localize(None)
+        start = self.stocks[0].history["Date"].iloc[0]
+        end = self.stocks[0].history["Date"].iloc[-1]
         for st in self.stocks:
             data.append(st.yearReturn)
-            start = min(start, st.rawData["Date"].iloc[0].tz_localize(None))
-            end = max(end, st.rawData["Date"].iloc[-1].tz_localize(None))
+            start = min(start, st.history["Date"].iloc[0])
+            end = max(end, st.history["Date"].iloc[-1])
 
         df = pd.concat(data, axis=1)
         start = start.strftime("%Y/%m/%d");
@@ -507,7 +510,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.history["Adj Close Cal"].to_numpy(),
-                index=st.history["Date"].dt.tz_localize(None).to_numpy(),
+                index=st.history["Date"].to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -528,7 +531,8 @@ class Figure:
         # area
         data = []
         for st in self.stocks:
-            data.append(st.rollback(self.iYear))
+            df = st.rollback(self.iYear)
+            data.append(df)
 
         df = pd.concat(data, axis=1)
         start = df.index[0] - pd.DateOffset(years=self.iYear)
@@ -570,7 +574,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.rawData["Close"].to_numpy(),
-                index=st.rawData["Date"].dt.tz_localize(None).to_numpy(),
+                index=st.rawData["Date"].to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -586,7 +590,7 @@ class Figure:
         for st in self.stocks:
             s = pd.Series(
                 data=st.rawData["Adj Close Cal"].to_numpy(),
-                index=st.rawData["Date"].dt.tz_localize(None).to_numpy(),
+                index=st.rawData["Date"].to_numpy(),
                 name=st.name,
             )
             data.append(s)
@@ -605,9 +609,6 @@ class Figure:
 
         for st in self.stocks:
             df = st.history
-            date = df["Date"].dt.tz_localize(None)
-            df = df.drop(["Date"], axis=1)
-            df["Date"] = date
             df = df.set_index("Date")
             if "Open" not in df.columns:
                 df["Open"] = 0
@@ -631,12 +632,15 @@ class Figure:
             df1 = df1.dropna()
             df1.loc[:, "Volume"] = df1["Volume"].astype(int)
 
-            with rust_lib.Stock(df1) as stock:
-                activeYear = stock.stat_active_year()
-                holdYear = stock.stat_hold_year()
+            stock = rust_pyo3.Stock(df1)
+            activeYear = stock.stat_active_year()
+            holdYear = stock.stat_hold_year()
+            del stock
+            del df1
 
             data_stat_year[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeYear * 100
             data_stat_year[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdYear * 100
+
 
         data_stat_year = pd.concat(data_stat_year)
 
@@ -656,9 +660,11 @@ class Figure:
             df1 = df[st.name].copy()
             df1.loc[:, "Volume"] = df1["Volume"].astype(int)
 
-            with rust_lib.Stock(df1) as stock:
-                activeAll = stock.stat_active_all()
-                holdAll = stock.stat_hold_all()
+            stock = rust_pyo3.Stock(df1)
+            activeAll = stock.stat_active_all()
+            holdAll = stock.stat_hold_all()
+            del stock
+            del df1
 
             data_stat_all[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeAll * 100
             data_stat_all[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdAll * 100

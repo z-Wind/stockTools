@@ -1,3 +1,5 @@
+/target
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -8,6 +10,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+.venv/
+bin/
 build/
 develop-eggs/
 dist/
@@ -19,6 +23,8 @@ lib64/
 parts/
 sdist/
 var/
+include/
+man/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
@@ -36,6 +42,7 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+pip-selfcheck.json
 
 # Unit test / coverage reports
 htmlcov/
@@ -55,11 +62,17 @@ coverage.xml
 *.mo
 *.pot
 
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
 # Django stuff:
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+.DS_Store
 
 # Flask stuff:
 instance/
@@ -70,6 +83,12 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
 
 # PyBuilder
 target/

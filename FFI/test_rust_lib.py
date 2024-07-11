@@ -47,7 +47,7 @@ def test_all(test_df):
         assert ((df - yearReturn) < 0.00001).all().all()
 
 
-def test_getSymbolStatistic(benchmark, test_df):
+def test_getSymbolStatistic_lib(benchmark, test_df):
     df = test_df
 
     benchmark(getSymbolStatistic, df)

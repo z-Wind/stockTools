@@ -50,10 +50,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "yfinance==0.2.40" "pandas==2.0.3" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.22.0" "requests==2.32.3" "numpy==1.24.4"
+          pip install "yfinance==0.2.40" "pandas==2.0.3" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.22.0" "requests==2.32.3" "numpy==1.24.4" "maturin==1.7.0"
 
       - working-directory: ./FFI/rust_pyo3
-        run: maturin develop --release
+        run: |
+          maturin build --release
+          python -m pip install ./target/wheels/rust_pyo3-*.whl
       - run: python stock.py
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4

@@ -94,6 +94,8 @@ class Stock:
         df.loc[:, "Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
         # 去掉 0
         df = df[df["Adj Close"] != 0]
+        # 去掉非數字
+        df = df[pd.to_numeric(df["Adj Close"], errors="coerce").notnull()]
 
         assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(df.columns)
 
@@ -141,6 +143,8 @@ class Stock:
 
         # 去掉 0
         hist = hist[hist["Close"] != 0]
+        # 去掉非數字
+        hist = hist[pd.to_numeric(hist["Close"], errors="coerce").notnull()]
 
         data = self._calAdjClose(hist)
         if self.daily_return_mul:
@@ -178,7 +182,7 @@ class Stock:
 
         data = df.reset_index().copy()
         if div.empty:
-            print("empty Dividends")
+            print("empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'")
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
             return data.sort_values("Date")
 
@@ -202,9 +206,9 @@ class Stock:
 
     def _adj_hist_by_daily_return_mul(self, df):
         result = df.copy()
-        result["Adj Close Cal"].iat[0] = result["Close"].iat[0]
+        result["Adj Close Cal"].iat[0] = df["Adj Close Cal"].iat[0]
         for i in range(1, len(df["Adj Close Cal"])):
-            day_return = (result["Close"].iat[i] - result["Close"].iat[i-1]) / result["Close"].iat[i-1]
+            day_return = (df["Adj Close Cal"].iat[i] - df["Adj Close Cal"].iat[i-1]) / df["Adj Close Cal"].iat[i-1]
             result["Adj Close Cal"].iat[i] = result["Adj Close Cal"].iat[i-1] * (1 + day_return * self.daily_return_mul)
         return result
 
@@ -723,14 +727,15 @@ if __name__ == "__main__":
     symbols = [
         {"name": "^TWII", "remark": "臺灣加權指數"},
         {
-            "name": "^TWII",
-            "remark": "臺灣加權指數正2",
-            "daily_return_mul": 2,
-        },
-        {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+        },
+        {
+            "name": "^TAIEX",
+            "remark": "臺灣加權報酬指數_日正2",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+            "daily_return_mul": 2,
         },
         {
             "name": "^TAI50I",
@@ -739,7 +744,7 @@ if __name__ == "__main__":
         },
         {
             "name": "^TAI50I",
-            "remark": "臺灣50正2",
+            "remark": "臺灣50報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
             "daily_return_mul": 2,
         },
@@ -750,7 +755,7 @@ if __name__ == "__main__":
         },
         {
             "name": "^TAI100I",
-            "remark": "臺灣中型100正2",
+            "remark": "臺灣中型100報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
             "daily_return_mul": 2,
         },
@@ -761,7 +766,7 @@ if __name__ == "__main__":
         },
         {
             "name": "^TAIDIVIDI",
-            "remark": "臺灣高股息報酬指數正2",
+            "remark": "臺灣高股息報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
             "daily_return_mul": 2,
         },
@@ -786,28 +791,28 @@ if __name__ == "__main__":
 
     symbols = [
         {"name": "VTI", "remark": "美股"},
-        {"name": "VTI", "remark": "美股正2", "daily_return_mul": 2},
+        {"name": "VTI", "remark": "美股報酬_日正2", "daily_return_mul": 2},
         {"name": "VBR", "remark": "美小型價值股"},
         {"name": "VEA", "remark": "歐太平洋股"},
-        {"name": "VEA", "remark": "歐太平洋股正2", "daily_return_mul": 2},
+        {"name": "VEA", "remark": "歐太平洋股報酬_日正2", "daily_return_mul": 2},
         {"name": "VPL", "remark": "太平洋股"},
-        {"name": "VPL", "remark": "太平洋股正2", "daily_return_mul": 2},
+        {"name": "VPL", "remark": "太平洋股報酬_日正2", "daily_return_mul": 2},
         {"name": "VGK", "remark": "歐股"},
-        {"name": "VGK", "remark": "歐股正2", "daily_return_mul": 2},
+        {"name": "VGK", "remark": "歐股報酬_日正2", "daily_return_mul": 2},
         {"name": "VWO", "remark": "新興市場股"},
-        {"name": "VWO", "remark": "新興市場股正2", "daily_return_mul": 2},
+        {"name": "VWO", "remark": "新興市場股報酬_日正2", "daily_return_mul": 2},
         {"name": "VXUS", "remark": "國際大中小型股排美"},
-        {"name": "VXUS", "remark": "國際大中小型股排美正2", "daily_return_mul": 2},
+        {"name": "VXUS", "remark": "國際大中小型股排美報酬_日正2", "daily_return_mul": 2},
         {"name": "VEU", "remark": "國際大中型股排美"},
-        {"name": "VEU", "remark": "國際大中型股排美正2", "daily_return_mul": 2},
+        {"name": "VEU", "remark": "國際大中型股排美報酬_日正2", "daily_return_mul": 2},
         {"name": "BND", "remark": "美債"},
-        {"name": "BND", "remark": "美債正2", "daily_return_mul": 2},
+        {"name": "BND", "remark": "美債報酬_日正2", "daily_return_mul": 2},
         {"name": "BNDX", "remark": "國際債排美"},
-        {"name": "BNDX", "remark": "國際債排美正2", "daily_return_mul": 2},
+        {"name": "BNDX", "remark": "國際債排美報酬_日正2", "daily_return_mul": 2},
         {"name": "BWX", "remark": "國際債排美"},
-        {"name": "BWX", "remark": "國際債排美正2", "daily_return_mul": 2},
+        {"name": "BWX", "remark": "國際債排美報酬_日正2", "daily_return_mul": 2},
         {"name": "VNQ", "remark": "美房地產"},
-        {"name": "VNQ", "remark": "美房地產正2", "daily_return_mul": 2},
+        {"name": "VNQ", "remark": "美房地產報酬_日正2", "daily_return_mul": 2},
     ]
     report(symbols, prefix="US", name_width=6)
 

@@ -251,6 +251,19 @@ class Stock:
 
         return totalReturn
 
+    @property
+    def dailyReturn(self):
+        data = self.history
+
+        pre = data.iloc[:-1].reset_index()
+        cur = data.iloc[1:].reset_index()
+        day_return = (cur["Adj Close Cal"] - pre["Adj Close Cal"]) / pre["Adj Close Cal"] * 100.0
+        day_return = day_return.to_frame("Return")
+        day_return["Start"] = pre["Date"]
+        day_return["End"] = cur["Date"]
+
+        return day_return
+
     def rollback(self, iYear):
         start = self.rawData["Date"].iloc[0]
         end = self.rawData["Date"].iloc[-1]
@@ -500,6 +513,116 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
+    def _plotDailyReturn(self, data):
+        dataList = []
+        buttons = []
+        for i, (symbol, df) in enumerate(data):
+            start = df["Start"].iat[0].strftime("%Y/%m/%d")
+            end = df["End"].iat[-1].strftime("%Y/%m/%d")
+            df = df.sort_values(by=["Return"])
+
+            x = df.apply(
+                lambda x: "{}~{}".format(
+                    x["Start"].strftime("%Y/%m/%d"), x["End"].strftime("%Y/%m/%d")
+                ),
+                axis=1,
+            )
+            dailyreturn = {
+                "type": "bar",
+                "name": symbol,
+                "x": x,
+                "y": df["Return"],
+                "visible": i == 0,
+            }
+
+            cumgains = 100.0 * (df["Return"].map(lambda x: 1 + x / 100.0).cumprod() - 1.0)
+            missedgains = {
+                "type": "bar",
+                "name": symbol,
+                "y": cumgains.iloc[-1:-102:-1],
+                "visible": i == 0,
+                "xaxis": "x2",
+                "yaxis": "y2",
+            }
+
+            cumlosses = 100.0 * (
+                df["Return"].iloc[::-1].map(lambda x: 1 + x / 100.0).cumprod() - 1.0
+            )
+            avoidedlosses = {
+                "type": "bar",
+                "name": symbol,
+                "y": cumlosses.iloc[-1:-102:-1],
+                "visible": i == 0,
+                "xaxis": "x2",
+                "yaxis": "y3",
+            }
+
+            dataList.extend([missedgains, avoidedlosses, dailyreturn])
+
+            visible = [False] * 3 * len(data)
+            visible[i * 3] = True
+            visible[i * 3 + 1] = True
+            visible[i * 3 + 2] = True
+
+            title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
+            if i == 0:
+                title_init = title
+            button = {
+                "method": "update",
+                "args": [{"visible": visible}, {"title": {"text": title}}],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": title_init,
+            "hovermode": "x",
+            "height": "1300",
+            "updatemenus": [
+                {
+                    "x": 1,
+                    "font": {"color": "#AAAAAA"},
+                    "buttons": buttons,
+                }
+            ],
+            "grid": {
+                "rows": 3,
+                "columns": 1,
+                "pattern": "independent",
+                "subplots": [["x2y2"], ["x2y3"], ["xy"]],
+            },
+            "showlegend": False,
+            "annotations": [
+                {
+                    "text": "<b>Missed Gains<b>",
+                    "align": "center",
+                    "showarrow": False,
+                    "xref": "x2",
+                    "yref": "y2",
+                },
+                {
+                    "text": "<b>Avoided Losses<b>",
+                    "align": "center",
+                    "showarrow": False,
+                    "xref": "x2",
+                    "yref": "y3",
+                },
+                {
+                    "text": "<b>Daily Return<b>",
+                    "align": "center",
+                    "showarrow": False,
+                    "xref": "x",
+                    "yref": "y",
+                },
+            ],
+        }
+        layout = self._mergeDict(layout, self.default_layout)
+
+        graph = {"data": dataList, "layout": layout}
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
     def annual_return_bar(self):
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
@@ -637,6 +760,14 @@ class Figure:
 
         return close, closeAdj
 
+    def daily_return_graph(self):
+        data = []
+        for st in self.stocks:
+            df = st.dailyReturn
+            data.append((st.name, df))
+
+        return self._plotDailyReturn(data)
+
     def active_vs_passive(self):
         # =========================================================================
         # year
@@ -750,6 +881,7 @@ def report(
     plots["annualReturn"] = fig.annual_return_bar()
     plots["rollBack"], plots["rollBackVolin"] = fig.roll_back_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
+    plots["dailyReturn"] = fig.daily_return_graph()
 
     with app.app_context():
         html = render_template("compare.html", plots=plots, title=f"{prefix} Report")

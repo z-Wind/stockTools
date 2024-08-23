@@ -15,14 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.10.6
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10.6"
+          python-version: "3.12.4"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "pandas==2.0.1" "requests==2.29.0" "numpy==1.24.3"
+          pip install "pandas==2.2.2" "requests==2.32.3" "numpy==2.1.0"
       - run: python get_extraData.py
       - name: Update master
         run: |
@@ -46,11 +46,11 @@ jobs:
           override: true
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10.6"
+          python-version: "3.12.4"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "yfinance==0.2.40" "pandas==2.0.3" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.22.0" "requests==2.32.3" "numpy==1.24.4" "maturin==1.7.0"
+          pip install "yfinance==0.2.42" "pandas==2.2.2" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.23.0" "requests==2.32.3" "numpy==2.1.0" "maturin==1.7.0"
 
       - working-directory: ./FFI/rust_pyo3
         run: |

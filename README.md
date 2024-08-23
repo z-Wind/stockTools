@@ -8,8 +8,8 @@
 ## 事前準備
 需安裝 rust
 ```
-cd FFI/rust_lib
-cargo build --release
+cd FFI/rust_pyo3
+maturin develop
 ```
 
 ## 抓資料

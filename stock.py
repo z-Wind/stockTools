@@ -208,8 +208,12 @@ class Stock:
         result = df.copy()
         result["Adj Close Cal"].iat[0] = df["Adj Close Cal"].iat[0]
         for i in range(1, len(df["Adj Close Cal"])):
-            day_return = (df["Adj Close Cal"].iat[i] - df["Adj Close Cal"].iat[i-1]) / df["Adj Close Cal"].iat[i-1]
-            result["Adj Close Cal"].iat[i] = result["Adj Close Cal"].iat[i-1] * (1 + day_return * self.daily_return_mul)
+            day_return = (df["Adj Close Cal"].iat[i] - df["Adj Close Cal"].iat[i - 1]) / df[
+                "Adj Close Cal"
+            ].iat[i - 1]
+            result["Adj Close Cal"].iat[i] = result["Adj Close Cal"].iat[i - 1] * (
+                1 + day_return * self.daily_return_mul
+            )
         return result
 
     @property
@@ -282,7 +286,10 @@ class Figure:
         # "autosize": False,
         "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
         "font": {"family": "Courier New", "color": "#ffffff"},
-        "xaxis": {"tickfont": {"family": "Courier New", "size": 14}, "automargin": True},
+        "xaxis": {
+            "tickfont": {"family": "Courier New", "size": 14},
+            "automargin": True,
+        },
         "yaxis": {"tickfont": {"family": "Courier New"}, "automargin": True},
         "plot_bgcolor": "#000",
         "paper_bgcolor": "#000",
@@ -325,7 +332,7 @@ class Figure:
                     fromPath=symbol.get("fromPath", False),
                     dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
                     name_width=name_width,
-                    daily_return_mul=symbol.get("daily_return_mul", None)
+                    daily_return_mul=symbol.get("daily_return_mul", None),
                 )
             )
 
@@ -493,7 +500,7 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def annual_return(self):
+    def annual_return_bar(self):
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
         end = self.stocks[0].history["Date"].iloc[-1]
@@ -503,8 +510,8 @@ class Figure:
             end = max(end, st.history["Date"].iloc[-1])
 
         df = pd.concat(data, axis=1)
-        start = start.strftime("%Y/%m/%d");
-        end = end.strftime("%Y/%m/%d");
+        start = start.strftime("%Y/%m/%d")
+        end = end.strftime("%Y/%m/%d")
         return self._plotBar(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
 
     def total_return(self):
@@ -520,16 +527,33 @@ class Figure:
 
         df = pd.concat(data, axis=1)
         df = df.dropna()
-        start = df.index[0].strftime("%Y/%m/%d")
-        end = df.index[-1].strftime("%Y/%m/%d")
+        start = df.index[0]
+        end = df.index[-1]
         df = pd.DataFrame(
-            (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100, columns=["Total Return"]
+            (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100,
+            columns=["Total Return"],
         )
         df = df.T  # for df.items()
 
+        return start, end, df
+
+    def total_return_bar(self):
+        start, end, df = self.total_return()
+        start = start.strftime("%Y/%m/%d")
+        end = end.strftime("%Y/%m/%d")
+
         return self._plotBar(df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
 
-    def roll_back(self):
+    def irr_bar(self):
+        start, end, df = self.total_return()
+        year = pd.Timedelta(end - start).days / 365.0
+        df = df.map(lambda x: 100 * ((1 + x / 100) ** (1 / year) - 1))
+        start = start.strftime("%Y/%m/%d")
+        end = end.strftime("%Y/%m/%d")
+
+        return self._plotBar(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+
+    def roll_back_graph(self):
         # =========================================================================
         # area
         data = []
@@ -541,12 +565,16 @@ class Figure:
         start = df.index[0] - pd.DateOffset(years=self.iYear)
         end = df.index[-1]
 
-        area = self._plotArea(df, title=(
-                                        f"<b>{self.iYear} Years Roll Back<b><br>"
-                                        f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
-                                        f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
-                                        f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
-                                        f" {end.strftime('%Y/%m/%d')}<i>"))
+        area = self._plotArea(
+            df,
+            title=(
+                f"<b>{self.iYear} Years Roll Back<b><br>"
+                f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
+                f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
+                f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
+                f" {end.strftime('%Y/%m/%d')}<i>"
+            ),
+        )
 
         # =========================================================================
         # violin
@@ -570,7 +598,7 @@ class Figure:
 
         return area, violin
 
-    def correlation(self):
+    def correlation_heatmap(self):
         # =========================================================================
         # close
         data = []
@@ -585,7 +613,9 @@ class Figure:
         df = pd.concat(data, axis=1)
         start = df.dropna().index[0].strftime("%Y/%m/%d")
         end = df.dropna().index[-1].strftime("%Y/%m/%d")
-        close = self._plotHeatmap(df.corr(), title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>")
+        close = self._plotHeatmap(
+            df.corr(), title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>"
+        )
 
         # =========================================================================
         # closeAdj
@@ -601,7 +631,9 @@ class Figure:
         df = pd.concat(data, axis=1)
         start = df.dropna().index[0].strftime("%Y/%m/%d")
         end = df.dropna().index[-1].strftime("%Y/%m/%d")
-        closeAdj = self._plotHeatmap(df.corr(), title=f"<b>Correlation of Adj Close <b><br><i>{start} ~ {end}<i>")
+        closeAdj = self._plotHeatmap(
+            df.corr(), title=f"<b>Correlation of Adj Close <b><br><i>{start} ~ {end}<i>"
+        )
 
         return close, closeAdj
 
@@ -644,11 +676,11 @@ class Figure:
             data_stat_year[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeYear * 100
             data_stat_year[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdYear * 100
 
-
         data_stat_year = pd.concat(data_stat_year)
 
         annual_return = self._plotBox(
-            data_stat_year, title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>")
+            data_stat_year,
+            title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>"),
         )
 
         # =========================================================================
@@ -710,11 +742,14 @@ def report(
         name_width=name_width,
     )
 
-    plots["totalReturn"] = fig.total_return()
-    plots["totalReturnStatic"], plots["annualReturnStatic"] = fig.active_vs_passive()
-    plots["annualReturn"] = fig.annual_return()
-    plots["rollBack"], plots["rollBackVolin"] = fig.roll_back()
-    plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation()
+    plots["totalReturn"] = fig.total_return_bar()
+    plots["IRR"] = fig.irr_bar()
+    plots["totalReturnPassiveVsActive"], plots["annualReturnPassiveVsActive"] = (
+        fig.active_vs_passive()
+    )
+    plots["annualReturn"] = fig.annual_return_bar()
+    plots["rollBack"], plots["rollBackVolin"] = fig.roll_back_graph()
+    plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
 
     with app.app_context():
         html = render_template("compare.html", plots=plots, title=f"{prefix} Report")
@@ -779,7 +814,12 @@ if __name__ == "__main__":
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True},
-        {"name": "2330.TW", "remark": "台積電", "replaceDiv": True, "dateDuplcatedCombine": True},
+        {
+            "name": "2330.TW",
+            "remark": "台積電",
+            "replaceDiv": True,
+            "dateDuplcatedCombine": True,
+        },
         {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True},
         {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True},
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True},
@@ -802,7 +842,11 @@ if __name__ == "__main__":
         {"name": "VWO", "remark": "新興市場股"},
         {"name": "VWO", "remark": "新興市場股報酬_日正2", "daily_return_mul": 2},
         {"name": "VXUS", "remark": "國際大中小型股排美"},
-        {"name": "VXUS", "remark": "國際大中小型股排美報酬_日正2", "daily_return_mul": 2},
+        {
+            "name": "VXUS",
+            "remark": "國際大中小型股排美報酬_日正2",
+            "daily_return_mul": 2,
+        },
         {"name": "VEU", "remark": "國際大中型股排美"},
         {"name": "VEU", "remark": "國際大中型股排美報酬_日正2", "daily_return_mul": 2},
         {"name": "BND", "remark": "美債"},
@@ -817,8 +861,8 @@ if __name__ == "__main__":
     report(symbols, prefix="US", name_width=6)
 
     # symbols = [
-        # # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
-        # {"name": "VOO", "remark": "Vanguard S&P 500"},
-        # {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
+    # # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},
+    # {"name": "VOO", "remark": "Vanguard S&P 500"},
+    # {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
     # ]
     # report(symbols, start="1911-1-1", prefix="Mix", iYear=5)

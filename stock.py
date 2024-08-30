@@ -4,6 +4,7 @@ import pandas as pd
 import time
 
 from datetime import datetime
+from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
 from flask import render_template
@@ -308,6 +309,9 @@ class Figure:
         "paper_bgcolor": "#000",
     }
     name_width = 7
+
+    intersection_history_val = None
+    total_return_val = None
 
     def __init__(
         self,
@@ -637,8 +641,10 @@ class Figure:
         end = end.strftime("%Y/%m/%d")
         return self._plotBar(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
 
-    def total_return(self):
-        # 只取交集時間故無法直接套用 stock.totalReturn
+    def intersection_history(self):
+        if self.intersection_history_val is not None:
+            return self.intersection_history_val
+
         data = []
         for st in self.stocks:
             s = pd.Series(
@@ -650,6 +656,17 @@ class Figure:
 
         df = pd.concat(data, axis=1)
         df = df.dropna()
+
+        self.intersection_history_val = df
+
+        return df
+
+    def total_return(self):
+        if self.total_return_val is not None:
+            return self.total_return_val
+
+        # 只取交集時間故無法直接套用 stock.totalReturn
+        df = self.intersection_history()
         start = df.index[0]
         end = df.index[-1]
         df = pd.DataFrame(
@@ -657,6 +674,8 @@ class Figure:
             columns=["Total Return"],
         )
         df = df.T  # for df.items()
+
+        self.total_return_val = (start, end, df)
 
         return start, end, df
 
@@ -669,12 +688,57 @@ class Figure:
 
     def irr_bar(self):
         start, end, df = self.total_return()
+        df = df.rename(index={"Total Return": "IRR"})
         year = pd.Timedelta(end - start).days / 365.0
         df = df.map(lambda x: 100 * ((1 + x / 100) ** (1 / year) - 1))
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
         return self._plotBar(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+
+    def year_regular_saving_plan_irr(self):
+        df = self.intersection_history()
+        start = df.index[0]
+        end = df.index[-1]
+
+        dates = []
+        amounts = {}
+        nums = {}
+        money = 1000
+        pre_date = None
+        for i, (index, row) in enumerate(df.iterrows()):
+            if i != 0 and pd.Timedelta(index - pre_date).days < 365:
+                continue
+
+            dates.append(index.date())
+            pre_date = index
+
+            for symbol, close_adj in row.items():
+                ammount = amounts.get(symbol, [])
+                ammount.append(-money)
+                amounts[symbol] = ammount
+                nums[symbol] = nums.get(symbol, 0) + money / close_adj
+
+        dates.append(df.index[-1].date())
+        for symbol, close_adj in df.iloc[-1].items():
+            amounts[symbol].append(nums[symbol] * close_adj)
+
+        data = {}
+        for symbol, amount in amounts.items():
+            r = xirr(dates, amount)
+            data[symbol] = [r * 100.0]
+
+        df = pd.DataFrame(data, index=["RSP_IRR"])
+        return start, end, df
+
+    def year_regular_saving_plan_irr_bar(self):
+        start, end, df = self.year_regular_saving_plan_irr()
+        start = start.strftime("%Y/%m/%d")
+        end = end.strftime("%Y/%m/%d")
+
+        return self._plotBar(
+            df, title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>"
+        )
 
     def roll_back_graph(self):
         # =========================================================================
@@ -875,6 +939,7 @@ def report(
 
     plots["totalReturn"] = fig.total_return_bar()
     plots["IRR"] = fig.irr_bar()
+    plots["yearRegularSavingPlanIRR"] = fig.year_regular_saving_plan_irr_bar()
     plots["totalReturnPassiveVsActive"], plots["annualReturnPassiveVsActive"] = (
         fig.active_vs_passive()
     )

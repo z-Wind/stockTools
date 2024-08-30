@@ -77,10 +77,13 @@ def save_twse_ftse_index(s, symbol, url_symbol, start):
 
         print("after drop")
         df = df.dropna(axis=1)
+        df = df[df[symbol.replace("指數", "報酬指數")] != "--"]
         print(df)
         df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
         df.loc[:, "Close"] = df[symbol].apply(process_data).astype(float)
-        df.loc[:, "Adj Close"] = df[symbol.replace("指數", "報酬指數")].apply(process_data).astype(float)
+        df.loc[:, "Adj Close"] = (
+            df[symbol.replace("指數", "報酬指數")].apply(process_data).astype(float)
+        )
         df.loc[:, "Dividends"] = 0
         df.loc[:, "Stock Splits"] = 0
 

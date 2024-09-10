@@ -112,7 +112,7 @@ class Stock:
             hist = self._getData(fromPath)
         else:
             n = 0
-            while n < 60:
+            while n <= 5:
                 self.yfinance = yf.Ticker(self.symbol)
                 hist = self.yfinance.history(
                     start="1970-01-02", end=datetime.now(), auto_adjust=False
@@ -126,7 +126,7 @@ class Stock:
                     time.sleep(60)
                     n += 1
                     continue
-            if n >= 60:
+            else:
                 print(self.symbol)
                 print(hist.reset_index().columns)
                 assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
@@ -323,7 +323,7 @@ class Figure:
         image=False,
         name_width=7,
     ):
-        self.symbols = symbols
+        self.symbols = []
         self.start = start
         self.end = end
         self.prefix = prefix
@@ -338,20 +338,24 @@ class Figure:
 
         self.stocks = []
         for symbol in symbols:
-            self.stocks.append(
-                Stock(
-                    symbol["name"],
-                    remark=symbol["remark"],
-                    start=start,
-                    end=end,
-                    extraDiv=symbol.get("extraDiv", {}),
-                    replaceDiv=symbol.get("replaceDiv", False),
-                    fromPath=symbol.get("fromPath", False),
-                    dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
-                    name_width=name_width,
-                    daily_return_mul=symbol.get("daily_return_mul", None),
+            try:
+                self.stocks.append(
+                    Stock(
+                        symbol["name"],
+                        remark=symbol["remark"],
+                        start=start,
+                        end=end,
+                        extraDiv=symbol.get("extraDiv", {}),
+                        replaceDiv=symbol.get("replaceDiv", False),
+                        fromPath=symbol.get("fromPath", False),
+                        dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
+                        name_width=name_width,
+                        daily_return_mul=symbol.get("daily_return_mul", None),
+                    )
                 )
-            )
+                self.symbols.append(symbol)
+            except:
+                print(f"{symbol} can not be created, it seems something wrong")
 
     def _mergeDict(self, a, b, path=None, overwrite=False):
         "merges b into a"

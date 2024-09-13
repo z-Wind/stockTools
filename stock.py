@@ -376,7 +376,26 @@ class Figure:
                 a[key] = b[key]
         return a
 
-    def _plotBar(self, df, title=None):
+    def _plotBar_without_group(self, df, title=None):
+        dataList = []
+        for symbol, data in df.items():
+            data = {"type": "bar", "name": symbol, "x": [symbol], "y": data}
+            dataList.append(data)
+
+        layout = {
+            # "title": {"text": title, "font": {"family": "Times New Roman"}},
+            # "font": {"family": "Courier New"},
+            "title": {"text": title},
+            "hovermode": "x",
+        }
+        layout = self._mergeDict(layout, self.default_layout)
+
+        graph = {"data": dataList, "layout": layout}
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotBar_with_group(self, df, title=None):
         dataList = []
         for symbol, data in df.items():
             data = {"type": "bar", "name": symbol, "x": data.index, "y": data}
@@ -489,7 +508,38 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotBox(self, df, title=None):
+    def _plotBox_without_group(self, df, title=None):
+        dataList = []
+        for symbol, data in df.groupby(level=0):
+            data = data.dropna(axis=1)
+            data = {
+                "type": "box",
+                "name": symbol,
+                "x": [symbol],
+                "q1": data.loc[:, "25%", :].values[0],
+                "median": data.loc[:, "50%", :].values[0],
+                "q3": data.loc[:, "75%", :].values[0],
+                "lowerfence": data.loc[:, "min", :].values[0],
+                "upperfence": data.loc[:, "max", :].values[0],
+                "mean": data.loc[:, "mean", :].values[0],
+                "sd": data.loc[:, "std", :].values[0],
+            }
+            dataList.append(data)
+
+        layout = {
+            # "title": {"text": title, "font": {"family": "Times New Roman"}},
+            # "font": {"family": "Courier New"},
+            "title": {"text": title},
+            "hovermode": "x",
+        }
+        layout = self._mergeDict(layout, self.default_layout)
+
+        graph = {"data": dataList, "layout": layout}
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotBox_with_group(self, df, title=None):
         dataList = []
         for symbol, data in df.groupby(level=0):
             data = data.dropna(axis=1)
@@ -643,7 +693,7 @@ class Figure:
         df = pd.concat(data, axis=1)
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
-        return self._plotBar(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
+        return self._plotBar_with_group(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
 
     def intersection_history(self):
         if self.intersection_history_val is not None:
@@ -673,11 +723,10 @@ class Figure:
         df = self.intersection_history()
         start = df.index[0]
         end = df.index[-1]
-        df = pd.DataFrame(
-            (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100,
-            columns=["Total Return"],
-        )
-        df = df.T  # for df.items()
+
+        df = (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100
+
+        df = df.to_frame().T
 
         self.total_return_val = (start, end, df)
 
@@ -688,7 +737,7 @@ class Figure:
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar(df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
+        return self._plotBar_without_group(df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
 
     def irr_bar(self):
         start, end, df = self.total_return()
@@ -698,7 +747,7 @@ class Figure:
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+        return self._plotBar_without_group(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
 
     def year_regular_saving_plan_irr(self):
         df = self.intersection_history()
@@ -740,7 +789,7 @@ class Figure:
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar(
+        return self._plotBar_without_group(
             df, title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>"
         )
 
@@ -877,7 +926,7 @@ class Figure:
 
         data_stat_year = pd.concat(data_stat_year)
 
-        annual_return = self._plotBox(
+        annual_return = self._plotBox_with_group(
             data_stat_year,
             title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>"),
         )
@@ -907,7 +956,7 @@ class Figure:
 
         start = df.index[0]
         end = df.index[-1]
-        total_return = self._plotBox(
+        total_return = self._plotBox_without_group(
             data_stat_all,
             title=(
                 f"<b>Total Return Active vs Passive<b><br>"

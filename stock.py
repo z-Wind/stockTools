@@ -140,7 +140,7 @@ class Stock:
             if not self.dateDuplcatedCombine:
                 assert not hist.index.has_duplicates
             else:
-                hist = hist.groupby(level=0).sum()
+                hist = hist.groupby(level=0, sort=False).sum()
 
         # 去掉 0
         hist = hist[hist["Close"] != 0]
@@ -510,7 +510,7 @@ class Figure:
 
     def _plotBox_without_group(self, df, title=None):
         dataList = []
-        for symbol, data in df.groupby(level=0):
+        for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
             data = {
                 "type": "box",
@@ -541,7 +541,7 @@ class Figure:
 
     def _plotBox_with_group(self, df, title=None):
         dataList = []
-        for symbol, data in df.groupby(level=0):
+        for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
             data = {
                 "type": "box",

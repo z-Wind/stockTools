@@ -376,17 +376,43 @@ class Figure:
                 a[key] = b[key]
         return a
 
+    def _custom_button(self, symbols):
+        legendonly = []
+        for i, symbol in enumerate(symbols):
+            if symbol.endswith("正2") and "x2" in symbol:
+                legendonly.append(i)
+
+        updatemenus = [
+            {
+                "buttons": [
+                    {
+                        "args": [{"visible": True}, legendonly],
+                        "args2": [{"visible": "legendonly"}, legendonly],
+                        "label": "正2",
+                        "method": "restyle",
+                    },
+                ],
+                "type": "buttons",
+                "font": {"color": "#AAAAAA"},
+            }
+        ]
+
+        return updatemenus
+
     def _plotBar_without_group(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.items():
             data = {"type": "bar", "name": symbol, "x": [symbol], "y": data}
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
             # "font": {"family": "Courier New"},
             "title": {"text": title},
             "hovermode": "x",
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -397,9 +423,11 @@ class Figure:
 
     def _plotBar_with_group(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.items():
             data = {"type": "bar", "name": symbol, "x": data.index, "y": data}
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
@@ -407,6 +435,7 @@ class Figure:
             "title": {"text": title},
             "barmode": "group",
             "hovermode": "x",
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -417,6 +446,7 @@ class Figure:
 
     def _plotArea(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.items():
             data = {
                 "type": "scatter",
@@ -427,6 +457,7 @@ class Figure:
                 "mode": "none",
             }
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
@@ -434,6 +465,7 @@ class Figure:
             # "font": {"family": "Courier New"},
             "xaxis": {"title": "End Date"},
             "hovermode": "x",
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -444,6 +476,7 @@ class Figure:
 
     def _plotViolin(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.items():
             data = {
                 "type": "violin",
@@ -453,6 +486,7 @@ class Figure:
                 "meanline": {"visible": True},
             }
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
@@ -462,6 +496,7 @@ class Figure:
                 # "tickfont": {"family": "Courier New", "size": 14},
                 "tickangle": 90
             },
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -510,6 +545,7 @@ class Figure:
 
     def _plotBox_without_group(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
             data = {
@@ -525,12 +561,14 @@ class Figure:
                 "sd": data.loc[:, "std", :].values[0],
             }
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
             # "font": {"family": "Courier New"},
             "title": {"text": title},
             "hovermode": "x",
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -541,6 +579,7 @@ class Figure:
 
     def _plotBox_with_group(self, df, title=None):
         dataList = []
+        symbols = []
         for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
             data = {
@@ -556,6 +595,7 @@ class Figure:
                 "sd": data.loc[:, "std", :].values[0],
             }
             dataList.append(data)
+            symbols.append(symbol)
 
         layout = {
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
@@ -563,6 +603,7 @@ class Figure:
             "title": {"text": title},
             "boxmode": "group",
             "hovermode": "x",
+            "updatemenus": self._custom_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 

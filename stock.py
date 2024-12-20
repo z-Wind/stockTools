@@ -1121,6 +1121,10 @@ if __name__ == "__main__":
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 
     symbols = [
+        {"name": "VT", "remark": "國際大中小型股"},
+        {"name": "VT", "remark": "國際大中小型股_日正2", "daily_return_mul": 2},
+        {"name": "VOO", "remark": "S&P 500"},
+        {"name": "SSO", "remark": "S&P 500_真實日正2"},
         {"name": "VTI", "remark": "美股"},
         {"name": "VTI", "remark": "美股報酬_日正2", "daily_return_mul": 2},
         {"name": "VBR", "remark": "美小型價值股"},
@@ -1132,6 +1136,7 @@ if __name__ == "__main__":
         {"name": "VGK", "remark": "歐股報酬_日正2", "daily_return_mul": 2},
         {"name": "VWO", "remark": "新興市場股"},
         {"name": "VWO", "remark": "新興市場股報酬_日正2", "daily_return_mul": 2},
+        {"name": "EDC", "remark": "新興市場股報酬_真實日正3"},
         {"name": "VXUS", "remark": "國際大中小型股排美"},
         {
             "name": "VXUS",

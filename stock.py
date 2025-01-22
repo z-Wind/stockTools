@@ -28,6 +28,7 @@ class Stock:
     def __init__(
         self,
         symbol,
+        groups,
         remark="",
         start=None,
         end=None,
@@ -52,6 +53,7 @@ class Stock:
         %Y-%m-%d |   Float |  Float       |   Float      |    Int
         """
         self.symbol = symbol
+        self.groups = groups
         self.remark = remark
         self.name_width = name_width
         if start:
@@ -323,7 +325,6 @@ class Figure:
         image=False,
         name_width=7,
     ):
-        self.symbols = []
         self.start = start
         self.end = end
         self.prefix = prefix
@@ -343,6 +344,7 @@ class Figure:
                     Stock(
                         symbol["name"],
                         remark=symbol["remark"],
+                        groups=symbol["groups"],
                         start=start,
                         end=end,
                         extraDiv=symbol.get("extraDiv", {}),
@@ -353,7 +355,6 @@ class Figure:
                         daily_return_mul=symbol.get("daily_return_mul", None),
                     )
                 )
-                self.symbols.append(symbol)
             except:
                 print(f"{symbol} can not be created, it seems something wrong")
 
@@ -376,22 +377,46 @@ class Figure:
                 a[key] = b[key]
         return a
 
-    def _custom_button(self, symbols):
-        legendonly = []
+    def _group_button(self, symbols):
+        symbol_map = {}
+        for s in self.stocks:
+            symbol_map[s.name] = s.groups
+
+        group_map = {}
         for i, symbol in enumerate(symbols):
-            if symbol.endswith("正2") and "x2" in symbol:
-                legendonly.append(i)
+            symbol = symbol.removeprefix("A ").removeprefix("P ")
+            for group in symbol_map[symbol]:
+                arr = group_map.get(group, [False] * len(symbols))
+                arr[i] = True
+                group_map[group] = arr
+
+        # visible 兩種寫法
+        # 提供指定動作的 index
+        # "args": [{"visible": True}, arr]
+        # 提供所有設定
+        # "args": [{"visible": ["legendonly"] * len(symbols)}],
+        buttons = [
+            {
+                "args": [{"visible": [True] * len(symbols)}],
+                "args2": [{"visible": ["legendonly"] * len(symbols)}],
+                "label": "All",
+                "method": "restyle",
+            },
+        ]
+
+        for group, arr in group_map.items():
+            buttons.append(
+                {
+                    "args": [{"visible": arr}],
+                    "args2": [{"visible": [not elem for elem in arr]}],
+                    "label": group,
+                    "method": "restyle",
+                },
+            )
 
         updatemenus = [
             {
-                "buttons": [
-                    {
-                        "args": [{"visible": True}, legendonly],
-                        "args2": [{"visible": "legendonly"}, legendonly],
-                        "label": "正2",
-                        "method": "restyle",
-                    },
-                ],
+                "buttons": buttons,
                 "type": "buttons",
                 "font": {"color": "#AAAAAA"},
             }
@@ -412,7 +437,7 @@ class Figure:
             # "font": {"family": "Courier New"},
             "title": {"text": title},
             "hovermode": "x",
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -435,7 +460,7 @@ class Figure:
             "title": {"text": title},
             "barmode": "group",
             "hovermode": "x",
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -465,7 +490,7 @@ class Figure:
             # "font": {"family": "Courier New"},
             "xaxis": {"title": "End Date"},
             "hovermode": "x",
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -496,7 +521,7 @@ class Figure:
                 # "tickfont": {"family": "Courier New", "size": 14},
                 "tickangle": 90
             },
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -568,7 +593,7 @@ class Figure:
             # "font": {"family": "Courier New"},
             "title": {"text": title},
             "hovermode": "x",
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -603,7 +628,7 @@ class Figure:
             "title": {"text": title},
             "boxmode": "group",
             "hovermode": "x",
-            "updatemenus": self._custom_button(symbols),
+            "updatemenus": self._group_button(symbols),
         }
         layout = self._mergeDict(layout, self.default_layout)
 
@@ -962,8 +987,8 @@ class Figure:
             del stock
             del df1
 
-            data_stat_year[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeYear * 100
-            data_stat_year[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdYear * 100
+            data_stat_year[f"A {st.name}"] = activeYear * 100
+            data_stat_year[f"P {st.name}"] = holdYear * 100
 
         data_stat_year = pd.concat(data_stat_year)
 
@@ -990,8 +1015,8 @@ class Figure:
             del stock
             del df1
 
-            data_stat_all[f"{st.symbol:{self.name_width}s} A {st.remark}"] = activeAll * 100
-            data_stat_all[f"{st.symbol:{self.name_width}s} P {st.remark}"] = holdAll * 100
+            data_stat_all[f"A {st.name}"] = activeAll * 100
+            data_stat_all[f"P {st.name}"] = holdAll * 100
 
         data_stat_all = pd.concat(data_stat_all)
 
@@ -1051,158 +1076,240 @@ def report(
 
 if __name__ == "__main__":
     symbols = [
-        {"name": "^TWII", "remark": "臺灣加權指數"},
+        {"name": "^TWII", "remark": "臺灣加權指數", "groups": ["ETF"]},
         {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+            "groups": ["ETF"],
         },
         {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
         {
             "name": "^TAI50I",
             "remark": "臺灣50報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+            "groups": ["ETF"],
         },
         {
             "name": "^TAI50I",
             "remark": "臺灣50報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
         {
             "name": "^TAI100I",
             "remark": "臺灣中型100報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
+            "groups": ["ETF"],
         },
         {
             "name": "^TAI100I",
             "remark": "臺灣中型100報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
         {
             "name": "^TAIDIVIDI",
             "remark": "臺灣高股息報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
+            "groups": ["ETF"],
         },
         {
             "name": "^TAIDIVIDI",
             "remark": "臺灣高股息報酬指數_日正2",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True},
-        {"name": "00631L.TW", "remark": "元大台灣50正2"},
-        {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True},
-        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True},
-        {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True},
-        {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True},
-        {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True},
-        {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True},
-        {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True},
+        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
+        {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True, "groups": ["日正"]},
+        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True, "groups": ["個股"]},
         {
             "name": "2330.TW",
             "remark": "台積電",
             "replaceDiv": True,
             "dateDuplcatedCombine": True,
+            "groups": ["個股"],
         },
-        {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True},
-        {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True},
-        {"name": "3481.TW", "remark": "群創", "replaceDiv": True},
-        {"name": "2303.TW", "remark": "聯電", "replaceDiv": True},
-        {"name": "2308.TW", "remark": "台達電", "replaceDiv": True},
-        {"name": "2454.TW", "remark": "聯發科", "replaceDiv": True},
+        {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "3481.TW", "remark": "群創", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2303.TW", "remark": "聯電", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2308.TW", "remark": "台達電", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2454.TW", "remark": "聯發科", "replaceDiv": True, "groups": ["個股"]},
     ]
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 
     symbols = [
-        {"name": "IOO", "remark": "iShares 國際超大型股"},
-        {"name": "ACWI", "remark": "iShares 國際大中型股"},
-        {"name": "VT", "remark": "Vanguard 國際大中小型股"},
+        {"name": "IOO", "remark": "iShares 國際超大型股", "groups": ["國際股"]},
+        {"name": "ACWI", "remark": "iShares 國際大中型股", "groups": ["國際股"]},
+        {"name": "VT", "remark": "Vanguard 國際大中小型股", "groups": ["國際股", "Vanguard"]},
         {
             "name": "VT",
             "remark": "Vanguard 國際大中小型股_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "^GSPC", "remark": "S&P500指數"},
-        {"name": "^SP500TR", "remark": "S&P500報酬指數"},
-        {"name": "SPY", "remark": "SPDR S&P500"},
-        {"name": "IVV", "remark": "iShares S&P500"},
-        {"name": "VOO", "remark": "Vanguard S&P500"},
-        {"name": "SSO", "remark": "ProShares S&P500_真實日正2"},
-        {"name": "SPXL", "remark": "ProShares S&P500_真實日正3"},
-        {"name": "^NDX", "remark": "那斯達克100指數"},
-        {"name": "QQQ", "remark": "Invesco 那斯達克100"},
-        {"name": "QLD", "remark": "ProShares 那斯達克100_真實日正2"},
-        {"name": "TQQQ", "remark": "ProShares 那斯達克100_真實日正3"},
-        {"name": "^DJI", "remark": "道瓊工業平均指數"},
-        {"name": "DIA", "remark": "SPDR 道瓊"},
-        {"name": "DDM", "remark": "ProShares 道瓊_真實日正2"},
-        {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3"},
-        {"name": "ITOT", "remark": "iShares 美股"},
-        {"name": "VTI", "remark": "Vanguard 美股"},
-        {"name": "VTI", "remark": "Vanguard 美股報酬_日正2", "daily_return_mul": 2},
-        {"name": "VBR", "remark": "Vanguard 美小型價值股"},
-        {"name": "EFA", "remark": "iShares 歐太平洋大中型股"},
-        {"name": "IEFA", "remark": "iShares 歐太平洋大中小型股"},
-        {"name": "VEA", "remark": "Vanguard 歐太平洋大中小型股"},
+        {"name": "^GSPC", "remark": "S&P500指數", "groups": ["美股"]},
+        {"name": "^SP500TR", "remark": "S&P500報酬指數", "groups": ["美股"]},
+        {"name": "SPY", "remark": "SPDR S&P500", "groups": ["美股"]},
+        {"name": "IVV", "remark": "iShares S&P500", "groups": ["美股"]},
+        {"name": "VOO", "remark": "Vanguard S&P500", "groups": ["美股", "Vanguard"]},
+        {
+            "name": "SSO",
+            "remark": "ProShares S&P500_真實日正2",
+            "groups": ["日正"],
+        },
+        {
+            "name": "SPXL",
+            "remark": "ProShares S&P500_真實日正3",
+            "groups": ["日正"],
+        },
+        {"name": "^NDX", "remark": "那斯達克100指數", "groups": ["美股"]},
+        {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股"]},
+        {
+            "name": "QLD",
+            "remark": "ProShares 那斯達克100_真實日正2",
+            "groups": ["日正"],
+        },
+        {
+            "name": "TQQQ",
+            "remark": "ProShares 那斯達克100_真實日正3",
+            "groups": ["日正"],
+        },
+        {"name": "^DJI", "remark": "道瓊工業平均指數", "groups": ["美股"]},
+        {"name": "DIA", "remark": "SPDR 道瓊", "groups": ["美股"]},
+        {"name": "DDM", "remark": "ProShares 道瓊_真實日正2", "groups": ["日正"]},
+        {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
+        {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
+        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["美股", "Vanguard"]},
+        {
+            "name": "VTI",
+            "remark": "Vanguard 美股報酬_日正2",
+            "daily_return_mul": 2,
+            "groups": ["日正"],
+        },
+        {"name": "IJS", "remark": "iShares 美小型價值股", "groups": ["美股"]},
+        {"name": "VBR", "remark": "Vanguard 美小型價值股", "groups": ["美股", "Vanguard"]},
+        {"name": "EFA", "remark": "iShares 歐太平洋大中型股", "groups": ["歐太平洋股"]},
+        {"name": "IEFA", "remark": "iShares 歐太平洋大中小型股", "groups": ["歐太平洋股"]},
+        {
+            "name": "VEA",
+            "remark": "Vanguard 歐太平洋大中小型股",
+            "groups": ["歐太平洋股", "Vanguard"],
+        },
         {
             "name": "VEA",
             "remark": "Vanguard 歐太平洋股報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "IPAC", "remark": "iShares 太平洋股"},
-        {"name": "VPL", "remark": "Vanguard 太平洋股"},
-        {"name": "VPL", "remark": "Vanguard 太平洋股報酬_日正2", "daily_return_mul": 2},
-        {"name": "IEUR", "remark": "iShares 歐股"},
-        {"name": "VGK", "remark": "Vanguard 歐股"},
-        {"name": "VGK", "remark": "Vanguard 歐股報酬_日正2", "daily_return_mul": 2},
-        {"name": "EEM", "remark": "iShares 新興市場大中型股"},
-        {"name": "IEMG", "remark": "iShares 新興市場大中小型股"},
-        {"name": "VWO", "remark": "Vanguard 新興市場大中小型股"},
+        {"name": "IPAC", "remark": "iShares 太平洋股", "groups": ["太平洋股"]},
+        {"name": "VPL", "remark": "Vanguard 太平洋股", "groups": ["太平洋股", "Vanguard"]},
+        {
+            "name": "VPL",
+            "remark": "Vanguard 太平洋股報酬_日正2",
+            "daily_return_mul": 2,
+            "groups": ["日正"],
+        },
+        {"name": "IEUR", "remark": "iShares 歐股", "groups": ["歐股"]},
+        {"name": "VGK", "remark": "Vanguard 歐股", "groups": ["歐股", "Vanguard"]},
+        {
+            "name": "VGK",
+            "remark": "Vanguard 歐股報酬_日正2",
+            "daily_return_mul": 2,
+            "groups": ["日正"],
+        },
+        {"name": "EEM", "remark": "iShares 新興市場大中型股", "groups": ["新興市場"]},
+        {"name": "IEMG", "remark": "iShares 新興市場大中小型股", "groups": ["新興市場"]},
+        {
+            "name": "VWO",
+            "remark": "Vanguard 新興市場大中小型股",
+            "groups": ["新興市場", "Vanguard"],
+        },
         {
             "name": "VWO",
             "remark": "Vanguard 新興市場股報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "EDC", "remark": "Direxion 新興市場股報酬_真實日正3"},
-        {"name": "IXUS", "remark": "iShares 國際大中小型股排美"},
-        {"name": "VXUS", "remark": "Vanguard 國際大中小型股排美"},
+        {
+            "name": "EDC",
+            "remark": "Direxion 新興市場股報酬_真實日正3",
+            "groups": ["日正"],
+        },
+        {"name": "IXUS", "remark": "iShares 國際大中小型股排美", "groups": ["國際股排美"]},
+        {
+            "name": "VXUS",
+            "remark": "Vanguard 國際大中小型股排美",
+            "groups": ["國際股排美", "Vanguard"],
+        },
         {
             "name": "VXUS",
             "remark": "Vanguard 國際大中小型股排美報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "VEU", "remark": "Vanguard 國際大中型股排美"},
+        {
+            "name": "VEU",
+            "remark": "Vanguard 國際大中型股排美",
+            "groups": ["國際股排美", "Vanguard"],
+        },
         {
             "name": "VEU",
             "remark": "Vanguard 國際大中型股排美報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "AGG", "remark": "iShares 美債"},
-        {"name": "BND", "remark": "Vanguard 美債"},
-        {"name": "BND", "remark": "Vanguard 美債報酬_日正2", "daily_return_mul": 2},
-        {"name": "IAGG", "remark": "iShares 國際債美元避險排美"},
-        {"name": "BNDX", "remark": "Vanguard 國際債美元避險排美"},
+        {"name": "AGG", "remark": "iShares 美債", "groups": ["美債"]},
+        {"name": "BND", "remark": "Vanguard 美債", "groups": ["美債", "Vanguard"]},
+        {
+            "name": "BND",
+            "remark": "Vanguard 美債報酬_日正2",
+            "daily_return_mul": 2,
+            "groups": ["日正"],
+        },
+        {"name": "IAGG", "remark": "iShares 國際債美元避險排美", "groups": ["國際債排美"]},
+        {
+            "name": "BNDX",
+            "remark": "Vanguard 國際債美元避險排美",
+            "groups": ["國際債排美", "Vanguard"],
+        },
         {
             "name": "BNDX",
             "remark": "Vanguard 國際債美元避險排美報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "BWX", "remark": "SPDR 國際政府債排美"},
+        {"name": "BWX", "remark": "SPDR 國際政府債排美", "groups": ["國際債排美"]},
         {
             "name": "BWX",
             "remark": "SPDR 國際政府債排美報酬_日正2",
             "daily_return_mul": 2,
+            "groups": ["日正"],
         },
-        {"name": "IYR", "remark": "iShares 美房地產"},
-        {"name": "VNQ", "remark": "Vanguard 美房地產"},
-        {"name": "VNQ", "remark": "Vanguard 美房地產報酬_日正2", "daily_return_mul": 2},
+        {"name": "IYR", "remark": "iShares 美房地產", "groups": ["美房地產"]},
+        {"name": "VNQ", "remark": "Vanguard 美房地產", "groups": ["美房地產", "Vanguard"]},
+        {
+            "name": "VNQ",
+            "remark": "Vanguard 美房地產報酬_日正2",
+            "daily_return_mul": 2,
+            "groups": ["日正"],
+        },
     ]
     report(symbols, prefix="US", name_width=6)
 

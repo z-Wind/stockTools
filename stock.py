@@ -1199,7 +1199,8 @@ if __name__ == "__main__":
         {"name": "DDM", "remark": "ProShares 道瓊_真實日正2", "groups": ["日正"]},
         {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
         {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
-        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["美股", "Vanguard"]},
+        {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
+        {"name": "SPTM", "remark": "SPDR 美股", "groups": ["美股", "Vanguard"]},
         {
             "name": "VTI",
             "remark": "Vanguard 美股報酬_日正2",
@@ -1211,6 +1212,7 @@ if __name__ == "__main__":
         {"name": "EFA", "remark": "iShares 已開發國家exUS大中型股", "groups": ["已開發國家exUS"]},
         {"name": "IEFA", "remark": "iShares 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
         {"name": "SPDW", "remark": "SPDR 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
+        {"name": "SCHF", "remark": "Schwab 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
         {
             "name": "VEA",
             "remark": "Vanguard 已開發國家exUS大中小型股",
@@ -1242,6 +1244,7 @@ if __name__ == "__main__":
         {"name": "EEM", "remark": "iShares 新興市場大中型股", "groups": ["新興市場"]},
         {"name": "IEMG", "remark": "iShares 新興市場大中小型股", "groups": ["新興市場"]},
         {"name": "SPEM", "remark": "SPDR 新興市場大中小型股", "groups": ["新興市場"]},
+        {"name": "SCHE", "remark": "Schwab 新興市場大中小型股", "groups": ["新興市場"]},
         {
             "name": "VWO",
             "remark": "Vanguard 新興市場大中小型股",

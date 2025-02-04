@@ -1167,6 +1167,7 @@ if __name__ == "__main__":
         {"name": "^GSPC", "remark": "S&P500指數", "groups": ["美股"]},
         {"name": "^SP500TR", "remark": "S&P500報酬指數", "groups": ["美股"]},
         {"name": "SPY", "remark": "SPDR S&P500", "groups": ["美股"]},
+        {"name": "SPLG", "remark": "SPDR S&P500", "groups": ["美股"]},
         {"name": "IVV", "remark": "iShares S&P500", "groups": ["美股"]},
         {"name": "VOO", "remark": "Vanguard S&P500", "groups": ["美股", "Vanguard"]},
         {
@@ -1181,6 +1182,7 @@ if __name__ == "__main__":
         },
         {"name": "^NDX", "remark": "那斯達克100指數", "groups": ["美股"]},
         {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股"]},
+        {"name": "QQQM", "remark": "Invesco 那斯達克100", "groups": ["美股"]},
         {
             "name": "QLD",
             "remark": "ProShares 那斯達克100_真實日正2",
@@ -1193,6 +1195,7 @@ if __name__ == "__main__":
         },
         {"name": "^DJI", "remark": "道瓊工業平均指數", "groups": ["美股"]},
         {"name": "DIA", "remark": "SPDR 道瓊", "groups": ["美股"]},
+        {"name": "SCHB", "remark": "Schwab 道瓊", "groups": ["美股"]},
         {"name": "DDM", "remark": "ProShares 道瓊_真實日正2", "groups": ["日正"]},
         {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
         {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
@@ -1205,16 +1208,17 @@ if __name__ == "__main__":
         },
         {"name": "IJS", "remark": "iShares 美小型價值股", "groups": ["美股"]},
         {"name": "VBR", "remark": "Vanguard 美小型價值股", "groups": ["美股", "Vanguard"]},
-        {"name": "EFA", "remark": "iShares 歐太平洋大中型股", "groups": ["歐太平洋股"]},
-        {"name": "IEFA", "remark": "iShares 歐太平洋大中小型股", "groups": ["歐太平洋股"]},
+        {"name": "EFA", "remark": "iShares 已開發國家exUS大中型股", "groups": ["已開發國家exUS"]},
+        {"name": "IEFA", "remark": "iShares 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
+        {"name": "SPDW", "remark": "SPDR 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
         {
             "name": "VEA",
-            "remark": "Vanguard 歐太平洋大中小型股",
-            "groups": ["歐太平洋股", "Vanguard"],
+            "remark": "Vanguard 已開發國家exUS大中小型股",
+            "groups": ["已開發國家exUS", "Vanguard"],
         },
         {
             "name": "VEA",
-            "remark": "Vanguard 歐太平洋股報酬_日正2",
+            "remark": "Vanguard 已開發國家exUS股報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
@@ -1227,6 +1231,7 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
         {"name": "IEUR", "remark": "iShares 歐股", "groups": ["歐股"]},
+        {"name": "SPEU", "remark": "SPDR 歐股", "groups": ["歐股"]},
         {"name": "VGK", "remark": "Vanguard 歐股", "groups": ["歐股", "Vanguard"]},
         {
             "name": "VGK",
@@ -1236,6 +1241,7 @@ if __name__ == "__main__":
         },
         {"name": "EEM", "remark": "iShares 新興市場大中型股", "groups": ["新興市場"]},
         {"name": "IEMG", "remark": "iShares 新興市場大中小型股", "groups": ["新興市場"]},
+        {"name": "SPEM", "remark": "SPDR 新興市場大中小型股", "groups": ["新興市場"]},
         {
             "name": "VWO",
             "remark": "Vanguard 新興市場大中小型股",
@@ -1276,6 +1282,7 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
         {"name": "AGG", "remark": "iShares 美債", "groups": ["美債"]},
+        {"name": "SPAB", "remark": "SPDR 美債", "groups": ["美債"]},
         {"name": "BND", "remark": "Vanguard 美債", "groups": ["美債", "Vanguard"]},
         {
             "name": "BND",
@@ -1303,6 +1310,7 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
         {"name": "IYR", "remark": "iShares 美房地產", "groups": ["美房地產"]},
+        {"name": "XLRE", "remark": "SPDR 美房地產", "groups": ["美房地產"]},
         {"name": "VNQ", "remark": "Vanguard 美房地產", "groups": ["美房地產", "Vanguard"]},
         {
             "name": "VNQ",
@@ -1311,7 +1319,7 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
     ]
-    report(symbols, prefix="US", name_width=6)
+    report(symbols, prefix="US", iYear=3, name_width=6)
 
     # symbols = [
     # # {"name": "00646.TW", "remark": "元大S&P 500", "replaceDiv": True},

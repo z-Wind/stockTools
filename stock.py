@@ -150,6 +150,7 @@ class Stock:
         hist = hist[pd.to_numeric(hist["Close"], errors="coerce").notnull()]
 
         data = self._calAdjClose(hist)
+        # data.to_csv(self.symbol + ".csv")
         if self.daily_return_mul:
             data = self._adj_hist_by_daily_return_mul(data)
             self.symbol = f"{self.symbol}x{self.daily_return_mul}"
@@ -169,7 +170,6 @@ class Stock:
         div = df[["Dividends"]].copy()
         if self.replaceDiv:
             div.loc[:, "Dividends"] = 0
-
         div = div[div["Dividends"] != 0]
 
         for date, divVal in self.extraDiv.items():
@@ -181,6 +181,11 @@ class Stock:
             div.loc[dt, "Dividends"] = divVal
 
         div = div.reset_index()
+
+        split = df[["Stock Splits"]].copy()
+        split = split[split["Stock Splits"] != 0]
+        split = split.reset_index()
+
         print(self.name)
 
         data = df.reset_index().copy()
@@ -189,14 +194,26 @@ class Stock:
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
             return data.sort_values("Date")
 
-        print(div)
+        print(split)
 
         data.loc[:, "Adj Close Cal"] = 0.0
         data.loc[:, "Adj Ratio"] = 1.0
 
+        # yahoo 已先做過 split 的價格調整，所以股息也要調整，ratio 才會對
+        div.loc[:, "Adj Dividends"] = div.loc[:, "Dividends"]
+        for i, row in split.iterrows():
+            splitDate = row.Date
+            splitVal = 1 / row["Stock Splits"]
+            if div["Date"][div["Date"] >= splitDate].empty:
+                continue
+            index = div["Date"] < splitDate
+            if index.any():
+                div.loc[index, "Adj Dividends"] = div.loc[index, "Dividends"] * splitVal
+        print(div)
+
         for i, row in div.iterrows():
             divDate = row.Date
-            divVal = row.Dividends
+            divVal = row["Adj Dividends"]
             if data["Date"][data["Date"] >= divDate].empty:
                 continue
             index = data["Date"] < divDate
@@ -355,8 +372,8 @@ class Figure:
                         daily_return_mul=symbol.get("daily_return_mul", None),
                     )
                 )
-            except:
-                print(f"{symbol} can not be created, it seems something wrong")
+            except Exception as error:
+                print(f"{symbol} can not be created, it seems something wrong {error}")
 
     def _mergeDict(self, a, b, path=None, overwrite=False):
         "merges b into a"
@@ -416,6 +433,7 @@ class Figure:
 
         updatemenus = [
             {
+                "y": 0.9,
                 "buttons": buttons,
                 "type": "buttons",
                 "font": {"color": "#AAAAAA"},
@@ -480,6 +498,35 @@ class Figure:
                 "y": data,
                 "fill": "tozeroy",
                 "mode": "none",
+            }
+            dataList.append(data)
+            symbols.append(symbol)
+
+        layout = {
+            # "title": {"text": title, "font": {"family": "Times New Roman"}},
+            "title": {"text": title},
+            # "font": {"family": "Courier New"},
+            "xaxis": {"title": "End Date"},
+            "hovermode": "x",
+            "updatemenus": self._group_button(symbols),
+        }
+        layout = self._mergeDict(layout, self.default_layout)
+
+        graph = {"data": dataList, "layout": layout}
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotLine_without_markers(self, df, title=None):
+        dataList = []
+        symbols = []
+        for symbol, data in df.items():
+            data = {
+                "type": "scatter",
+                "name": symbol,
+                "x": data.index,
+                "y": data,
+                "mode": "lines",
             }
             dataList.append(data)
             symbols.append(symbol)
@@ -871,7 +918,7 @@ class Figure:
         start = df.index[0] - pd.DateOffset(years=self.iYear)
         end = df.index[-1]
 
-        area = self._plotArea(
+        lines = self._plotLine_without_markers(
             df,
             title=(
                 f"<b>{self.iYear} Years Roll Back<b><br>"
@@ -902,7 +949,7 @@ class Figure:
             ),
         )
 
-        return area, violin
+        return lines, violin
 
     def correlation_heatmap(self):
         # =========================================================================
@@ -1198,9 +1245,10 @@ if __name__ == "__main__":
         {"name": "SCHB", "remark": "Schwab 道瓊", "groups": ["美股"]},
         {"name": "DDM", "remark": "ProShares 道瓊_真實日正2", "groups": ["日正"]},
         {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
+        {"name": "IWV", "remark": "iShares 羅素3000", "groups": ["美股"]},
         {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
-        {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
-        {"name": "SPTM", "remark": "SPDR 美股", "groups": ["美股", "Vanguard"]},
+        {"name": "SPTM", "remark": "SPDR 美股", "groups": ["美股"]},
+        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["美股", "Vanguard"]},
         {
             "name": "VTI",
             "remark": "Vanguard 美股報酬_日正2",
@@ -1209,18 +1257,21 @@ if __name__ == "__main__":
         },
         {"name": "IJS", "remark": "iShares 美小型價值股", "groups": ["美股"]},
         {"name": "VBR", "remark": "Vanguard 美小型價值股", "groups": ["美股", "Vanguard"]},
-        {"name": "EFA", "remark": "iShares 已開發國家exUS大中型股", "groups": ["已開發國家exUS"]},
-        {"name": "IEFA", "remark": "iShares 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
-        {"name": "SPDW", "remark": "SPDR 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
-        {"name": "SCHF", "remark": "Schwab 已開發國家exUS大中小型股", "groups": ["已開發國家exUS"]},
+        {"name": "EFA", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
+        {
+            "name": "IEFA",
+            "remark": "iShares 已開發國家大中小型股排美",
+            "groups": ["已開發國家排美"],
+        },
+        {"name": "SCHF", "remark": "Schwab 已開發國家大中小型股排美", "groups": ["已開發國家排美"]},
         {
             "name": "VEA",
-            "remark": "Vanguard 已開發國家exUS大中小型股",
-            "groups": ["已開發國家exUS", "Vanguard"],
+            "remark": "Vanguard 已開發國家大中小型股排美",
+            "groups": ["已開發國家排美", "Vanguard"],
         },
         {
             "name": "VEA",
-            "remark": "Vanguard 已開發國家exUS股報酬_日正2",
+            "remark": "Vanguard 已開發國家排美股報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
@@ -1262,6 +1313,7 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
         {"name": "IXUS", "remark": "iShares 國際大中小型股排美", "groups": ["國際股排美"]},
+        {"name": "SPDW", "remark": "SPDR 國際大中小型股排美", "groups": ["國際股排美"]},
         {
             "name": "VXUS",
             "remark": "Vanguard 國際大中小型股排美",

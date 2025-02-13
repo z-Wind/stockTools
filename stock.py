@@ -1338,6 +1338,9 @@ if __name__ == "__main__":
         },
         {"name": "AGG", "remark": "iShares 美債", "groups": ["美債"]},
         {"name": "SPAB", "remark": "SPDR 美債", "groups": ["美債"]},
+        {"name": "TIP", "remark": "iShares 美抗通膨債", "groups": ["美債"]},
+        {"name": "SCHP", "remark": "Schwab 美抗通膨債", "groups": ["美債"]},
+        {"name": "SPIP", "remark": "SPDR 美抗通膨債", "groups": ["美債"]},
         {"name": "BND", "remark": "Vanguard 美債", "groups": ["美債", "Vanguard"]},
         {
             "name": "BND",

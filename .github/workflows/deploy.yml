@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "yfinance==0.2.42" "pandas==2.2.2" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.23.0" "requests==2.32.3" "numpy==2.1.0" "maturin==1.7.0" "pyxirr==0.10.5"
+          pip install "yfinance>=0.2,<0.3" "pandas==2.2.2" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.23.0" "requests==2.32.3" "numpy==2.1.0" "maturin==1.7.0" "pyxirr==0.10.5"
 
       - working-directory: ./FFI/rust_pyo3
         run: |

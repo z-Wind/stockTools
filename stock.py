@@ -166,8 +166,20 @@ class Stock:
             data["Date"].dt.date <= self.end.date()
         )
         data = data[index]
+        self.start = data.iloc[0]["Date"]
+        self.end = data.iloc[-1]["Date"]
 
         return data
+
+    def set_end_datetime(self, end):
+        self.end = end
+        index = self.history["Date"].dt.date <= self.end.date()
+        self.history = self.history[index]
+
+    def set_start_datetime(self, start):
+        self.start = start
+        index = self.start.date() <= self.history["Date"].dt.date
+        self.history = self.history[index]
 
     def _calAdjClose(self, df):
         div = df[["Dividends"]].copy()
@@ -288,8 +300,8 @@ class Stock:
         return day_return
 
     def rollback(self, iYear):
-        start = self.rawData["Date"].iloc[0]
-        end = self.rawData["Date"].iloc[-1]
+        start = self.history["Date"].iloc[0]
+        end = self.history["Date"].iloc[-1]
         if end < start + relativedelta(years=iYear):
             raise ValueError(f"{self.name}: raw data {start} - {end} 間隔時間小於 iYear:{iYear}")
 
@@ -377,6 +389,10 @@ class Figure:
                 )
             except Exception as error:
                 print(f"{symbol} can not be created, it seems something wrong {error}")
+
+        end = min([stock.end for stock in self.stocks])
+        for stock in self.stocks:
+            stock.set_end_datetime(end)
 
     def _mergeDict(self, a, b, path=None, overwrite=False):
         "merges b into a"
@@ -710,6 +726,15 @@ class Figure:
                 "visible": i == 0,
             }
 
+            histogram_dailyreturn = {
+                "type": "histogram",
+                "name": symbol,
+                "x": df["Return"],
+                "visible": i == 0,
+                "xaxis": "x4",
+                "yaxis": "y4",
+            }
+
             cumgains = 100.0 * (df["Return"].map(lambda x: 1 + x / 100.0).cumprod() - 1.0)
             missedgains = {
                 "type": "bar",
@@ -732,12 +757,13 @@ class Figure:
                 "yaxis": "y3",
             }
 
-            dataList.extend([missedgains, avoidedlosses, dailyreturn])
+            dataList.extend([missedgains, avoidedlosses, histogram_dailyreturn, dailyreturn])
 
-            visible = [False] * 3 * len(data)
-            visible[i * 3] = True
-            visible[i * 3 + 1] = True
-            visible[i * 3 + 2] = True
+            visible = [False] * 4 * len(data)
+            visible[i * 4] = True
+            visible[i * 4 + 1] = True
+            visible[i * 4 + 2] = True
+            visible[i * 4 + 3] = True
 
             title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
             if i == 0:
@@ -761,10 +787,10 @@ class Figure:
                 }
             ],
             "grid": {
-                "rows": 3,
+                "rows": 4,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x2y2"], ["x2y3"], ["xy"]],
+                "subplots": [["x2y2"], ["x2y3"], ["x4y4"], ["xy"]],
             },
             "showlegend": False,
             "annotations": [
@@ -781,6 +807,13 @@ class Figure:
                     "showarrow": False,
                     "xref": "x2",
                     "yref": "y3",
+                },
+                {
+                    "text": "<b>Daily Return<b>",
+                    "align": "left",
+                    "showarrow": False,
+                    "xref": "x4",
+                    "yref": "y4",
                 },
                 {
                     "text": "<b>Daily Return<b>",

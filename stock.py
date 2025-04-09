@@ -452,7 +452,11 @@ class Figure:
 
         updatemenus = [
             {
-                "y": 0.9,
+                "x": 0.51,
+                "y": 1.05,
+                "xanchor": "center",
+                "yanchor": "bottom",
+                "pad": {"r": 10, "t": 10},
                 "buttons": buttons,
                 "type": "dropdown",
                 "direction": "down",
@@ -792,9 +796,15 @@ class Figure:
             "height": "1300",
             "updatemenus": [
                 {
-                    "x": 1,
-                    "font": {"color": "#AAAAAA"},
+                    "x": 0.4,
+                    "y": 1.02,
+                    "xanchor": "left",
+                    "yanchor": "top",
+                    "pad": {"r": 10, "t": 10},
                     "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
                 }
             ],
             "grid": {

@@ -269,7 +269,7 @@ class Stock:
         for y in years:
             yearData = data[data.Date.dt.year == y]
             end = yearData.iloc[-1]["Adj Close Cal"]
-            yearReturn[y] = (end - first) / first * 100
+            yearReturn[y] = (end - first) / first
             first = end
 
         df = pd.DataFrame(yearReturn, index=[self.name])
@@ -282,7 +282,7 @@ class Stock:
 
         first = data.iloc[0]["Adj Close Cal"]
         end = data.iloc[-1]["Adj Close Cal"]
-        totalReturn = (end - first) / first * 100
+        totalReturn = (end - first) / first
 
         return totalReturn
 
@@ -292,7 +292,7 @@ class Stock:
 
         pre = data.iloc[:-1].reset_index()
         cur = data.iloc[1:].reset_index()
-        day_return = (cur["Adj Close Cal"] - pre["Adj Close Cal"]) / pre["Adj Close Cal"] * 100.0
+        day_return = (cur["Adj Close Cal"] - pre["Adj Close Cal"]) / pre["Adj Close Cal"]
         day_return = day_return.to_frame("Return")
         day_return["Start"] = pre["Date"]
         day_return["End"] = cur["Date"]
@@ -318,10 +318,7 @@ class Stock:
             pairs.append((start, row))
 
         t = [p[1]["Date"] for p in pairs]
-        r = [
-            (p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"]) / p[0]["Adj Close Cal"] * 100
-            for p in pairs
-        ]
+        r = [(p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"]) / p[0]["Adj Close Cal"] for p in pairs]
 
         df = pd.DataFrame({self.name: r}, index=t)
 
@@ -338,7 +335,10 @@ class Figure:
             "tickfont": {"family": "Courier New", "size": 14},
             "automargin": True,
         },
-        "yaxis": {"tickfont": {"family": "Courier New"}, "automargin": True},
+        "yaxis": {
+            "tickfont": {"family": "Courier New"},
+            "automargin": True,
+        },
         "plot_bgcolor": "#000",
         "paper_bgcolor": "#000",
     }
@@ -731,30 +731,28 @@ class Figure:
                 "name": symbol,
                 "x": df["Return"],
                 "visible": i == 0,
-                "xaxis": "x4",
-                "yaxis": "y4",
+                "xaxis": "x2",
+                "yaxis": "y2",
             }
 
-            cumgains = 100.0 * (df["Return"].map(lambda x: 1 + x / 100.0).cumprod() - 1.0)
+            cumgains = df["Return"].map(lambda x: 1 + x).cumprod() - 1.0
             missedgains = {
                 "type": "bar",
                 "name": symbol,
                 "y": cumgains.iloc[-1:-102:-1],
                 "visible": i == 0,
-                "xaxis": "x2",
-                "yaxis": "y2",
+                "xaxis": "x3",
+                "yaxis": "y3",
             }
 
-            cumlosses = 100.0 * (
-                df["Return"].iloc[::-1].map(lambda x: 1 + x / 100.0).cumprod() - 1.0
-            )
+            cumlosses = df["Return"].iloc[::-1].map(lambda x: 1 + x).cumprod() - 1.0
             avoidedlosses = {
                 "type": "bar",
                 "name": symbol,
                 "y": cumlosses.iloc[-1:-102:-1],
                 "visible": i == 0,
-                "xaxis": "x2",
-                "yaxis": "y3",
+                "xaxis": "x3",
+                "yaxis": "y4",
             }
 
             dataList.extend([missedgains, avoidedlosses, histogram_dailyreturn, dailyreturn])
@@ -766,17 +764,30 @@ class Figure:
             visible[i * 4 + 3] = True
 
             title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
+            return_range = [min(df["Return"]) - 0.01, max(df["Return"] + 0.01)]
             if i == 0:
                 title_init = title
+                range_init = return_range
             button = {
                 "method": "update",
-                "args": [{"visible": visible}, {"title": {"text": title}}],
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                        "yaxis.range": return_range,
+                        "xaxis2.range": return_range,
+                    },
+                ],
                 "label": symbol,
             }
             buttons.append(button)
 
         layout = {
-            "title": title_init,
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
             "hovermode": "x",
             "height": "1300",
             "updatemenus": [
@@ -790,30 +801,34 @@ class Figure:
                 "rows": 4,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x2y2"], ["x2y3"], ["x4y4"], ["xy"]],
+                "subplots": [["x3y3"], ["x3y4"], ["x2y2"], ["xy"]],
             },
+            "yaxis": {"tickformat": ".2%", "range": range_init},
+            "yaxis3": {"tickformat": ".2%"},
+            "yaxis4": {"tickformat": ".2%"},
+            "xaxis2": {"tickformat": ".2%", "range": range_init},
             "showlegend": False,
             "annotations": [
                 {
                     "text": "<b>Missed Gains<b>",
                     "align": "center",
                     "showarrow": False,
-                    "xref": "x2",
-                    "yref": "y2",
+                    "xref": "x3",
+                    "yref": "y3",
                 },
                 {
                     "text": "<b>Avoided Losses<b>",
                     "align": "center",
                     "showarrow": False,
-                    "xref": "x2",
-                    "yref": "y3",
+                    "xref": "x3",
+                    "yref": "y4",
                 },
                 {
                     "text": "<b>Daily Return<b>",
                     "align": "left",
                     "showarrow": False,
-                    "xref": "x4",
-                    "yref": "y4",
+                    "xref": "x2",
+                    "yref": "y2",
                 },
                 {
                     "text": "<b>Daily Return<b>",
@@ -843,7 +858,11 @@ class Figure:
         df = pd.concat(data, axis=1)
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
-        return self._plotBar_with_group(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
+        graph = self._plotBar_with_group(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+
+        return graph
 
     def intersection_history(self):
         if self.intersection_history_val is not None:
@@ -874,7 +893,7 @@ class Figure:
         start = df.index[0]
         end = df.index[-1]
 
-        df = (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :] * 100
+        df = (df.iloc[-1, :] - df.iloc[0, :]) / df.iloc[0, :]
 
         df = df.to_frame().T
 
@@ -887,17 +906,26 @@ class Figure:
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar_without_group(df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>")
+        graph = self._plotBar_without_group(
+            df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>"
+        )
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+        return graph
 
     def irr_bar(self):
         start, end, df = self.total_return()
         df = df.rename(index={"Total Return": "IRR"})
         year = pd.Timedelta(end - start).days / 365.0
-        df = df.map(lambda x: 100 * ((1 + x / 100) ** (1 / year) - 1))
+        df = df.map(lambda x: ((1 + x) ** (1 / year) - 1))
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar_without_group(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+        graph = self._plotBar_without_group(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+
+        return graph
 
     def year_regular_saving_plan_irr(self):
         df = self.intersection_history()
@@ -929,7 +957,7 @@ class Figure:
         data = {}
         for symbol, amount in amounts.items():
             r = xirr(dates, amount)
-            data[symbol] = [r * 100.0]
+            data[symbol] = [r]
 
         df = pd.DataFrame(data, index=["RSP_IRR"])
         return start, end, df
@@ -939,9 +967,13 @@ class Figure:
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 
-        return self._plotBar_without_group(
+        graph = self._plotBar_without_group(
             df, title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>"
         )
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+
+        return graph
 
     def roll_back_graph(self):
         # =========================================================================
@@ -965,6 +997,8 @@ class Figure:
                 f" {end.strftime('%Y/%m/%d')}<i>"
             ),
         )
+        lines = self._mergeDict(json.loads(lines), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        lines = json.dumps(lines)
 
         # =========================================================================
         # violin
@@ -985,6 +1019,8 @@ class Figure:
                 f" {end.strftime('%Y/%m/%d')}<i>"
             ),
         )
+        violin = self._mergeDict(json.loads(violin), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        violin = json.dumps(violin)
 
         return lines, violin
 
@@ -1071,8 +1107,8 @@ class Figure:
             del stock
             del df1
 
-            data_stat_year[f"A {st.name}"] = activeYear * 100
-            data_stat_year[f"P {st.name}"] = holdYear * 100
+            data_stat_year[f"A {st.name}"] = activeYear
+            data_stat_year[f"P {st.name}"] = holdYear
 
         data_stat_year = pd.concat(data_stat_year)
 
@@ -1080,6 +1116,10 @@ class Figure:
             data_stat_year,
             title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>"),
         )
+        annual_return = self._mergeDict(
+            json.loads(annual_return), {"layout": {"yaxis": {"tickformat": ".2%"}}}
+        )
+        annual_return = json.dumps(annual_return)
 
         # =========================================================================
         # all
@@ -1099,8 +1139,8 @@ class Figure:
             del stock
             del df1
 
-            data_stat_all[f"A {st.name}"] = activeAll * 100
-            data_stat_all[f"P {st.name}"] = holdAll * 100
+            data_stat_all[f"A {st.name}"] = activeAll
+            data_stat_all[f"P {st.name}"] = holdAll
 
         data_stat_all = pd.concat(data_stat_all)
 
@@ -1114,6 +1154,10 @@ class Figure:
                 f" {end.strftime('%Y/%m/%d')}<i>"
             ),
         )
+        total_return = self._mergeDict(
+            json.loads(total_return), {"layout": {"yaxis": {"tickformat": ".2%"}}}
+        )
+        total_return = json.dumps(total_return)
 
         return total_return, annual_return
 

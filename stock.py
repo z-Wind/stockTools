@@ -67,6 +67,7 @@ class Stock:
 
         self.dateDuplcatedCombine = dateDuplcatedCombine
         self.history = self._getHistory(fromPath)
+        self.rollback_map = {}
 
     def _getDiv_TW(self):
         try:
@@ -300,6 +301,9 @@ class Stock:
         return day_return
 
     def rollback(self, iYear):
+        if self.rollback_map.get(iYear) is not None:
+            return self.rollback_map[iYear]
+
         start = self.history["Date"].iloc[0]
         end = self.history["Date"].iloc[-1]
         if end < start + relativedelta(years=iYear):
@@ -322,7 +326,10 @@ class Stock:
 
         df = pd.DataFrame({self.name: r}, index=t)
 
-        return df.sort_index()
+        rollback = df.sort_index()
+        self.rollback_map[iYear] = rollback
+
+        return rollback
 
 
 class Figure:
@@ -459,7 +466,7 @@ class Figure:
                 "pad": {"r": 10, "t": 10},
                 "buttons": buttons,
                 "type": "dropdown",
-                "direction": "down",
+                "direction": "right",
                 "font": {"color": "#AAAAAA"},
             }
         ]
@@ -711,12 +718,12 @@ class Figure:
     def _plotDailyReturn(self, data):
         dataList = []
         buttons = []
-        for i, (symbol, df) in enumerate(data):
-            start = df["Start"].iat[0].strftime("%Y/%m/%d")
-            end = df["End"].iat[-1].strftime("%Y/%m/%d")
-            df = df.sort_values(by=["Return"])
+        for i, (symbol, df_daily, df_rollback) in enumerate(data):
+            start = df_daily["Start"].iat[0].strftime("%Y/%m/%d")
+            end = df_daily["End"].iat[-1].strftime("%Y/%m/%d")
+            df_daily = df_daily.sort_values(by=["Return"])
 
-            x = df.apply(
+            x = df_daily.apply(
                 lambda x: "{}~{}".format(
                     x["Start"].strftime("%Y/%m/%d"), x["End"].strftime("%Y/%m/%d")
                 ),
@@ -726,20 +733,20 @@ class Figure:
                 "type": "bar",
                 "name": symbol,
                 "x": x,
-                "y": df["Return"],
+                "y": df_daily["Return"],
                 "visible": i == 0,
             }
 
             histogram_dailyreturn = {
                 "type": "histogram",
                 "name": symbol,
-                "x": df["Return"],
+                "x": df_daily["Return"],
                 "visible": i == 0,
                 "xaxis": "x2",
                 "yaxis": "y2",
             }
 
-            cumgains = df["Return"].map(lambda x: 1 + x).cumprod() - 1.0
+            cumgains = df_daily["Return"].map(lambda x: 1 + x).cumprod() - 1.0
             missedgains = {
                 "type": "bar",
                 "name": symbol,
@@ -749,7 +756,7 @@ class Figure:
                 "yaxis": "y3",
             }
 
-            cumlosses = df["Return"].iloc[::-1].map(lambda x: 1 + x).cumprod() - 1.0
+            cumlosses = df_daily["Return"].iloc[::-1].map(lambda x: 1 + x).cumprod() - 1.0
             avoidedlosses = {
                 "type": "bar",
                 "name": symbol,
@@ -759,27 +766,45 @@ class Figure:
                 "yaxis": "y4",
             }
 
-            dataList.extend([missedgains, avoidedlosses, histogram_dailyreturn, dailyreturn])
+            histogram_rollback = {
+                "type": "histogram",
+                "name": symbol,
+                "x": df_rollback,
+                "visible": i == 0,
+                "xaxis": "x5",
+                "yaxis": "y5",
+            }
 
-            visible = [False] * 4 * len(data)
-            visible[i * 4] = True
-            visible[i * 4 + 1] = True
-            visible[i * 4 + 2] = True
-            visible[i * 4 + 3] = True
+            graphs = [
+                missedgains,
+                avoidedlosses,
+                histogram_dailyreturn,
+                histogram_rollback,
+                dailyreturn,
+            ]
+            dataList.extend(graphs)
+
+            graphs_num = len(graphs)
+            visible = [False] * graphs_num * len(data)
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
 
             title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
-            return_range = [min(df["Return"]) - 0.01, max(df["Return"] + 0.01)]
+            return_range_daily = [min(df_daily["Return"]) - 0.01, max(df_daily["Return"]) + 0.01]
+            return_range_rollback = [min(df_rollback) - 0.01, max(df_rollback) + 0.01]
             if i == 0:
                 title_init = title
-                range_init = return_range
+                range_init_daily = return_range_daily
+                range_init_rollback = return_range_rollback
             button = {
                 "method": "update",
                 "args": [
                     {"visible": visible},
                     {
                         "title.text": title,
-                        "yaxis.range": return_range,
-                        "xaxis2.range": return_range,
+                        "yaxis.range": return_range_daily,
+                        "xaxis2.range": return_range_daily,
+                        "xaxis5.range": return_range_rollback,
                     },
                 ],
                 "label": symbol,
@@ -796,10 +821,10 @@ class Figure:
             "height": "1300",
             "updatemenus": [
                 {
-                    "x": 0.4,
-                    "y": 1.02,
+                    "x": 0.6,
+                    "y": 1.03,
                     "xanchor": "left",
-                    "yanchor": "top",
+                    "yanchor": "bottom",
                     "pad": {"r": 10, "t": 10},
                     "buttons": buttons,
                     "type": "dropdown",
@@ -808,44 +833,72 @@ class Figure:
                 }
             ],
             "grid": {
-                "rows": 4,
+                "rows": graphs_num,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x3y3"], ["x3y4"], ["x2y2"], ["xy"]],
+                "subplots": [["x3y3"], ["x3y4"], ["x2y2"], ["x5y5"], ["xy"]],
             },
-            "yaxis": {"tickformat": ".2%", "range": range_init},
+            "yaxis": {"tickformat": ".2%", "range": range_init_daily},
             "yaxis3": {"tickformat": ".2%"},
             "yaxis4": {"tickformat": ".2%"},
-            "xaxis2": {"tickformat": ".2%", "range": range_init},
+            "xaxis2": {"tickformat": ".2%", "range": range_init_daily},
+            "xaxis5": {"tickformat": ".2%", "range": range_init_rollback},
             "showlegend": False,
             "annotations": [
                 {
                     "text": "<b>Missed Gains<b>",
-                    "align": "center",
+                    "font": {"size": 16},
                     "showarrow": False,
-                    "xref": "x3",
-                    "yref": "y3",
+                    "xref": "x3 domain",
+                    "yref": "y3 domain",
+                    "x": 0.5,
+                    "y": 0.95,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
                 },
                 {
                     "text": "<b>Avoided Losses<b>",
-                    "align": "center",
+                    "font": {"size": 16},
                     "showarrow": False,
-                    "xref": "x3",
-                    "yref": "y4",
+                    "xref": "x3 domain",
+                    "yref": "y4 domain",
+                    "x": 0.5,
+                    "y": 1.05,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
+                },
+                {
+                    "text": "<b>Daily Return Histogram<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x2 domain",
+                    "yref": "y2 domain",
+                    "x": 0.5,
+                    "y": 1.05,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
+                },
+                {
+                    "text": f"<b>{self.iYear} Years Rollback Histogram<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x5 domain",
+                    "yref": "y5 domain",
+                    "x": 0.5,
+                    "y": 1.05,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
                 },
                 {
                     "text": "<b>Daily Return<b>",
-                    "align": "left",
+                    "font": {"size": 16},
                     "showarrow": False,
-                    "xref": "x2",
-                    "yref": "y2",
-                },
-                {
-                    "text": "<b>Daily Return<b>",
-                    "align": "center",
-                    "showarrow": False,
-                    "xref": "x",
-                    "yref": "y",
+                    "xref": "x domain",
+                    "yref": "y domain",
+                    "x": 0.5,
+                    "y": 1.05,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
                 },
             ],
         }
@@ -985,7 +1038,7 @@ class Figure:
 
         return graph
 
-    def roll_back_graph(self):
+    def rollback_graph(self):
         # =========================================================================
         # area
         data = []
@@ -1000,7 +1053,7 @@ class Figure:
         lines = self._plotLine_without_markers(
             df,
             title=(
-                f"<b>{self.iYear} Years Roll Back<b><br>"
+                f"<b>{self.iYear} Years Rollback<b><br>"
                 f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
                 f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
                 f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
@@ -1022,7 +1075,7 @@ class Figure:
         violin = self._plotViolin(
             df,
             title=(
-                f"<b>{self.iYear} Years Roll Back<b><br>"
+                f"<b>{self.iYear} Years Rollback<b><br>"
                 f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
                 f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
                 f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
@@ -1076,8 +1129,9 @@ class Figure:
     def daily_return_graph(self):
         data = []
         for st in self.stocks:
-            df = st.dailyReturn
-            data.append((st.name, df))
+            df_daily = st.dailyReturn
+            df_rollback = st.rollback(self.iYear)
+            data.append((st.name, df_daily, df_rollback[st.name]))
 
         return self._plotDailyReturn(data)
 
@@ -1201,7 +1255,7 @@ def report(
         fig.active_vs_passive()
     )
     plots["annualReturn"] = fig.annual_return_bar()
-    plots["rollBack"], plots["rollBackVolin"] = fig.roll_back_graph()
+    plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
 

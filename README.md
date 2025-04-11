@@ -4,6 +4,8 @@
 ## 範例
 * [TW_Report](https://z-wind.github.io/stockTools/TW_Report.html)
 * [US_Report](https://z-wind.github.io/stockTools/US_Report.html)
+* [US_美國(美股,美債,美房地產)_Report](https://z-wind.github.io/stockTools/US_美國(美股,美債,美房地產)_Report.html)
+* [US_日正_Report](https://z-wind.github.io/stockTools/US_日正_Report.html)
 
 ## 事前準備
 需安裝 rust

@@ -39,6 +39,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          lfs: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -58,7 +60,8 @@ jobs:
           python -m pip install ./target/wheels/rust_pyo3-*.whl
       - run: python stock.py
       - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          branch: gh-pages # The branch the action should deploy to.
-          folder: report # The folder the action should deploy.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./report    # The folder the action should deploy.
+          publish_branch: gh-pages # The branch the action should deploy to.

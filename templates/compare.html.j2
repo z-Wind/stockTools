@@ -20,18 +20,8 @@
         
         <!-- Plotly.js -->
         <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
-        <script type="text/javascript">
-            var config = {responsive: true}
-            
-            {% for key,item in plots.items() %}
-                var {{key}} = {{ item|safe }};
-
-                Plotly.newPlot("{{key}}",
-                {{key}}.data,
-                {{key}}.layout || {},
-                config);
-            {% endfor %}            
-
-        </script>
+        {% for key,item in plots.items() %}
+        <script src="./{{jsfolder}}/{{key}}.js"></script>
+        {%- endfor %} 
     </body>
 </html>

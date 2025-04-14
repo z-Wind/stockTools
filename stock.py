@@ -1277,13 +1277,13 @@ def report(
 
 if __name__ == "__main__":
     symbols = [
-        {"name": "^TWII", "remark": "臺灣加權指數", "groups": ["ETF"]},
         {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
-            "groups": ["ETF"],
+            "groups": ["常用", "ETF"],
         },
+        {"name": "^TWII", "remark": "臺灣加權指數", "groups": ["ETF"]},
         {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數_日正2",
@@ -1295,7 +1295,7 @@ if __name__ == "__main__":
             "name": "^TAI50I",
             "remark": "臺灣50報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
-            "groups": ["ETF"],
+            "groups": ["常用", "ETF"],
         },
         {
             "name": "^TAI50I",
@@ -1308,7 +1308,7 @@ if __name__ == "__main__":
             "name": "^TAI100I",
             "remark": "臺灣中型100報酬指數",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣中型100指數"),
-            "groups": ["ETF"],
+            "groups": ["常用", "ETF"],
         },
         {
             "name": "^TAI100I",
@@ -1330,13 +1330,15 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
-        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True, "groups": ["ETF"]},
+        # =================================================================================
+        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True, "groups": ["常用", "ETF"]},
         {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
         {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True, "groups": ["日正"]},
-        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["ETF"]},
+        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True, "groups": ["ETF"]},
         {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True, "groups": ["ETF"]},
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True, "groups": ["ETF"]},
+        # =================================================================================
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True, "groups": ["個股"]},
         {
@@ -1356,21 +1358,26 @@ if __name__ == "__main__":
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 
     symbols = [
-        {"name": "IOO", "remark": "iShares 國際超大型股", "groups": ["國際股"]},
-        {"name": "ACWI", "remark": "iShares 國際大中型股", "groups": ["國際股"]},
-        {"name": "URTH", "remark": "iShares 國際大中型股", "groups": ["國際股"]},
-        {"name": "VT", "remark": "Vanguard 國際大中小型股", "groups": ["國際股", "Vanguard"]},
+        {
+            "name": "VT",
+            "remark": "Vanguard 國際大中小型股",
+            "groups": ["常用", "國際股", "Vanguard"],
+        },
         {
             "name": "VTWAX",
             "remark": "Vanguard 國際大中小型股 指數基金",
             "groups": ["國際股", "Vanguard"],
         },
+        {"name": "IOO", "remark": "iShares 國際超大型股", "groups": ["國際股"]},
+        {"name": "ACWI", "remark": "iShares 國際大中型股", "groups": ["國際股"]},
+        {"name": "URTH", "remark": "iShares 國際大中型股", "groups": ["國際股"]},
         {
             "name": "VT",
             "remark": "Vanguard 國際大中小型股_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "^GSPC", "remark": "S&P500指數", "groups": ["美股", "美大型股"]},
         {"name": "^SP500TR", "remark": "S&P500報酬指數", "groups": ["美股", "美大型股"]},
         {"name": "FXAIX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
@@ -1388,7 +1395,11 @@ if __name__ == "__main__":
             "remark": "Vanguard 大型股 指數基金",
             "groups": ["美股", "美大型股", "Vanguard"],
         },
-        {"name": "VOO", "remark": "Vanguard S&P500", "groups": ["美股", "美大型股", "Vanguard"]},
+        {
+            "name": "VOO",
+            "remark": "Vanguard S&P500",
+            "groups": ["美股", "美大型股", "Vanguard"],
+        },
         {
             "name": "VFIAX",
             "remark": "Vanguard S&P500 指數基金",
@@ -1404,9 +1415,10 @@ if __name__ == "__main__":
             "remark": "ProShares S&P500_真實日正3",
             "groups": ["日正"],
         },
-        {"name": "^NDX", "remark": "那斯達克100指數", "groups": ["美股"]},
-        {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股"]},
-        {"name": "QQQM", "remark": "Invesco 那斯達克100", "groups": ["美股"]},
+        # =================================================================================
+        {"name": "^NDX", "remark": "那斯達克100指數", "groups": ["美股", "那斯達克"]},
+        {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
+        {"name": "QQQM", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
         {
             "name": "QLD",
             "remark": "ProShares 那斯達克100_真實日正2",
@@ -1417,26 +1429,34 @@ if __name__ == "__main__":
             "remark": "ProShares 那斯達克100_真實日正3",
             "groups": ["日正"],
         },
-        {"name": "^DJI", "remark": "道瓊工業平均指數", "groups": ["美股"]},
-        {"name": "DIA", "remark": "SPDR 道瓊", "groups": ["美股"]},
+        # =================================================================================
+        {"name": "^DJI", "remark": "道瓊工業平均指數", "groups": ["美股", "道瓊"]},
+        {"name": "DIA", "remark": "SPDR 道瓊", "groups": ["美股", "道瓊"]},
         {"name": "DDM", "remark": "ProShares 道瓊_真實日正2", "groups": ["日正"]},
         {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
-        {"name": "IWV", "remark": "iShares 羅素3000", "groups": ["美股"]},
-        {"name": "VTHR", "remark": "Vanguard 羅素3000", "groups": ["美股", "Vanguard"]},
+        # =================================================================================
+        {"name": "IWV", "remark": "iShares 羅素3000", "groups": ["美股", "羅素"]},
+        {"name": "VTHR", "remark": "Vanguard 羅素3000", "groups": ["美股", "Vanguard", "羅素"]},
+        # =================================================================================
         {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
         {"name": "SPTM", "remark": "SPDR 美股", "groups": ["美股"]},
         {"name": "FZROX", "remark": "Fidelity 美股 指數基金", "groups": ["美股"]},
         {"name": "FSKAX", "remark": "Fidelity 美股 指數基金", "groups": ["美股"]},
         {"name": "SWTSX", "remark": "Schwab 美股 指數基金", "groups": ["美股"]},
         {"name": "SCHB", "remark": "Schwab 美股", "groups": ["美股"]},
-        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["美股", "Vanguard"]},
-        {"name": "VTSAX", "remark": "Vanguard 美股 指數基金", "groups": ["美股", "Vanguard"]},
+        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["常用", "美股", "Vanguard"]},
+        {
+            "name": "VTSAX",
+            "remark": "Vanguard 美股 指數基金",
+            "groups": ["美股", "Vanguard"],
+        },
         {
             "name": "VTI",
             "remark": "Vanguard 美股報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "AVUV", "remark": "Avantis 美小型價值股", "groups": ["美股", "美小型價值股"]},
         {
             "name": "BOSVX",
@@ -1473,6 +1493,7 @@ if __name__ == "__main__":
             "remark": "Vanguard 美小型價值股 指數基金",
             "groups": ["美股", "美小型價值股", "Vanguard"],
         },
+        # =================================================================================
         {"name": "EFA", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
         {"name": "IDEV", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
         {"name": "SPDW", "remark": "SPDR 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
@@ -1484,7 +1505,7 @@ if __name__ == "__main__":
         {
             "name": "VEA",
             "remark": "Vanguard 已開發國家大中小型股排美",
-            "groups": ["已開發國家排美", "Vanguard"],
+            "groups": ["常用", "已開發國家排美", "Vanguard"],
         },
         {
             "name": "VTMGX",
@@ -1497,8 +1518,9 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "IPAC", "remark": "iShares 太平洋股", "groups": ["太平洋股"]},
-        {"name": "VPL", "remark": "Vanguard 太平洋股", "groups": ["太平洋股", "Vanguard"]},
+        {"name": "VPL", "remark": "Vanguard 太平洋股", "groups": ["常用", "太平洋股", "Vanguard"]},
         {
             "name": "VPADX",
             "remark": "Vanguard 太平洋股 指數基金",
@@ -1510,16 +1532,22 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "IEUR", "remark": "iShares 歐股", "groups": ["歐股"]},
         {"name": "SPEU", "remark": "SPDR 歐股", "groups": ["歐股"]},
-        {"name": "VGK", "remark": "Vanguard 歐股", "groups": ["歐股", "Vanguard"]},
-        {"name": "VEUSX", "remark": "Vanguard 歐股 指數基金", "groups": ["歐股", "Vanguard"]},
+        {"name": "VGK", "remark": "Vanguard 歐股", "groups": ["常用", "歐股", "Vanguard"]},
+        {
+            "name": "VEUSX",
+            "remark": "Vanguard 歐股 指數基金",
+            "groups": ["歐股", "Vanguard"],
+        },
         {
             "name": "VGK",
             "remark": "Vanguard 歐股報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "FPADX", "remark": "Fidelity 新興市場大中型股 指數基金", "groups": ["新興市場"]},
         {"name": "EEM", "remark": "iShares 新興市場大中型股", "groups": ["新興市場"]},
         {"name": "IEMG", "remark": "iShares 新興市場大中小型股", "groups": ["新興市場"]},
@@ -1528,7 +1556,7 @@ if __name__ == "__main__":
         {
             "name": "VWO",
             "remark": "Vanguard 新興市場大中小型股",
-            "groups": ["新興市場", "Vanguard"],
+            "groups": ["常用", "新興市場", "Vanguard"],
         },
         {
             "name": "VEMAX",
@@ -1546,6 +1574,7 @@ if __name__ == "__main__":
             "remark": "Direxion 新興市場股報酬_真實日正3",
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "IXUS", "remark": "iShares 國際大中小型股排美", "groups": ["國際股排美"]},
         {
             "name": "FZILX",
@@ -1562,7 +1591,7 @@ if __name__ == "__main__":
         {
             "name": "VXUS",
             "remark": "Vanguard 國際大中小型股排美",
-            "groups": ["國際股排美", "Vanguard"],
+            "groups": ["常用", "國際股排美", "Vanguard"],
         },
         {
             "name": "VTIAX",
@@ -1586,52 +1615,84 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
-        {"name": "FUMBX", "remark": "Fidelity 短期美國庫債 指數基金", "groups": ["美債"]},
-        {"name": "SGOV", "remark": "iShares 短期美國庫債", "groups": ["美債"]},
-        {"name": "SHV", "remark": "iShares 短期美國庫債", "groups": ["美債"]},
-        {"name": "SCHO", "remark": "Schwab 短期美國庫債", "groups": ["美債"]},
+        # =================================================================================
+        {
+            "name": "FUMBX",
+            "remark": "Fidelity 短期美國庫債 指數基金",
+            "groups": ["美債", "短期美國債"],
+        },
+        {"name": "SGOV", "remark": "iShares 短期美國庫債", "groups": ["美債", "短期美國債"]},
+        {"name": "SHV", "remark": "iShares 短期美國庫債", "groups": ["美債", "短期美國債"]},
+        {"name": "SCHO", "remark": "Schwab 短期美國庫債", "groups": ["美債", "短期美國債"]},
         {
             "name": "VSBSX",
             "remark": "Vanguard 短期美國庫債 指數基金",
-            "groups": ["美債", "Vanguard"],
+            "groups": ["美債", "Vanguard", "短期美國債"],
         },
-        {"name": "VGSH", "remark": "Vanguard 短期美國庫債", "groups": ["美債", "Vanguard"]},
-        {"name": "FIPDX", "remark": "Fidelity 美抗通膨公債 指數基金", "groups": ["美債"]},
-        {"name": "STIP", "remark": "iShares 美抗通膨公債", "groups": ["美債"]},
-        {"name": "TIP", "remark": "iShares 美抗通膨公債", "groups": ["美債"]},
-        {"name": "LTPZ", "remark": "PIMCO 美抗通膨公債", "groups": ["美債"]},
-        {"name": "SCHP", "remark": "Schwab 美抗通膨公債", "groups": ["美債"]},
-        {"name": "SWRSX", "remark": "Schwab 美抗通膨公債 指數基金", "groups": ["美債"]},
-        {"name": "SPIP", "remark": "SPDR 美抗通膨公債", "groups": ["美債"]},
+        {
+            "name": "VGSH",
+            "remark": "Vanguard 短期美國庫債",
+            "groups": ["美債", "Vanguard", "短期美國債"],
+        },
+        # =================================================================================
+        {
+            "name": "FIPDX",
+            "remark": "Fidelity 美抗通膨公債 指數基金",
+            "groups": ["美債", "美抗通膨公債"],
+        },
+        {"name": "STIP", "remark": "iShares 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {
+            "name": "TIP",
+            "remark": "iShares 美抗通膨公債",
+            "groups": ["常用", "美債", "美抗通膨公債"],
+        },
+        {"name": "LTPZ", "remark": "PIMCO 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {"name": "SCHP", "remark": "Schwab 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {
+            "name": "SWRSX",
+            "remark": "Schwab 美抗通膨公債 指數基金",
+            "groups": ["美債", "美抗通膨公債"],
+        },
+        {"name": "SPIP", "remark": "SPDR 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
         {
             "name": "VAIPX",
             "remark": "Vanguard 美抗通膨公債 指數基金",
-            "groups": ["美債", "Vanguard"],
+            "groups": ["美債", "Vanguard", "美抗通膨公債"],
         },
-        {"name": "VTIP", "remark": "Vanguard 美抗通膨公債", "groups": ["美債", "Vanguard"]},
+        {
+            "name": "VTIP",
+            "remark": "Vanguard 美抗通膨公債",
+            "groups": ["美債", "Vanguard", "美抗通膨公債"],
+        },
         {
             "name": "VTAPX",
             "remark": "Vanguard 美抗通膨公債 指數基金",
-            "groups": ["美債", "Vanguard"],
+            "groups": ["美債", "Vanguard", "美抗通膨公債"],
         },
+        # =================================================================================
         {"name": "FXNAX", "remark": "Fidelity 美債 指數基金", "groups": ["美債"]},
         {"name": "IUSB", "remark": "iShares 美債", "groups": ["美債"]},
         {"name": "AGG", "remark": "iShares 美債", "groups": ["美債"]},
         {"name": "SWAGX", "remark": "Schwab 美債 指數基金", "groups": ["美債"]},
         {"name": "SPAB", "remark": "SPDR 美債", "groups": ["美債"]},
-        {"name": "BND", "remark": "Vanguard 美債", "groups": ["美債", "Vanguard"]},
-        {"name": "VBTLX", "remark": "Vanguard 美債 指數基金", "groups": ["美債", "Vanguard"]},
+        {"name": "BND", "remark": "Vanguard 美債", "groups": ["常用", "美債", "Vanguard"]},
+        {
+            "name": "VBTLX",
+            "remark": "Vanguard 美債 指數基金",
+            "groups": ["美債", "Vanguard"],
+        },
         {
             "name": "BND",
             "remark": "Vanguard 美債報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "IAGG", "remark": "iShares 國際債美元避險排美", "groups": ["國際債排美"]},
         {
             "name": "BNDX",
             "remark": "Vanguard 國際債美元避險排美",
-            "groups": ["國際債排美", "Vanguard"],
+            "groups": ["常用", "國際債排美", "Vanguard"],
         },
         {
             "name": "BNDX",
@@ -1639,13 +1700,14 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
-        {"name": "BWX", "remark": "SPDR 國際政府債排美", "groups": ["國際債排美"]},
+        {"name": "BWX", "remark": "SPDR 國際政府債排美", "groups": ["常用", "國際債排美"]},
         {
             "name": "BWX",
             "remark": "SPDR 國際政府債排美報酬_日正2",
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
         {"name": "DFAR", "remark": "Dimensional 美房地產", "groups": ["美房地產"]},
         {"name": "FREL", "remark": "Fidelity 美房地產", "groups": ["美房地產"]},
         {"name": "IYR", "remark": "iShares 美房地產", "groups": ["美房地產"]},

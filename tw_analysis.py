@@ -130,12 +130,13 @@ def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, tit
 
     df = read_xml(url, xpath)
     df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
+    date_range =  f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
     df["TIME_PERIOD"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
 
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值 {title_suffix}")
+    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值 {title_suffix} {date_range}")
 
     def irr(x):
         x = x.dropna()
@@ -146,12 +147,12 @@ def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, tit
     irr_df = pivot_df.apply(irr, axis=0).to_frame()
     irr_df.columns = ["IRR"]
     irr_df = irr_df.T
-    plots[f"{key}_IRR"] = plotBar(irr_df, f"{key} IRR(%) {title_suffix}")
+    plots[f"{key}_IRR"] = plotBar(irr_df, f"{key} IRR(%) {title_suffix} {date_range}")
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    graph = plotLine(pivot_df / 100, f"{key} 年增率(%) {title_suffix}")
+    graph = plotLine(pivot_df / 100, f"{key} 年增率(%) {title_suffix} {date_range}")
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率"] = json.dumps(graph)
 
@@ -162,7 +163,7 @@ def 年_plot(plots, key, url, columns_remove_patt, title_suffix):
     df = read_csv(url)
     df = df.set_index("年")
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
-    plots[key] = plotLine(df, f"{key}{title_suffix}")
+    plots[key] = plotLine(df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}")
 
 
 def 年月混合_plot(plots, key, url, index, columns_remove_patt, title_suffix, encoding="utf-8"):
@@ -172,11 +173,13 @@ def 年月混合_plot(plots, key, url, index, columns_remove_patt, title_suffix,
     df = df.set_index(index)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
+    df_year = df.filter(regex=r"\d+年$", axis="index")
     plots[f"{key}_年"] = plotLine(
-        df.filter(regex=r"\d+年$", axis="index"), f"{key}_年{title_suffix}"
+        df_year, f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}"
     )
+    df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plotLine(
-        df.filter(regex=r"\d+年 *\d+月$", axis="index"), f"{key}_月{title_suffix}"
+        df_month, f"{key}_月{title_suffix} {df_month.index[0]}~{df_month.index[-1]}"
     )
 
 
@@ -233,17 +236,17 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_當期價格"] = plotLine(df_filter, f"{key} 原始值 {pat_filter}")
+    plots[f"{key}_原始值_當期價格"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_連鎖實質值"] = plotLine(df_filter, f"{key} 原始值 {pat_filter}")
+    plots[f"{key}_原始值_連鎖實質值"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_平減指數"] = plotLine(df_filter, f"{key} 原始值 {pat_filter}")
+    plots[f"{key}_原始值_平減指數"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
@@ -252,21 +255,21 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter}")
+    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_當期價格"] = json.dumps(graph)
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter}")
+    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_連鎖實質值"] = json.dumps(graph)
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter}")
+    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_平減指數"] = json.dumps(graph)
 
@@ -283,13 +286,13 @@ if __name__ == "__main__":
     pivot_df = df_value.pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值")
+    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}")
 
     df_value = df.drop(df[df["TYPE"] == "原始值"].index)
     pivot_df = df_value.pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    graph = plotLine(pivot_df / 100, f"{key} 年增率(%)")
+    graph = plotLine(pivot_df / 100, f"{key} 年增率(%) {pivot_df.index[0]}~{pivot_df.index[-1]}")
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率"] = json.dumps(graph)
 
@@ -302,6 +305,15 @@ if __name__ == "__main__":
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/067-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv",
         "可支配所得按戶數五等分位組之平均每戶所得總額-|-元",
         "-元",
+    )
+
+    # https://data.gov.tw/dataset/94752
+    年_plot(
+        plots,
+        "家庭收支調查-戶數五等分位之平均每戶所得收入總計",
+        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/068-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
+        "可支配所得按戶數五等分位組之平均每戶所得收入總計-|-元",
+        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
     )
 
     # https://data.gov.tw/dataset/98835
@@ -319,7 +331,7 @@ if __name__ == "__main__":
         "家庭收支調查-戶數五等分位之平均每戶可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/065-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "可支配所得按戶數五等分位組-|-元",
-        "-元 可支配所得=所得總額-非消費支出",
+        "-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/98834
@@ -346,7 +358,7 @@ if __name__ == "__main__":
         "家庭收支調查-戶數五等分位之平均每戶儲蓄",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/066-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
         "可支配所得按戶數五等分位組之平均每戶儲蓄-|-元",
-        "-元 儲蓄=所得總額-經常性支出=可支配所得-消費支出",
+        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # https://data.gov.tw/dataset/9424
@@ -387,6 +399,15 @@ if __name__ == "__main__":
         "-元",
     )
 
+    # https://data.gov.tw/dataset/56525
+    年_plot(
+        plots,
+        "家庭收支調查-家庭組織型態別平均每戶所得收入總計",
+        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/059-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
+        "-元",
+        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+    )
+
     # https://data.gov.tw/dataset/79207
     年_plot(
         plots,
@@ -402,7 +423,7 @@ if __name__ == "__main__":
         "家庭收支調查-家庭組織型態別平均每戶可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/056-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "-元",
-        "-元 可支配所得=所得總額-非消費支出",
+        "-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/76265
@@ -429,7 +450,7 @@ if __name__ == "__main__":
         "家庭收支調查-家庭組織型態別平均每戶儲蓄",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/057-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
         "-元",
-        "-元 儲蓄=所得總額-經常性支出=可支配所得-消費支出",
+        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # https://data.gov.tw/dataset/27963
@@ -452,6 +473,15 @@ if __name__ == "__main__":
         "-元",
     )
 
+    # https://data.gov.tw/dataset/9418
+    年_plot(
+        plots,
+        "家庭收支調查-各縣市別平均每戶所得收入總計",
+        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/009-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
+        "-元",
+        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+    )
+
     # https://data.gov.tw/dataset/9804
     年_plot(
         plots,
@@ -467,7 +497,7 @@ if __name__ == "__main__":
         "家庭收支調查-各縣市別平均每戶可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/006-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "-元",
-        "-元 可支配所得=所得總額-非消費支出",
+        "-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/9420
@@ -494,7 +524,7 @@ if __name__ == "__main__":
         "家庭收支調查-各縣市別平均每戶儲蓄",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/007-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
         "-元",
-        "-元 儲蓄=所得總額-經常性支出=可支配所得-消費支出",
+        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # ===================================================================
@@ -523,7 +553,7 @@ if __name__ == "__main__":
         "家庭收支調查-所得收入者各縣市別平均每人可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/080-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "-元",
-        "-元 可支配所得=所得總額-非消費支出",
+        "-元 可支配所得=所得收入-非消費支出",
     )
 
     # ============================================================
@@ -549,11 +579,13 @@ if __name__ == "__main__":
             index="時間", columns="地區", values=values, sort=False, aggfunc="sum", fill_value=0
         )
 
+        df_year = df_tax.filter(regex=r"\d+年$", axis="index")
         plots[f"{key}_年_{tax}"] = plotLine(
-            df_tax.filter(regex=r"\d+年$", axis="index"), f"{key}_年_{tax}"
+            df_year, f"{key}_年_{tax} {df_year.index[0]}~{df_year.index[-1]}"
         )
+        df_month = df_tax.filter(regex=r"\d+年 *\d+月$", axis="index")
         plots[f"{key}_月_{tax}"] = plotLine(
-            df_tax.filter(regex=r"\d+年 *\d+月$", axis="index"), f"{key}_月_{tax}"
+            df_month, f"{key}_月_{tax} {df_month.index[0]}~{df_month.index[-1]}"
         )
 
     # https://data.gov.tw/dataset/16910
@@ -577,7 +609,7 @@ if __name__ == "__main__":
             index="時間", columns="類別", values=values, sort=False, aggfunc="sum", fill_value=0
         )
 
-        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col}")
+        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}")
 
     # ============================================================
 
@@ -703,7 +735,7 @@ if __name__ == "__main__":
             aggfunc="sum",
             fill_value=0,
         )
-        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col}")
+        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col} {df_item.index[-1]}~{df_item.index[0]}")
 
     # ========================================================================
     prefix = "TW_Analysis"

@@ -16,7 +16,6 @@
         <div id=躉售物價基本分類指數_年增率></div>
         
         <h1 style="color: white;text-align: center;">所得支出</h1>
-        <h2 style="color: white;text-align: center;">整體</h2>
         <div id=國民所得統計_國民所得_儲蓄與投資_季_原始值_當期價格></div>
         <div id=國民所得統計_國民所得_儲蓄與投資_季_年增率_當期價格></div>
         <div id=國民所得統計_國民所得_儲蓄與投資_季_原始值_連鎖實質值></div>
@@ -59,10 +58,9 @@
         <div id=家庭收支調查_所得收入者各縣市別平均每人可支配所得></div>
         
         <h1 style="color: white;text-align: center;">稅收</h1>
-        {% for tax in items.get("全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分", []) %}
-        <div id=全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分_年_{{ tax }}></div>
-        <div id=全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分_月_{{ tax }}></div>
-        {%- endfor %}
+        <div id=全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分_年></div>
+        <div id=全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分_月></div>
+
         {% for item in items.get("全國賦稅收入實徵淨額與預算數之比較", []) %}
         <div id=全國賦稅收入實徵淨額與預算數之比較_{{ item }}></div>
         {%- endfor %}

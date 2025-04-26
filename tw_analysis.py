@@ -37,7 +37,7 @@ def read_json(url, encoding="utf-8"):
 
 
 default_layout = {
-    "height": 600,
+    # "height": 600,
     # "autosize": False,
     "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
     "font": {"family": "Courier New", "color": "#ffffff"},
@@ -122,7 +122,7 @@ def plotBar(df, title=None):
     return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
 
-rstr = r"[- ,、()~∕\/－%]+"
+rstr = r'[- ,、()~∕\/－%*?:"<>|]+'
 
 
 def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, title_suffix, fillna=False):
@@ -130,7 +130,7 @@ def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, tit
 
     df = read_xml(url, xpath)
     df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
-    date_range =  f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
+    date_range = f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
     df["TIME_PERIOD"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
 
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
@@ -236,17 +236,23 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_當期價格"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    plots[f"{key}_原始值_當期價格"] = plotLine(
+        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_連鎖實質值"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    plots[f"{key}_原始值_連鎖實質值"] = plotLine(
+        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_平減指數"] = plotLine(df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    plots[f"{key}_原始值_平減指數"] = plotLine(
+        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
@@ -255,21 +261,27 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    graph = plotLine(
+        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_當期價格"] = json.dumps(graph)
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    graph = plotLine(
+        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_連鎖實質值"] = json.dumps(graph)
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}")
+    graph = plotLine(
+        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    )
     graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
     plots[f"{key}_年增率_平減指數"] = json.dumps(graph)
 
@@ -286,7 +298,9 @@ if __name__ == "__main__":
     pivot_df = df_value.pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}")
+    plots[f"{key}_原始值"] = plotLine(
+        pivot_df, f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}"
+    )
 
     df_value = df.drop(df[df["TYPE"] == "原始值"].index)
     pivot_df = df_value.pivot_table(
@@ -565,28 +579,112 @@ if __name__ == "__main__":
     key = re.sub(rstr, "_", key)
 
     df = read_csv(url)
+
     split = df["地區別"].str.split("/", expand=True)
     df["時間"] = split[0].str.strip()
     df["地區"] = split[1].str.strip()
 
-    taxes_origin = df.drop(["地區別", "時間", "地區"], axis=1).columns
-    taxes = taxes_origin.str.replace(rstr, "_", regex=True)
-    items[key] = taxes
+    df_all = df.drop(["地區別"], axis=1).pivot_table(
+        index="時間", columns="地區", sort=False, aggfunc="sum", fill_value=0
+    )
 
-    data = df.drop(["地區別"], axis=1)
-    for values, tax in zip(taxes_origin, taxes):
-        df_tax = data.pivot_table(
-            index="時間", columns="地區", values=values, sort=False, aggfunc="sum", fill_value=0
+    taxes = df_all.columns.get_level_values(0).unique().tolist()
+    regions = df_all.columns.get_level_values(1).unique().tolist()
+
+    num_traces = len(df_all.columns)  # 總線條數
+    buttons_taxes = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "全部稅目",
+            "method": "restyle",
+        }
+    ]
+    # 加入個別稅目選項
+    for tax in taxes:
+        arr = [col[0] == tax for col in df_all.columns]  # 依稅目篩選
+
+        buttons_taxes.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": tax,
+                "method": "restyle",
+            },
         )
 
-        df_year = df_tax.filter(regex=r"\d+年$", axis="index")
-        plots[f"{key}_年_{tax}"] = plotLine(
-            df_year, f"{key}_年_{tax} {df_year.index[0]}~{df_year.index[-1]}"
+    buttons_regions = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "全部地區",
+            "method": "restyle",
+        }
+    ]
+    for region in regions:
+        arr = [col[1] == region for col in df_all.columns]  # 依地區篩選
+        stackgroup_list = ["one" if vis else None for vis in arr]
+        buttons_regions.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": region,
+                "method": "restyle",
+            },
         )
-        df_month = df_tax.filter(regex=r"\d+年 *\d+月$", axis="index")
-        plots[f"{key}_月_{tax}"] = plotLine(
-            df_month, f"{key}_月_{tax} {df_month.index[0]}~{df_month.index[-1]}"
-        )
+
+    updatemenus = [
+        {
+            "x": 0.02,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_taxes,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "稅目選擇",
+        },
+        {
+            "x": 0.32,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_regions,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+    ]
+
+    df_all.columns = [f"{region}_{tax}" for region, tax in df_all.columns]
+
+    df_all_year = df_all.filter(regex=r"\d+年$", axis="index")
+    graph = plotLine(df_all_year, f"{key}_年 {df_all_year.index[0]}~{df_all_year.index[-1]}")
+    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
+    plots[f"{key}_年"] = json.dumps(graph)
+
+    df_all_month = df_all.filter(regex=r"\d+年 *\d+月$", axis="index")
+    graph = plotLine(df_all_month, f"{key}_月 {df_all_month.index[0]}~{df_all_month.index[-1]}")
+    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
+    plots[f"{key}_月"] = json.dumps(graph)
 
     # https://data.gov.tw/dataset/16910
     key = "全國賦稅收入實徵淨額與預算數之比較"
@@ -609,7 +707,9 @@ if __name__ == "__main__":
             index="時間", columns="類別", values=values, sort=False, aggfunc="sum", fill_value=0
         )
 
-        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}")
+        plots[f"{key}_{col}"] = plotLine(
+            df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}"
+        )
 
     # ============================================================
 
@@ -735,9 +835,12 @@ if __name__ == "__main__":
             aggfunc="sum",
             fill_value=0,
         )
-        plots[f"{key}_{col}"] = plotLine(df_item, f"{key}_{col} {df_item.index[-1]}~{df_item.index[0]}")
+        plots[f"{key}_{col}"] = plotLine(
+            df_item, f"{key}_{col} {df_item.index[-1]}~{df_item.index[0]}"
+        )
 
     # ========================================================================
+
     prefix = "TW_Analysis"
     path = os.path.join(os.path.dirname(__file__), "report")
     with app.app_context():

@@ -632,7 +632,6 @@ if __name__ == "__main__":
     ]
     for region in regions:
         arr = [col[1] == region for col in df_all.columns]  # 依地區篩選
-        stackgroup_list = ["one" if vis else None for vis in arr]
         buttons_regions.append(
             {
                 "args": [
@@ -734,14 +733,148 @@ if __name__ == "__main__":
     )
 
     # https://data.gov.tw/dataset/28573
-    年月混合_plot(
-        plots,
-        "進出口貿易值_按國際商品統一分類制度(HS)及主要國別分",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1",
-        "國家別",
-        r"\(千美元\)|/|[ ]",
-        "(千美元)",
-    )
+    key = "進出口貿易值_按國際商品統一分類制度(HS)及主要國別分"
+    url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1"
+    
+    key = re.sub(rstr, "_", key)
+
+    df = read_csv(url)
+    df = df.set_index("國家別")
+    df.columns = pd.MultiIndex.from_tuples([[s.strip() for s in col.split('/')] for col in df.columns.str.replace("(千美元)", "")])
+    num_traces = len(df.columns)  # 總線條數
+
+    countries = df.columns.get_level_values(0).unique().tolist()
+    buttons_countries = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "全部國家",
+            "method": "restyle",
+        }
+    ]    
+    for country in countries:
+        arr = [col[0] == country for col in df.columns]
+
+        buttons_countries.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": country,
+                "method": "restyle",
+            },
+        )
+
+    exports = df.columns.get_level_values(1).unique().tolist()
+    buttons_exports = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "進出口",
+            "method": "restyle",
+        }
+    ]
+    for export in exports:
+        arr = [col[1] == export for col in df.columns] 
+        buttons_exports.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": export,
+                "method": "restyle",
+            },
+        )
+    
+    kinds = df.columns.get_level_values(2).unique().tolist()
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "全部種類",
+            "method": "restyle",
+        }
+    ]
+    for kind in kinds:
+        arr = [col[2] == kind for col in df.columns] 
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.02,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_countries,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "國家選擇",
+        },
+        {
+            "x": 0.18,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_exports,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "進出口選擇",
+        },
+        {
+            "x": 0.3,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "種類選擇",
+        },
+    ]
+
+    df.columns = [f"{country}{export}{kind}" for country, export, kind in df.columns]
+
+    df_year = df.filter(regex=r"\d+年$", axis="index")
+    graph = plotLine(df_year, f"{key}_年(千美元) {df_year.index[0]}~{df_year.index[-1]}")
+    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
+    plots[f"{key}_年"] = json.dumps(graph)
+
+    df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
+    graph = plotLine(df_month, f"{key}_月(千美元) {df_month.index[0]}~{df_month.index[-1]}")
+    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
+    plots[f"{key}_月"] = json.dumps(graph)
 
     # https://data.gov.tw/dataset/8380
     年月混合_plot(

@@ -561,7 +561,7 @@ if __name__ == "__main__":
         "-元",
     )
 
-    # https://data.gov.tw/dataset/132285
+    # https://data.gov.tw/dataset/117929
     年_plot(
         plots,
         "家庭收支調查-所得收入者各縣市別平均每人可支配所得",
@@ -569,6 +569,61 @@ if __name__ == "__main__":
         "-元",
         "-元 可支配所得=所得收入-非消費支出",
     )
+
+    # https://www.stat.gov.tw/cp.aspx?n=2773
+    key = "家庭部門平均每戶資產負債"
+    url = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2515/112%E8%A1%A87.xlsx"
+
+    r = requests.get(url, verify=False)
+    df = pd.read_excel(
+        io.BytesIO(r.content), engine="calamine", skiprows=2, nrows=19, usecols=range(0, 6)
+    )
+    df.columns = ["種類", "2019", "2020", "2021", "2022", "2023"]
+    df["種類"] = df["種類"].str.replace(r"[\n \r]", "", regex=True)
+    df = df.dropna().set_index("種類")
+    # 負債轉為負值
+    df.iloc[13:16] = -df.iloc[13:16]
+    title = f"{key} {df.columns[0]}~{df.columns[-1]} （土地按市價重評價）（新臺幣萬元）"
+    df = df.T
+
+    dataList = []
+    for name in df.columns[::-1]:
+        if name in [
+            "一、非金融性資產淨額",
+            "二、金融性資產淨值",
+            "(二)國內金融性資產淨值(A-B)",
+            "(二)-1國內金融性資產淨值(不含人壽保險及退休基金準備)",
+            "國內金融性資產(A)",
+            "(減):國內金融性負債(B)",
+            "三-1、淨值(不含人壽保險及退休基金準備)",
+        ]:
+            continue
+        elif name in ["三、淨值"]:
+            data = {
+                "type": "scatter",
+                "name": name,
+                "x": df.index,
+                "y": df[name],
+            }
+            dataList.append(data)
+        else:
+            data = {
+                "type": "bar",
+                "name": name,
+                "x": df.index,
+                "y": df[name],
+            }
+            dataList.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",
+        "barmode": "stack",
+    }
+    layout = mergeDict(layout, default_layout)
+
+    graph = {"data": dataList, "layout": layout}
+    plots[f"{key}"] = json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
     # ============================================================
 
@@ -735,12 +790,14 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/28573
     key = "進出口貿易值_按國際商品統一分類制度(HS)及主要國別分"
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1"
-    
+
     key = re.sub(rstr, "_", key)
 
     df = read_csv(url)
     df = df.set_index("國家別")
-    df.columns = pd.MultiIndex.from_tuples([[s.strip() for s in col.split('/')] for col in df.columns.str.replace("(千美元)", "")])
+    df.columns = pd.MultiIndex.from_tuples(
+        [[s.strip() for s in col.split("/")] for col in df.columns.str.replace("(千美元)", "")]
+    )
     num_traces = len(df.columns)  # 總線條數
 
     countries = df.columns.get_level_values(0).unique().tolist()
@@ -754,7 +811,7 @@ if __name__ == "__main__":
             "label": "全部國家",
             "method": "restyle",
         }
-    ]    
+    ]
     for country in countries:
         arr = [col[0] == country for col in df.columns]
 
@@ -783,7 +840,7 @@ if __name__ == "__main__":
         }
     ]
     for export in exports:
-        arr = [col[1] == export for col in df.columns] 
+        arr = [col[1] == export for col in df.columns]
         buttons_exports.append(
             {
                 "args": [
@@ -795,7 +852,7 @@ if __name__ == "__main__":
                 "method": "restyle",
             },
         )
-    
+
     kinds = df.columns.get_level_values(2).unique().tolist()
     buttons_kinds = [
         {
@@ -809,7 +866,7 @@ if __name__ == "__main__":
         }
     ]
     for kind in kinds:
-        arr = [col[2] == kind for col in df.columns] 
+        arr = [col[2] == kind for col in df.columns]
         buttons_kinds.append(
             {
                 "args": [

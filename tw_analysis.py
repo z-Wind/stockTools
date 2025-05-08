@@ -1,6 +1,8 @@
 from datetime import datetime
+import gzip
 import json
 import os
+from pathlib import Path
 import re
 import pandas as pd
 import io
@@ -24,6 +26,19 @@ def read_csv(url, encoding="utf-8"):
     r = requests.get(url, verify=False)
 
     df = pd.read_csv(io.BytesIO(r.content), encoding=encoding)
+
+    return df
+
+
+def read_csv_and_save(path: Path, url, encoding="utf-8"):
+    os.makedirs(path.parent, exist_ok=True)
+
+    if not path.is_file():
+        r = requests.get(url, verify=False)
+        with gzip.open(path, "wb") as f:
+            f.write(r.content)
+
+    df = pd.read_csv(path, compression="gzip", encoding=encoding)
 
     return df
 
@@ -89,6 +104,7 @@ def plotLine(df, title=None):
     layout = {
         "title": {"text": title},
         "hovermode": "x",
+        "xaxis": {"type": "category"},
     }
     layout = mergeDict(layout, default_layout)
 
@@ -122,7 +138,7 @@ def plotBar(df, title=None):
     return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
 
-rstr = r'[- ,、()~∕\/－%*?:"<>|]+'
+rstr = r'[- ,、()~∕\/－%*?:"<>|（）]+'
 
 
 def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, title_suffix, fillna=False):
@@ -981,6 +997,603 @@ if __name__ == "__main__":
         "貨品別",
         r"",
         "(參考年為110年)",
+    )
+
+    # ========================================================================
+
+    # https://data.gov.tw/dataset/139388
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{yyy} 請指定年
+    key = "結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
+    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{year}?page={page}"
+    key = re.sub(rstr, "_", key)
+    df = []
+
+    def get_data(year, page):
+        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        os.makedirs(path.parent, exist_ok=True)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, page=page)
+            r = requests.get(url, verify=False)
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    for year in range(109, datetime.today().year - 1911):
+        page = 1
+        json_data = get_data(year, page)
+        if "responseData" in json_data:
+            data = pd.json_normalize(json_data["responseData"])
+            df.append(data)
+
+            pages = int(json_data["totalPage"])
+            for page in range(2, pages):
+                json_data = get_data(year, page)
+                data = pd.json_normalize(json_data["responseData"])
+                df.append(data)
+
+    df = pd.concat(df)
+    df["number_of_marry"] = df["number_of_marry"].astype(int)
+    split = (
+        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["year"].unique().tolist()
+
+    df_total = df.pivot_table(values="number_of_marry", index="year", aggfunc="sum", sort=False)
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="number_of_marry", index="year", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_婚姻類型 = df.pivot_table(
+        values="number_of_marry", index="year", columns="marriage_type", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_婚姻類型"] = plotLine(
+        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="number_of_marry", index="year", columns="sex", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_原屬國籍 = df.pivot_table(
+        values="number_of_marry", index="year", columns="nation", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_原屬國籍"] = plotLine(
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+    )
+
+    df_教育程度 = df.pivot_table(
+        values="number_of_marry", index="year", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_教育程度"] = plotLine(
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+    )
+
+    df_年齡 = df.pivot_table(
+        values="number_of_marry", index="year", columns="age", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
+        values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_女_年齡_縣市"] = plotLine(
+        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
+        values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_男_年齡_縣市"] = plotLine(
+        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
+        values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_女_年齡_教育"] = plotLine(
+        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
+    )
+
+    df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
+        values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_男_年齡_教育"] = plotLine(
+        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
+    )
+
+    # https://data.gov.tw/dataset/130547
+    key = "結婚對數按婚姻類型、性別及年齡分(按登記)"
+    key = re.sub(rstr, "_", key)
+    urls = {
+        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=50E1F8E9-3A75-45A7-A50D-306CC625A700",
+        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8BB88A9D-4F47-4798-9557-682D338923B9",
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=4540FE37-A4FC-4832-9028-F7CD3734B160",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=70900CD1-5314-433D-BDE3-1DF5C971ECD1",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=7DECF6DE-7AD6-4EC8-85A9-D2B8B703A014",
+        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=169B54F1-8C46-48FB-8E28-164755BE51F8",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = Path(os.path.join("./extraData", key, f"{filename}.gz"))
+        data = read_csv_and_save(path, url)
+        df.append(data)
+
+    df = pd.concat(df)
+    years = df["統計年度"].unique().tolist()
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+
+    kinds = df["婚姻類型"].unique().tolist()
+    items[key] = kinds
+    for kind in kinds:
+        df_女 = df.pivot_table(
+            values="結婚對數",
+            index="女方年齡或配偶一方年齡",
+            columns="男方年齡或配偶另一方年齡",
+            aggfunc="sum",
+            sort=False,
+        )
+        graph = plotLine(
+            df_女,
+            f"{key}_女_{kind} {years[0]}~{years[-1]}",
+        )
+        graph = mergeDict(
+            json.loads(graph),
+            {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
+        )
+        plots[f"{key}_女_{kind}"] = json.dumps(graph)
+
+        df_男 = df.pivot_table(
+            values="結婚對數",
+            index="男方年齡或配偶另一方年齡",
+            columns="女方年齡或配偶一方年齡",
+            aggfunc="sum",
+            sort=False,
+        )
+        graph = plotLine(
+            df_男,
+            f"{key}_男_{kind} {years[0]}~{years[-1]}",
+        )
+        graph = mergeDict(
+            json.loads(graph),
+            {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
+        )
+        plots[f"{key}_男_{kind}"] = json.dumps(graph)
+
+    df_女_縣市 = df.pivot_table(
+        values="結婚對數",
+        index="女方年齡或配偶一方年齡",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    graph = plotLine(
+        df_女_縣市,
+        f"{key}_女_縣市 {years[0]}~{years[-1]}",
+    )
+    graph = mergeDict(
+        json.loads(graph),
+        {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
+    )
+    plots[f"{key}_女_縣市"] = json.dumps(graph)
+
+    df_男_縣市 = df.pivot_table(
+        values="結婚對數",
+        index="男方年齡或配偶另一方年齡",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    graph = plotLine(
+        df_男_縣市,
+        f"{key}_男_縣市 {years[0]}~{years[-1]}",
+    )
+    graph = mergeDict(
+        json.loads(graph),
+        {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
+    )
+    plots[f"{key}_男_縣市"] = json.dumps(graph)
+
+    # https://data.gov.tw/dataset/32945
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{yyy} 請指定年
+    key = "嬰兒出生數按性別、生母原屬國籍（地區）、年齡及教育程度分(按登記)"
+    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{year}?page={page}"
+    key = re.sub(rstr, "_", key)
+    df = []
+
+    def get_data(year, page):
+        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        os.makedirs(path.parent, exist_ok=True)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, page=page)
+            r = requests.get(url, verify=False)
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    def rename_columns_name(df: pd.DataFrame):
+        columns = {
+            "統計年度": "statistic_yyy",
+            "按照別": "according",
+            "區域別": "site_id",
+            "出生者性別": "birth_sex",
+            "生母原屬國籍或地區": "mother_nation",
+            "生母年齡": "mother_age",
+            "生母教育程度": "mother_education",
+            "嬰兒出生數": "birth_count",
+        }
+        df.columns = df.columns.str.replace("\ufeff", "")
+        return df.rename(columns=columns)
+
+    for year in range(106, datetime.today().year - 1911):
+        page = 1
+        json_data = get_data(year, page)
+        if "responseData" in json_data:
+            data = pd.json_normalize(json_data["responseData"])
+            data = rename_columns_name(data)
+            df.append(data)
+
+            pages = int(json_data["totalPage"])
+            for page in range(2, pages):
+                json_data = get_data(year, page)
+                data = pd.json_normalize(json_data["responseData"])
+                data = rename_columns_name(data)
+                df.append(data)
+
+    df = pd.concat(df)
+    df["birth_count"] = df["birth_count"].astype(int)
+    split = (
+        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["statistic_yyy"].unique().tolist()
+    df["mother_age"] = df["mother_age"].str.replace("～", "~")
+
+    df_total = df.pivot_table(
+        values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="birth_sex", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_原屬國籍 = df.pivot_table(
+        values="birth_count",
+        index="statistic_yyy",
+        columns="mother_nation",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_原屬國籍"] = plotLine(
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+    )
+
+    df_教育程度 = df.pivot_table(
+        values="birth_count",
+        index="statistic_yyy",
+        columns="mother_education",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_教育程度"] = plotLine(
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+    )
+
+    df_年齡 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_年齡_縣市 = df.pivot_table(
+        values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡_縣市"] = plotLine(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+
+    df_年齡_教育 = df.pivot_table(
+        values="birth_count",
+        index="mother_age",
+        columns="mother_education",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_年齡_教育"] = plotLine(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+
+    # https://data.gov.tw/dataset/127527
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{yyy} 請指定年
+    key = "嬰兒出生數按嬰兒性別及生父母年齡分(按登記)"
+    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{year}?page={page}"
+    key = re.sub(rstr, "_", key)
+    df = []
+
+    def get_data(year, page):
+        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        os.makedirs(path.parent, exist_ok=True)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, page=page)
+            r = requests.get(url, verify=False)
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    def rename_columns_name(df: pd.DataFrame):
+        columns = {
+            "統計年度": "statistic_yyy",
+            "按照別": "according",
+            "行政區域代碼": "district_code",
+            "區域別": "site_id",
+            "嬰兒性別": "sex",
+            "生父年齡": "father_age",
+            "生母年齡": "mother_age",
+            "嬰兒出生數": "birth_count",
+        }
+        df.columns = df.columns.str.replace("\ufeff", "")
+        return df.rename(columns=columns)
+
+    for year in range(106, datetime.today().year - 1911):
+        page = 1
+        json_data = get_data(year, page)
+        if "responseData" in json_data:
+            data = pd.json_normalize(json_data["responseData"])
+            data = rename_columns_name(data)
+            df.append(data)
+
+            pages = int(json_data["totalPage"])
+            for page in range(2, pages):
+                json_data = get_data(year, page)
+                data = pd.json_normalize(json_data["responseData"])
+                data = rename_columns_name(data)
+                df.append(data)
+
+    df = pd.concat(df)
+    df["birth_count"] = df["birth_count"].astype(int)
+    split = (
+        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["statistic_yyy"].unique().tolist()
+    df["mother_age"] = df["mother_age"].str.replace("～", "~")
+    df["father_age"] = df["father_age"].str.replace("～", "~")
+
+    df_total = df.pivot_table(
+        values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_生父年齡 = df.pivot_table(
+        values="birth_count",
+        index="statistic_yyy",
+        columns="father_age",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_生父年齡"] = plotLine(
+        df_生父年齡, f"{key}_生父年齡 {df_生父年齡.index[0]}~{df_生父年齡.index[-1]}"
+    )
+
+    df_生母年齡 = df.pivot_table(
+        values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_生母年齡"] = plotLine(
+        df_生母年齡, f"{key}_生母年齡 {df_生母年齡.index[0]}~{df_生母年齡.index[-1]}"
+    )
+
+    df_生母年齡_縣市 = df.pivot_table(
+        values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_生母年齡_縣市"] = plotLine(
+        df_生母年齡_縣市, f"{key}_生母年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_生父年齡_縣市 = df.pivot_table(
+        values="birth_count", index="father_age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_生父年齡_縣市"] = plotLine(
+        df_生父年齡_縣市, f"{key}_生父年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_生母年齡_生父年齡 = df.pivot_table(
+        values="birth_count",
+        index="mother_age",
+        columns="father_age",
+        aggfunc="sum",
+        sort=False,
+    )
+    graph = plotLine(df_生母年齡_生父年齡, f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}")
+    graph = mergeDict(
+        json.loads(graph),
+        {"layout": {"xaxis": {"title": {"text": "生母年齡"}}}},
+    )
+    plots[f"{key}_生母年齡_生父年齡"] = json.dumps(graph)
+
+    # https://data.gov.tw/dataset/139390
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{yyy} 請指定年
+    key = "離婚/終止結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
+    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{year}?page={page}"
+    key = re.sub(rstr, "_", key)
+    df = []
+
+    def get_data(year, page):
+        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        os.makedirs(path.parent, exist_ok=True)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, page=page)
+            r = requests.get(url, verify=False)
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    for year in range(111, datetime.today().year - 1911):
+        page = 1
+        json_data = get_data(year, page)
+        if "responseData" in json_data:
+            data = pd.json_normalize(json_data["responseData"])
+            df.append(data)
+
+            pages = int(json_data["totalPage"])
+            for page in range(2, pages):
+                json_data = get_data(year, page)
+                data = pd.json_normalize(json_data["responseData"])
+                df.append(data)
+
+    df = pd.concat(df)
+    df["divorce_count"] = df["divorce_count"].astype(int)
+    split = (
+        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["statistic_yyy"].unique().tolist()
+
+    df_total = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_婚姻類型 = df.pivot_table(
+        values="divorce_count",
+        index="statistic_yyy",
+        columns="marriage_type",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_婚姻類型"] = plotLine(
+        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_原屬國籍 = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", columns="nation", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_原屬國籍"] = plotLine(
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+    )
+
+    df_教育程度 = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_教育程度"] = plotLine(
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+    )
+
+    df_年齡 = df.pivot_table(
+        values="divorce_count", index="statistic_yyy", columns="age", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
+        values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_女_年齡_縣市"] = plotLine(
+        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
+        values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_男_年齡_縣市"] = plotLine(
+        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
+    )
+
+    df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
+        values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_女_年齡_教育"] = plotLine(
+        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
+    )
+
+    df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
+        values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_男_年齡_教育"] = plotLine(
+        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
     )
 
     # =======================================================================

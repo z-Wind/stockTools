@@ -138,6 +138,29 @@ def plotBar(df, title=None):
     return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
 
+def plotBarGroup(df, title=None):
+    dataList = []
+    for name in df.columns:
+        data = {
+            "type": "bar",
+            "name": name,
+            "x": df.index,
+            "y": df[name],
+        }
+        dataList.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",
+    }
+    layout = mergeDict(layout, default_layout)
+
+    graph = {"data": dataList, "layout": layout}
+
+    # 序列化
+    return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+
 rstr = r'[- ,、()~∕\/－%*?:"<>|（）]+'
 
 
@@ -1012,7 +1035,7 @@ if __name__ == "__main__":
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
         os.makedirs(path.parent, exist_ok=True)
 
         if not path.is_file():
@@ -1134,7 +1157,7 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData", key, f"{filename}.gz"))
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
         data = read_csv_and_save(path, url)
         df.append(data)
 
@@ -1226,7 +1249,7 @@ if __name__ == "__main__":
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
         os.makedirs(path.parent, exist_ok=True)
 
         if not path.is_file():
@@ -1340,6 +1363,90 @@ if __name__ == "__main__":
     )
     plots[f"{key}_年齡_教育"] = plotLine(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
 
+    # https://data.gov.tw/dataset/102764
+    key = "嬰兒出生數按性別、生父原屬國籍（地區）、年齡及教育程度分(按登記)"
+    key = re.sub(rstr, "_", key)
+    urls = {
+        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5BAD1943-66B8-4641-93C2-E782756EBDA1",
+        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=4188B9D4-195C-423B-A936-0A61D9AE5F01",
+        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=58ED2363-BC18-4667-8D00-26C2AF9CB35C",
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=43DBD613-B4E8-4EBB-BD35-5B79E58166F9",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1C52FAFC-FEFC-4B10-8E51-81CD91CCB649",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=F1806618-D721-426B-8A51-95C96AE728CF",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
+        data = read_csv_and_save(path, url)
+        df.append(data)
+
+    df = pd.concat(df)
+    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["統計年度"].unique().tolist()
+    df["生父年齡"] = df["生父年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_原屬國籍 = df.pivot_table(
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="生父原屬國籍或地區",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_原屬國籍"] = plotLine(
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+    )
+
+    df_教育程度 = df.pivot_table(
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="生父教育程度",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_教育程度"] = plotLine(
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+    )
+
+    df_年齡 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="生父年齡", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_年齡_縣市 = df.pivot_table(
+        values="嬰兒出生數", index="生父年齡", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡_縣市"] = plotLine(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+
+    df_年齡_教育 = df.pivot_table(
+        values="嬰兒出生數",
+        index="生父年齡",
+        columns="生父教育程度",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_年齡_教育"] = plotLine(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+
     # https://data.gov.tw/dataset/127527
     # API 說明文件
     # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
@@ -1351,7 +1458,7 @@ if __name__ == "__main__":
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
         os.makedirs(path.parent, exist_ok=True)
 
         if not path.is_file():
@@ -1471,6 +1578,186 @@ if __name__ == "__main__":
     )
     plots[f"{key}_生母年齡_生父年齡"] = json.dumps(graph)
 
+    # https://data.gov.tw/dataset/102765
+    key = "嬰兒出生數按生母年齡及出生身分分(按登記)"
+    key = re.sub(rstr, "_", key)
+    urls = {
+        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=94BFACA3-69FD-4A0A-BEB9-44D0EC534415",
+        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CCB9654B-B722-44A3-8A95-84D56B048F10",
+        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=0C7B49C4-2B84-434E-86D5-E933F9199B90",
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=401AD23D-9B8C-4180-B559-55D28B7F1FEA",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=FC12D25D-AB81-45D8-8815-0E60181EFE45",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=068CCDD8-DFEE-464A-A55B-90DB70388ECC",
+        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=6AF685B1-DA07-4E8C-AFE0-C59A3FB06021",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
+        data = read_csv_and_save(path, url)
+        df.append(data)
+
+    df = pd.concat(df)
+    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["統計年度"].unique().tolist()
+    df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_身分 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="出生身分", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_身分"] = plotLine(df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}")
+
+    df_年齡 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_年齡_身分 = df.pivot_table(
+        values="嬰兒出生數", index="生母年齡", columns="出生身分", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡_身分"] = plotLine(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}")
+
+    df_身分_縣市 = df.pivot_table(
+        values="嬰兒出生數", index="出生身分", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_身分_縣市"] = plotBarGroup(
+        df_身分_縣市, f"{key}_身分_縣市 {years[0]}~{years[-1]}"
+    )
+
+    # https://data.gov.tw/dataset/100324
+    key = "嬰兒出生數按性別、胎次及生母年齡分(按登記)"
+    key = re.sub(rstr, "_", key)
+    urls = {
+        106: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=E2E702A0-EA3B-4689-8CA9-DD9083E15534",
+        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5F11E0E0-8F23-4F95-B187-E15F6EF8AAE6",
+        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=87673B9A-31D7-4900-9D7D-62C715EB54AC",
+        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8B7C2D82-9F36-452C-86F5-2CD370C0CCA4",
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=205DD511-67C3-464C-8B47-A273B1258F61",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=D7B783A1-90C2-4C8B-B143-20DBC826F4C2",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A5E5E762-D38E-463F-9262-0CFFCE2E5AE7",
+        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1858BBBA-82EC-4E00-8C77-0E206E4CCED2",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
+        data = read_csv_and_save(path, url)
+        df.append(data)
+
+    df = pd.concat(df)
+    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["統計年度"].unique().tolist()
+    df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_胎次 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="胎次", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_胎次"] = plotLine(df_胎次, f"{key}_胎次 {df_胎次.index[0]}~{df_胎次.index[-1]}")
+
+    df_年齡 = df.pivot_table(
+        values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+
+    df_年齡_胎次 = df.pivot_table(
+        values="嬰兒出生數", index="生母年齡", columns="胎次", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_年齡_胎次"] = plotLine(df_年齡_胎次, f"{key}_年齡_胎次 {years[0]}~{years[-1]}")
+
+    df_胎次_縣市 = df.pivot_table(
+        values="嬰兒出生數", index="胎次", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_胎次_縣市"] = plotBarGroup(
+        df_胎次_縣市, f"{key}_胎次_縣市 {years[0]}~{years[-1]}"
+    )
+
+    # https://data.gov.tw/dataset/152789
+    key = "嬰兒出生數按嬰兒性別及出生胎別分(按登記)"
+    key = re.sub(rstr, "_", key)
+    urls = {
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C89BA952-9140-47C5-805A-34F3A0773978",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CBD76D1D-2609-4553-9B8E-06BA912249B8",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C7432B38-55F0-4DF1-8C91-33770B7A823C",
+        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A6B28B8E-F601-452F-925A-75A6320A633F",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
+        data = read_csv_and_save(path, url)
+        df.append(data)
+
+    df = pd.concat(df)
+    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    years = df["統計年"].unique().tolist()
+
+    df_total = df.pivot_table(values="嬰兒出生數", index="統計年", aggfunc="sum", sort=False)
+    plots[f"{key}_總和"] = plotLine(
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+
+    df_區域別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別"] = plotLine(
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df_性別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年", columns="性別", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+
+    df_胎別 = df.pivot_table(
+        values="嬰兒出生數", index="統計年", columns="胎別", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_胎別"] = plotLine(df_胎別, f"{key}_胎別 {df_胎別.index[0]}~{df_胎別.index[-1]}")
+
+    df_胎別_縣市 = df.pivot_table(
+        values="嬰兒出生數", index="胎別", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_胎別_縣市"] = plotBarGroup(
+        df_胎別_縣市, f"{key}_胎別_縣市 {years[0]}~{years[-1]}"
+    )
+
     # https://data.gov.tw/dataset/139390
     # API 說明文件
     # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
@@ -1482,7 +1769,7 @@ if __name__ == "__main__":
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData", key, f"{year}_{page}.gz"))
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
         os.makedirs(path.parent, exist_ok=True)
 
         if not path.is_file():

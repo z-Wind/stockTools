@@ -1,0 +1,8 @@
+var config = { responsive: true }
+
+var 嬰兒出生數按嬰兒性別及出生胎別分_按登記__胎別 = {"data": [{"type": "scatter", "name": "\u55ae\u80ce", "x": [110, 111, 112, 113], "y": [147420, 133788, 130555, 129583], "mode": "lines"}, {"type": "scatter", "name": "\u96d9\u80de\u80ce", "x": [110, 111, 112, 113], "y": [6318, 5134, 4940, 5186], "mode": "lines"}, {"type": "scatter", "name": "3\u80de\u80ce", "x": [110, 111, 112, 113], "y": [82, 64, 76, 87], "mode": "lines"}, {"type": "scatter", "name": "4\u80de\u80ce", "x": [110, 111, 112, 113], "y": [0, 0, 0, 0], "mode": "lines"}, {"type": "scatter", "name": "5\u80de\u80ce\u4ee5\u4e0a", "x": [110, 111, 112, 113], "y": [0, 0, 0, 0], "mode": "lines"}], "layout": {"title": {"text": "\u5b30\u5152\u51fa\u751f\u6578\u6309\u5b30\u5152\u6027\u5225\u53ca\u51fa\u751f\u80ce\u5225\u5206_\u6309\u767b\u8a18__\u80ce\u5225 110~113", "font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9}, "hovermode": "x", "xaxis": {"type": "category", "tickfont": {"family": "Courier New", "size": 14}, "automargin": true}, "font": {"family": "Courier New", "color": "#ffffff"}, "yaxis": {"tickfont": {"family": "Courier New"}, "automargin": true}, "plot_bgcolor": "#000", "paper_bgcolor": "#000"}};
+
+Plotly.newPlot("嬰兒出生數按嬰兒性別及出生胎別分_按登記__胎別",
+    嬰兒出生數按嬰兒性別及出生胎別分_按登記__胎別.data,
+    嬰兒出生數按嬰兒性別及出生胎別分_按登記__胎別.layout || {},
+    config);

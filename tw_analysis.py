@@ -1024,6 +1024,206 @@ if __name__ == "__main__":
 
     # ========================================================================
 
+    # https://data.gov.tw/dataset/32970
+    # https://data.gov.tw/dataset/77139
+    # https://data.gov.tw/dataset/131135
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP003/{yyymm} 請指定年月
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP012/{yyymm} 請指定年月
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/{yyymm} 請指定年月
+    key = "動態資料統計表（含同婚）"
+    url_year_page_10601_10612 = (
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP003/{year}{month:02d}?page={page}"
+    )
+    url_year_page_10701_10908 = (
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP012/{year}{month:02d}?page={page}"
+    )
+    url_year_page = (
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/{year}{month:02d}?page={page}"
+    )
+    key = re.sub(rstr, "_", key)
+    df = []
+
+    def get_data(year, month, page):
+        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{month:02d}_{page}.gz"))
+        os.makedirs(path.parent, exist_ok=True)
+
+        if not path.is_file():
+            yearmonth = year * 100 + month
+            if 10601 <= yearmonth and yearmonth <= 10612:
+                url = url_year_page_10601_10612.format(year=year, month=month, page=page)
+            elif 10701 <= yearmonth and yearmonth <= 10908:
+                url = url_year_page_10701_10908.format(year=year, month=month, page=page)
+            else:
+                url = url_year_page.format(year=year, month=month, page=page)
+            r = requests.get(url, verify=False)
+            json_data = json.loads(r.content)
+            if "responseData" in json_data:
+                with gzip.open(path, "wb") as f:
+                    f.write(r.content)
+            else:
+                return {}
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    def rename_columns_name(df: pd.DataFrame):
+        columns = {
+            "statistic_yyymm": "統計年月",
+            "district_code": "區域別代碼",
+            "site_id": "區域別",
+            "village": "村里名稱",
+            "neighbor_no2": "鄰數_戶籍登記",
+            "household_no": "戶數",
+            "people_total": "人口數_合計",
+            "people_total_m": "人口數_男",
+            "people_total_f": "人口數_女",
+            "birth_total": "出生數_合計",
+            "birth_total_m": "出生數_合計_男",
+            "birth_total_f": "出生數_合計_女",
+            "birth_legal_m": "出生數_婚生_男",
+            "birth_legal_f": "出生數_婚生_女",
+            "birth_illegal_recognized_m": "出生數_非婚生_已認領_男",
+            "birth_illegal_recognized_f": "出生數_非婚生_已認領_女",
+            "birth_illegal_unrecognized_m": "出生數_非婚生_未認領_男",
+            "birth_illegal_unrecognized_f": "出生數_非婚生_未認領_女",
+            "helpless_child_m": "出生數_無依兒童_男",
+            "helpless_child_f": "出生數_無依兒童_女",
+            "mother_mainland_m": "生母原屬國籍（地區）_大陸港澳地區_男",
+            "mother_mainland_f": "生母原屬國籍（地區）_大陸港澳地區_女",
+            "mother_foreigner_m": "生母原屬國籍（地區）_外國籍_男",
+            "mother_foreigner_f": "生母原屬國籍（地區）_外國籍_女",
+            "father_mainland_m": "生父原屬國籍（地區）_大陸港澳地區_男",
+            "father_mainland_f": "生父原屬國籍（地區）_大陸港澳地區_女",
+            "father_foreigner_m": "生父原屬國籍（地區）_外國籍_男",
+            "father_foreigner_f": "生父原屬國籍（地區）_外國籍_女",
+            "posthumous_child_m": "遺腹子_男",
+            "posthumous_child_f": "遺腹子_女",
+            "twinborn_child_m": "雙胞胎_男",
+            "twinborn_child_f": "雙胞胎_女",
+            "multi_child_m": "三胞胎以上_男",
+            "multi_child_f": "三胞胎以上_女",
+            "death_m": "死亡人數_男",
+            "death_f": "死亡人數_女",
+            "claimed_m": "認領人數_男",
+            "claimed_f": "認領人數_女",
+            "adpot_m": "收養人數_男",
+            "adpot_f": "收養人數_女",
+            "stop_adpot_m": "終止收養人數_男",
+            "stop_adpot_f": "終止收養人數_女",
+            "guardianship_m": "監護人數_男",
+            "guardianship_f": "監護人數_女",
+            "aid_m": "輔助人數_男",
+            "aid_f": "輔助人數_女",
+            "minorchildren_m": "未成年子女權利義務行使負擔人數_男",
+            "minorchildren_f": "未成年子女權利義務行使負擔人數_女",
+            "marry_pair_OppositeSex": "結婚對數_異性",
+            "marry_pair_SameSex": "結婚對數_同性",
+            "marry_pair_SameSex_m": "結婚對數_同性_男",
+            "marry_pair_SameSex_f": "結婚對數_同性_女",
+            "divorce_pair_OppositeSex": "離婚對數_異性",
+            "divorce_pair_SameSex": "離婚對數_同性",
+            "divorce_pair_SameSex_m": "離婚對數_同性_男",
+            "divorce_pair_SameSex_f": "離婚對數_同性_女",
+            "marry_pair": "結婚對數_異性",
+            "divorce_pair": "離婚對數_異性",
+        }
+        df.columns = df.columns.str.replace("\ufeff", "")
+        return df.rename(columns=columns)
+
+    for year in range(106, datetime.today().year - 1911 + 1):
+        for month in range(1, 13):
+            page = 1
+            json_data = get_data(year, month, page)
+            if "responseData" in json_data:
+                data = pd.json_normalize(json_data["responseData"])
+                data = rename_columns_name(data)
+                df.append(data)
+
+                pages = int(json_data["totalPage"])
+                for page in range(2, pages + 1):
+                    json_data = get_data(year, month, page)
+                    data = pd.json_normalize(json_data["responseData"])
+                    data = rename_columns_name(data)
+                    df.append(data)
+
+    df = pd.concat(df)
+    df = df.fillna(0)
+    df[df.columns[4:]] = df[df.columns[4:]].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    yearsmonths = df["統計年月"].unique().tolist()
+
+    def summary(df, suffix, 合計, 男, 女):
+        df_total = df.pivot_table(values=合計, index="統計年月", aggfunc="sum", sort=False)
+        plots[f"{key}_總和_{suffix}"] = plotLine(
+            df_total, f"{key}_總和_{suffix} {df_total.index[0]}~{df_total.index[-1]}"
+        )
+
+        df_total_男女 = df.pivot_table(values=[男, 女], index="統計年月", aggfunc="sum", sort=False)
+        plots[f"{key}_總和_男女_{suffix}"] = plotLine(
+            df_total_男女,
+            f"{key}_總和_男女_{suffix} {df_total_男女.index[0]}~{df_total_男女.index[-1]}",
+        )
+
+        df_區域別 = df.pivot_table(
+            values=合計, index="統計年月", columns="縣市", aggfunc="sum", sort=False
+        )
+        plots[f"{key}_區域別_{suffix}"] = plotLine(
+            df_區域別, f"{key}_區域別_{suffix} {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        )
+
+        df_區域別_男女 = df.pivot_table(
+            values=[男, 女],
+            index="統計年月",
+            columns="縣市",
+            aggfunc="sum",
+            sort=False,
+        )
+        df_區域別_男女.columns = [f"{region}_{sex}" for sex, region in df_區域別_男女.columns]
+        plots[f"{key}_區域別_男女_{suffix}"] = plotLine(
+            df_區域別_男女,
+            f"{key}_區域別_男女_{suffix} {df_區域別_男女.index[0]}~{df_區域別_男女.index[-1]}",
+        )
+
+    summary(df, "人口數", "人口數_合計", "人口數_男", "人口數_女")
+    summary(df, "出生數", "出生數_合計", "出生數_合計_男", "出生數_合計_女")
+    df["死亡人數_合計"] = df["死亡人數_男"] + df["死亡人數_女"]
+    summary(df, "死亡人數", "死亡人數_合計", "死亡人數_男", "死亡人數_女")
+
+    df["結婚對數"] = (
+        df["結婚對數_異性"] + df["結婚對數_同性"] + df["結婚對數_同性_男"] + df["結婚對數_同性_女"]
+    )
+    df_total = df.pivot_table(values="結婚對數", index="統計年月", aggfunc="sum", sort=False)
+    plots[f"{key}_總和_結婚對數"] = plotLine(
+        df_total, f"{key}_總和_結婚對數 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+    df_區域別 = df.pivot_table(
+        values="結婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別_結婚對數"] = plotLine(
+        df_區域別, f"{key}_區域別_結婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
+    df["離婚對數"] = (
+        df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
+    )
+    df_total = df.pivot_table(values="離婚對數", index="統計年月", aggfunc="sum", sort=False)
+    plots[f"{key}_總和_離婚對數"] = plotLine(
+        df_total, f"{key}_總和_離婚對數 {df_total.index[0]}~{df_total.index[-1]}"
+    )
+    df_區域別 = df.pivot_table(
+        values="離婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_區域別_離婚對數"] = plotLine(
+        df_區域別, f"{key}_區域別_離婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+    )
+
     # https://data.gov.tw/dataset/139388
     # API 說明文件
     # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
@@ -1050,7 +1250,7 @@ if __name__ == "__main__":
 
         return data
 
-    for year in range(109, datetime.today().year - 1911):
+    for year in range(109, datetime.today().year - 1911 + 1):
         page = 1
         json_data = get_data(year, page)
         if "responseData" in json_data:
@@ -1058,7 +1258,7 @@ if __name__ == "__main__":
             df.append(data)
 
             pages = int(json_data["totalPage"])
-            for page in range(2, pages):
+            for page in range(2, pages + 1):
                 json_data = get_data(year, page)
                 data = pd.json_normalize(json_data["responseData"])
                 df.append(data)
@@ -1278,7 +1478,7 @@ if __name__ == "__main__":
         df.columns = df.columns.str.replace("\ufeff", "")
         return df.rename(columns=columns)
 
-    for year in range(106, datetime.today().year - 1911):
+    for year in range(106, datetime.today().year - 1911 + 1):
         page = 1
         json_data = get_data(year, page)
         if "responseData" in json_data:
@@ -1287,7 +1487,7 @@ if __name__ == "__main__":
             df.append(data)
 
             pages = int(json_data["totalPage"])
-            for page in range(2, pages):
+            for page in range(2, pages + 1):
                 json_data = get_data(year, page)
                 data = pd.json_normalize(json_data["responseData"])
                 data = rename_columns_name(data)
@@ -1487,7 +1687,7 @@ if __name__ == "__main__":
         df.columns = df.columns.str.replace("\ufeff", "")
         return df.rename(columns=columns)
 
-    for year in range(106, datetime.today().year - 1911):
+    for year in range(106, datetime.today().year - 1911 + 1):
         page = 1
         json_data = get_data(year, page)
         if "responseData" in json_data:
@@ -1496,7 +1696,7 @@ if __name__ == "__main__":
             df.append(data)
 
             pages = int(json_data["totalPage"])
-            for page in range(2, pages):
+            for page in range(2, pages + 1):
                 json_data = get_data(year, page)
                 data = pd.json_normalize(json_data["responseData"])
                 data = rename_columns_name(data)
@@ -1784,7 +1984,7 @@ if __name__ == "__main__":
 
         return data
 
-    for year in range(111, datetime.today().year - 1911):
+    for year in range(111, datetime.today().year - 1911 + 1):
         page = 1
         json_data = get_data(year, page)
         if "responseData" in json_data:
@@ -1792,7 +1992,7 @@ if __name__ == "__main__":
             df.append(data)
 
             pages = int(json_data["totalPage"])
-            for page in range(2, pages):
+            for page in range(2, pages + 1):
                 json_data = get_data(year, page)
                 data = pd.json_normalize(json_data["responseData"])
                 df.append(data)

@@ -888,6 +888,61 @@ if __name__ == "__main__":
             df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}"
         )
 
+    # https://www.stat.gov.tw/cp.aspx?n=3914
+    key = "主計總處統計專區 家庭收支調查 統計表 常用資料"
+    key = sanitize_filename(key)
+    url_平均每人月消費 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/4.xls"
+    url_可支配所得平均數 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/mean.xls"
+    url_可支配所得中位數 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/med.xls"
+
+    def get_data(content: bytes, sheets_num: list[int], skiprows: int) -> pd.DataFrame:
+
+        dfs = []
+        for i in sheets_num:
+            df = pd.read_excel(
+                io.BytesIO(content), engine="calamine", sheet_name=i, skiprows=skiprows
+            ).dropna()
+            dfs.append(df)
+        dfs = pd.concat(dfs, ignore_index=True)
+
+        return dfs
+
+    r = requests.get(url_平均每人月消費, verify=False)
+    df_平均每人月消費 = get_data(r.content, [0, 1], 1)
+    df_平均每人月消費 = df_平均每人月消費.set_index("年別")
+    plots[f"{key}_平均每人月消費"] = plot_line(
+        df_平均每人月消費,
+        f"{key}_平均每人月消費 {df_平均每人月消費.index[0]}~{df_平均每人月消費.index[-1]}",
+    )
+
+    r = requests.get(url_可支配所得平均數, verify=False)
+    df_平均每戶可支配所得 = get_data(r.content, [0, 2], 2)
+    df_平均每人可支配所得 = get_data(r.content, [1, 3], 2)
+    df_平均每戶可支配所得 = df_平均每戶可支配所得.set_index("年別")
+    plots[f"{key}_平均每戶可支配所得"] = plot_line(
+        df_平均每戶可支配所得,
+        f"{key}_平均每戶可支配所得 {df_平均每戶可支配所得.index[0]}~{df_平均每戶可支配所得.index[-1]}",
+    )
+    df_平均每人可支配所得 = df_平均每人可支配所得.set_index("年別")
+    plots[f"{key}_平均每人可支配所得"] = plot_line(
+        df_平均每人可支配所得,
+        f"{key}_平均每人可支配所得 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}",
+    )
+
+    r = requests.get(url_可支配所得中位數, verify=False)
+    df_每戶可支配所得中位數 = get_data(r.content, [0, 2], 2)
+    df_每人可支配所得中位數 = get_data(r.content, [1, 3], 2)
+    df_每戶可支配所得中位數 = df_每戶可支配所得中位數.set_index("年別")
+    plots[f"{key}_每戶可支配所得中位數"] = plot_line(
+        df_每戶可支配所得中位數,
+        f"{key}_每戶可支配所得中位數 {df_每戶可支配所得中位數.index[0]}~{df_每戶可支配所得中位數.index[-1]}",
+    )
+    df_每人可支配所得中位數 = df_每人可支配所得中位數.set_index("年別")
+    plots[f"{key}_每人可支配所得中位數"] = plot_line(
+        df_每人可支配所得中位數,
+        f"{key}_每人可支配所得中位數 {df_每人可支配所得中位數.index[0]}~{df_每人可支配所得中位數.index[-1]}",
+    )
+
     # ============================================================
 
     # https://data.gov.tw/dataset/15392
@@ -1243,7 +1298,7 @@ if __name__ == "__main__":
                     data = rename_columns_name(data)
                     df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df = df.fillna(0)
     df[df.columns[4:]] = df[df.columns[4:]].astype(int)
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
@@ -1355,7 +1410,7 @@ if __name__ == "__main__":
                 data = pd.json_normalize(json_data["responseData"])
                 df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["number_of_marry"] = df["number_of_marry"].astype(int)
     split = (
         df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
@@ -1453,7 +1508,7 @@ if __name__ == "__main__":
         data = read_csv_with_cache(path, url)
         df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     years = df["統計年度"].unique().tolist()
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
@@ -1569,7 +1624,7 @@ if __name__ == "__main__":
                 data = rename_columns_name(data)
                 df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["birth_count"] = df["birth_count"].astype(int)
     split = (
         df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
@@ -1657,7 +1712,7 @@ if __name__ == "__main__":
         data = read_csv_with_cache(path, url)
         df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
@@ -1778,7 +1833,7 @@ if __name__ == "__main__":
                 data = rename_columns_name(data)
                 df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["birth_count"] = df["birth_count"].astype(int)
     split = (
         df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
@@ -1872,7 +1927,7 @@ if __name__ == "__main__":
         data = read_csv_with_cache(path, url)
         df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
@@ -1934,7 +1989,7 @@ if __name__ == "__main__":
         data = read_csv_with_cache(path, url)
         df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
@@ -1997,7 +2052,7 @@ if __name__ == "__main__":
         data = read_csv_with_cache(path, url)
         df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
@@ -2072,7 +2127,7 @@ if __name__ == "__main__":
                 data = pd.json_normalize(json_data["responseData"])
                 df.append(data)
 
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["divorce_count"] = df["divorce_count"].astype(int)
     split = (
         df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)

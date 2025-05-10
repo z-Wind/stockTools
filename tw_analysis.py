@@ -8,30 +8,46 @@ import pandas as pd
 import io
 import plotly
 import requests
+from typing import Optional, Dict, Any
 
 from flask import Flask, render_template
 
 app = Flask(__name__)
 
+# Regular expression for sanitizing strings for use as keys or filenames
+FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）]+'
+# Base directory for caching downloaded data
+EXTRA_DATA_DIR = Path("./extraData/TW_Analysis")
 
-def read_xml(url, xpath):
+# --- Helper Functions ---
+
+
+def sanitize_filename(name: str) -> str:
+    """Sanitizes a string to be used as a valid filename or key."""
+    return re.sub(FILENAME_SANITIZE_PATTERN, "_", name)
+
+
+def _ensure_dir_exists(path: Path):
+    """Ensures that the directory for the given path exists."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_xml(url: str, xpath: str) -> pd.DataFrame:
     r = requests.get(url, verify=False)
-
     df = pd.read_xml(io.BytesIO(r.content), xpath=xpath)
 
     return df
 
 
-def read_csv(url, encoding="utf-8"):
+def read_csv(url: str, encoding: str = "utf-8") -> pd.DataFrame:
     r = requests.get(url, verify=False)
-
     df = pd.read_csv(io.BytesIO(r.content), encoding=encoding)
 
     return df
 
 
-def read_csv_and_save(path: Path, url, encoding="utf-8"):
-    os.makedirs(path.parent, exist_ok=True)
+def read_csv_with_cache(path: Path, url: str, encoding: str = "utf-8") -> pd.DataFrame:
+    _ensure_dir_exists(path)
 
     if not path.is_file():
         r = requests.get(url, verify=False)
@@ -43,10 +59,30 @@ def read_csv_and_save(path: Path, url, encoding="utf-8"):
     return df
 
 
-def read_json(url, encoding="utf-8"):
+def read_json(url: str, encoding: str = "utf-8") -> pd.DataFrame:
     r = requests.get(url, verify=False)
 
     df = pd.read_json(io.BytesIO(r.content), encoding=encoding)
+
+    return df
+
+
+def read_excel_with_cache(
+    path: Path, url: str, skiprows=None, nrows=None, usecols=None
+) -> pd.DataFrame:
+    _ensure_dir_exists(path)
+
+    if not path.is_file():
+        r = requests.get(url, verify=False)
+        with gzip.open(path, "wb") as f:
+            f.write(r.content)
+
+    with gzip.open(path, "rb") as f_gz:
+        # Read the gzipped content into BytesIO for pandas
+        excel_bytes = io.BytesIO(f_gz.read())
+    df = pd.read_excel(
+        excel_bytes, engine="calamine", skiprows=skiprows, nrows=nrows, usecols=usecols
+    )  # Use openpyxl
 
     return df
 
@@ -55,7 +91,7 @@ default_layout = {
     # "height": 600,
     # "autosize": False,
     "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
-    "font": {"family": "Courier New", "color": "#ffffff"},
+    "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
     "xaxis": {
         "tickfont": {"family": "Courier New", "size": 14},
         "automargin": True,
@@ -64,108 +100,134 @@ default_layout = {
         "tickfont": {"family": "Courier New"},
         "automargin": True,
     },
-    "plot_bgcolor": "#000",
-    "paper_bgcolor": "#000",
+    "plot_bgcolor": "#000",  # Black plot background
+    "paper_bgcolor": "#000",  # Black paper background
+    "legend": {"font": {"color": "#ffffff"}},  # White legend text
 }
 
 
-def mergeDict(a, b, path=None, overwrite=False):
-    "merges b into a"
+def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = True) -> Dict:
+    """Merges b into a. If overwrite is True, b's values will overwrite a's on conflict."""
     if path is None:
         path = []
     for key in b:
         if key in a:
             if isinstance(a[key], dict) and isinstance(b[key], dict):
-                mergeDict(a[key], b[key], path + [str(key)])
+                merge_dict(a[key], b[key], path + [str(key)], overwrite)
+            elif a[key] != b[key] and overwrite:
+                a[key] = b[key]
             elif a[key] == b[key]:
                 pass  # same leaf value
-            else:
-                if overwrite:
-                    a[key] = b[key]
-
-                # raise Exception("Conflict at %s" % ".".join(path + [str(key)]))
+            elif not overwrite:
+                print(
+                    f"Conflict at {'.'.join(path + [str(key)])} and overwrite is False. Keeping original value."
+                )
         else:
             a[key] = b[key]
     return a
 
 
-def plotLine(df, title=None):
-    dataList = []
+def plotly_json_dump(graph_dict: Dict) -> str:
+    """Serializes a Plotly graph dictionary to JSON string."""
+    return json.dumps(graph_dict, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def plot_line(
+    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+) -> str:
+    data_list = []
     for name in df.columns:
         data = {
             "type": "scatter",
             "name": name,
-            "x": df.index,
-            "y": df[name],
+            "x": df.index.tolist(),  # Ensure x-axis is list for JSON
+            "y": df[name].tolist(),  # Ensure y-axis is list for JSON
             "mode": "lines",
         }
-        dataList.append(data)
+        data_list.append(data)
 
     layout = {
         "title": {"text": title},
         "hovermode": "x",
-        "xaxis": {"type": "category"},
+        "xaxis": {
+            "type": "category"
+        },  # Ensure x-axis type is category for discrete values if needed
     }
-    layout = mergeDict(layout, default_layout)
+    final_layout = merge_dict(default_layout.copy(), layout)  # Start with a copy of default_layout
+    if additional_layout:
+        final_layout = merge_dict(final_layout, additional_layout)
 
-    graph = {"data": dataList, "layout": layout}
-
-    # 序列化
-    return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+    graph = {"data": data_list, "layout": final_layout}
+    return plotly_json_dump(graph)
 
 
-def plotBar(df, title=None):
-    dataList = []
+def plot_bar(
+    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+) -> str:
+    data_list = []
+    for (
+        name
+    ) in (
+        df.columns
+    ):  # This loop structure is for grouped bar charts usually. If one bar per column:
+        data = {
+            "type": "bar",
+            "name": name,
+            "x": (
+                df.index.tolist()
+                if isinstance(df.index, pd.MultiIndex) or len(df.index) > 1
+                else [name]
+            ),  # df.index for multiple bars or [name] for single category
+            "y": df[name].tolist(),
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",  # "closest" might be better for bar charts
+        "yaxis": {"tickformat": ".2%"},  # Default, can be overridden by additional_layout
+    }
+    final_layout = merge_dict(default_layout.copy(), layout)
+    if additional_layout:
+        final_layout = merge_dict(final_layout, additional_layout)
+
+    graph = {"data": data_list, "layout": final_layout}
+    return plotly_json_dump(graph)
+
+
+def plot_bar_group(
+    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+) -> str:
+    data_list = []
     for name in df.columns:
         data = {
             "type": "bar",
             "name": name,
-            "x": [name],
-            "y": df[name],
+            "x": df.index.tolist(),
+            "y": df[name].tolist(),
         }
-        dataList.append(data)
+        data_list.append(data)
 
     layout = {
         "title": {"text": title},
         "hovermode": "x",
-        "yaxis": {"tickformat": ".2%"},
+        "barmode": "group",  # Explicitly set barmode for grouped bars
     }
-    layout = mergeDict(layout, default_layout)
+    final_layout = merge_dict(default_layout.copy(), layout)
+    if additional_layout:
+        final_layout = merge_dict(final_layout, additional_layout)
 
-    graph = {"data": dataList, "layout": layout}
-
-    # 序列化
-    return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-
-def plotBarGroup(df, title=None):
-    dataList = []
-    for name in df.columns:
-        data = {
-            "type": "bar",
-            "name": name,
-            "x": df.index,
-            "y": df[name],
-        }
-        dataList.append(data)
-
-    layout = {
-        "title": {"text": title},
-        "hovermode": "x",
-    }
-    layout = mergeDict(layout, default_layout)
-
-    graph = {"data": dataList, "layout": layout}
-
-    # 序列化
-    return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+    graph = {"data": data_list, "layout": final_layout}
+    return plotly_json_dump(graph)
 
 
-rstr = r'[- ,、()~∕\/－%*?:"<>|（）]+'
+# --- Specific Data Processing and Plotting Functions ---
 
 
-def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, title_suffix, fillna=False):
-    key = re.sub(rstr, "_", key)
+def index_原始值_年增率_plot(
+    plots: Dict, key: str, url: str, xpath: str, item_remove_patt: str, title_suffix: str
+):
+    key = sanitize_filename(key)
 
     df = read_xml(url, xpath)
     df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
@@ -175,7 +237,7 @@ def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, tit
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plotLine(pivot_df, f"{key} 原始值 {title_suffix} {date_range}")
+    plots[f"{key}_原始值"] = plot_line(pivot_df, f"{key} 原始值 {title_suffix} {date_range}")
 
     def irr(x):
         x = x.dropna()
@@ -186,45 +248,62 @@ def index_原始值_年增率_plot(plots, key, url, xpath, item_remove_patt, tit
     irr_df = pivot_df.apply(irr, axis=0).to_frame()
     irr_df.columns = ["IRR"]
     irr_df = irr_df.T
-    plots[f"{key}_IRR"] = plotBar(irr_df, f"{key} IRR(%) {title_suffix} {date_range}")
+    plots[f"{key}_IRR"] = plot_bar(irr_df, f"{key} IRR(%) {title_suffix} {date_range}")
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    graph = plotLine(pivot_df / 100, f"{key} 年增率(%) {title_suffix} {date_range}")
-    graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
-    plots[f"{key}_年增率"] = json.dumps(graph)
+    plots[f"{key}_年增率"] = plot_line(
+        pivot_df / 100,
+        f"{key} 年增率(%) {title_suffix} {date_range}",
+        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+    )
 
 
-def 年_plot(plots, key, url, columns_remove_patt, title_suffix):
-    key = re.sub(rstr, "_", key)
+def 年_plot(
+    plots: Dict,
+    key: str,
+    url: str,
+    columns_remove_patt: str,
+    title_suffix: str,
+    index_col: str = "年",
+):
+    key = sanitize_filename(key)
 
     df = read_csv(url)
-    df = df.set_index("年")
+    df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
-    plots[key] = plotLine(df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}")
+    plots[key] = plot_line(df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}")
 
 
-def 年月混合_plot(plots, key, url, index, columns_remove_patt, title_suffix, encoding="utf-8"):
-    key = re.sub(rstr, "_", key)
+def 年月混合_plot(
+    plots: Dict,
+    key: str,
+    url: str,
+    index_col: str,
+    columns_remove_patt: str,
+    title_suffix: str,
+    encoding: str = "utf-8",
+):
+    key = sanitize_filename(key)
 
     df = read_csv(url, encoding)
-    df = df.set_index(index)
+    df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
-    plots[f"{key}_年"] = plotLine(
+    plots[f"{key}_年"] = plot_line(
         df_year, f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}"
     )
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
-    plots[f"{key}_月"] = plotLine(
+    plots[f"{key}_月"] = plot_line(
         df_month, f"{key}_月{title_suffix} {df_month.index[0]}~{df_month.index[-1]}"
     )
 
 
 if __name__ == "__main__":
-    plots = {}
-    items = {}
+    plots: Dict[str, str] = {}  # Stores Plotly JSON strings
+    items: Dict[str, Any] = {}  # Stores other items like column lists for templates
 
     # https://data.gov.tw/dataset/6019
     index_原始值_年增率_plot(
@@ -263,7 +342,7 @@ if __name__ == "__main__":
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8201a1q.xml"
     xpath = "//Obs"
 
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
 
     df = read_xml(url, xpath)
     df = df.fillna(0)
@@ -275,21 +354,21 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_當期價格"] = plotLine(
+    plots[f"{key}_原始值_當期價格"] = plot_line(
         df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
     )
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_連鎖實質值"] = plotLine(
+    plots[f"{key}_原始值_連鎖實質值"] = plot_line(
         df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
     )
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    plots[f"{key}_原始值_平減指數"] = plotLine(
+    plots[f"{key}_原始值_平減指數"] = plot_line(
         df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
     )
 
@@ -300,36 +379,36 @@ if __name__ == "__main__":
     pat_filter = "當期價格(新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(
-        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    plots[f"{key}_年增率_當期價格"] = plot_line(
+        df_filter / 100,
+        f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"layout": {"yaxis": {"tickformat": ".2%"}}},
     )
-    graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
-    plots[f"{key}_年增率_當期價格"] = json.dumps(graph)
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(
-        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    plots[f"{key}_年增率_連鎖實質值"] = plot_line(
+        df_filter / 100,
+        f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"layout": {"yaxis": {"tickformat": ".2%"}}},
     )
-    graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
-    plots[f"{key}_年增率_連鎖實質值"] = json.dumps(graph)
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
-    graph = plotLine(
-        df_filter / 100, f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+    plots[f"{key}_年增率_平減指數"] = plot_line(
+        df_filter / 100,
+        f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"layout": {"yaxis": {"tickformat": ".2%"}}},
     )
-    graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
-    plots[f"{key}_年增率_平減指數"] = json.dumps(graph)
 
     # https://data.gov.tw/dataset/6799
     key = "國民所得統計-常用資料-季"
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8101a1q.xml"
     xpath = "//Obs"
 
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
 
     df = read_xml(url, xpath)
 
@@ -337,7 +416,7 @@ if __name__ == "__main__":
     pivot_df = df_value.pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plotLine(
+    plots[f"{key}_原始值"] = plot_line(
         pivot_df, f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}"
     )
 
@@ -345,9 +424,11 @@ if __name__ == "__main__":
     pivot_df = df_value.pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    graph = plotLine(pivot_df / 100, f"{key} 年增率(%) {pivot_df.index[0]}~{pivot_df.index[-1]}")
-    graph = mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
-    plots[f"{key}_年增率"] = json.dumps(graph)
+    plots[f"{key}_年增率"] = plot_line(
+        pivot_df / 100,
+        f"{key} 年增率(%) {pivot_df.index[0]}~{pivot_df.index[-1]}",
+        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+    )
 
     # =================================================
 
@@ -613,9 +694,8 @@ if __name__ == "__main__":
     key = "家庭部門平均每戶資產負債"
     url = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2515/112%E8%A1%A87.xlsx"
 
-    r = requests.get(url, verify=False)
-    df = pd.read_excel(
-        io.BytesIO(r.content), engine="calamine", skiprows=2, nrows=19, usecols=range(0, 6)
+    df = read_excel_with_cache(
+        EXTRA_DATA_DIR / f"{key}.xlsx.gz", url, skiprows=2, nrows=19, usecols=range(0, 6)
     )
     df.columns = ["種類", "2019", "2020", "2021", "2022", "2023"]
     df["種類"] = df["種類"].str.replace(r"[\n \r]", "", regex=True)
@@ -659,10 +739,10 @@ if __name__ == "__main__":
         "hovermode": "x",
         "barmode": "stack",
     }
-    layout = mergeDict(layout, default_layout)
+    layout = merge_dict(layout, default_layout)
 
     graph = {"data": dataList, "layout": layout}
-    plots[f"{key}"] = json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+    plots[f"{key}"] = plotly_json_dump(graph)
 
     # ============================================================
 
@@ -670,7 +750,7 @@ if __name__ == "__main__":
     key = "全國賦稅收入實徵淨額日曆年別-按稅目別與地區別分"
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=5&funid=i0424&cycle=41&outmode=12&compmode=00&outkind=2&fldspc=0,30,&codspc0=0,39,40,3,&utf=1"
 
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
 
     df = read_csv(url)
 
@@ -770,20 +850,24 @@ if __name__ == "__main__":
     df_all.columns = [f"{region}_{tax}" for region, tax in df_all.columns]
 
     df_all_year = df_all.filter(regex=r"\d+年$", axis="index")
-    graph = plotLine(df_all_year, f"{key}_年 {df_all_year.index[0]}~{df_all_year.index[-1]}")
-    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
-    plots[f"{key}_年"] = json.dumps(graph)
+    plots[f"{key}_年"] = plot_line(
+        df_all_year,
+        f"{key}_年 {df_all_year.index[0]}~{df_all_year.index[-1]}",
+        {"layout": {"updatemenus": updatemenus}},
+    )
 
     df_all_month = df_all.filter(regex=r"\d+年 *\d+月$", axis="index")
-    graph = plotLine(df_all_month, f"{key}_月 {df_all_month.index[0]}~{df_all_month.index[-1]}")
-    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
-    plots[f"{key}_月"] = json.dumps(graph)
+    plots[f"{key}_月"] = plot_line(
+        df_all_month,
+        f"{key}_月 {df_all_month.index[0]}~{df_all_month.index[-1]}",
+        {"layout": {"updatemenus": updatemenus}},
+    )
 
     # https://data.gov.tw/dataset/16910
     key = "全國賦稅收入實徵淨額與預算數之比較"
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=3&funid=i3451&cycle=4&outmode=12&compmode=00&outkind=3&fldlst=111&codspc0=0,34,&utf=1"
 
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
 
     df = read_csv(url)
     split = df["項目別"].str.split("/", expand=True)
@@ -791,7 +875,7 @@ if __name__ == "__main__":
     df["類別"] = split[1].str.strip()
 
     columns = df.drop(["項目別", "時間", "類別"], axis=1).columns
-    columns_revise = columns.str.replace(rstr, "_", regex=True)
+    columns_revise = columns.map(sanitize_filename)
     items[key] = columns_revise
 
     data = df.drop(["項目別"], axis=1)
@@ -800,7 +884,7 @@ if __name__ == "__main__":
             index="時間", columns="類別", values=values, sort=False, aggfunc="sum", fill_value=0
         )
 
-        plots[f"{key}_{col}"] = plotLine(
+        plots[f"{key}_{col}"] = plot_line(
             df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}"
         )
 
@@ -830,7 +914,7 @@ if __name__ == "__main__":
     key = "進出口貿易值_按國際商品統一分類制度(HS)及主要國別分"
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1"
 
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
 
     df = read_csv(url)
     df = df.set_index("國家別")
@@ -963,14 +1047,18 @@ if __name__ == "__main__":
     df.columns = [f"{country}{export}{kind}" for country, export, kind in df.columns]
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
-    graph = plotLine(df_year, f"{key}_年(千美元) {df_year.index[0]}~{df_year.index[-1]}")
-    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
-    plots[f"{key}_年"] = json.dumps(graph)
+    plots[f"{key}_年"] = plot_line(
+        df_year,
+        f"{key}_年(千美元) {df_year.index[0]}~{df_year.index[-1]}",
+        {"layout": {"updatemenus": updatemenus}},
+    )
 
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
-    graph = plotLine(df_month, f"{key}_月(千美元) {df_month.index[0]}~{df_month.index[-1]}")
-    graph = mergeDict(json.loads(graph), {"layout": {"updatemenus": updatemenus}})
-    plots[f"{key}_月"] = json.dumps(graph)
+    plots[f"{key}_月"] = plot_line(
+        df_month,
+        f"{key}_月(千美元) {df_month.index[0]}~{df_month.index[-1]}",
+        {"layout": {"updatemenus": updatemenus}},
+    )
 
     # https://data.gov.tw/dataset/8380
     年月混合_plot(
@@ -1043,12 +1131,12 @@ if __name__ == "__main__":
     url_year_page = (
         "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/{year}{month:02d}?page={page}"
     )
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = []
 
     def get_data(year, month, page):
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{month:02d}_{page}.gz"))
-        os.makedirs(path.parent, exist_ok=True)
+        path = EXTRA_DATA_DIR / key / f"{year}_{month:02d}_{page}.json.gz"
+        _ensure_dir_exists(path)
 
         if not path.is_file():
             yearmonth = year * 100 + month
@@ -1135,8 +1223,12 @@ if __name__ == "__main__":
         df.columns = df.columns.str.replace("\ufeff", "")
         return df.rename(columns=columns)
 
-    for year in range(106, datetime.today().year - 1911 + 1):
+    today = datetime.today()
+    for year in range(106, today.year - 1911 + 1):
         for month in range(1, 13):
+            if year > today.year + 1911 or (year == today.year + 1911 and month > today.month):
+                break
+
             page = 1
             json_data = get_data(year, month, page)
             if "responseData" in json_data:
@@ -1161,12 +1253,12 @@ if __name__ == "__main__":
 
     def summary(df, suffix, 合計, 男, 女):
         df_total = df.pivot_table(values=合計, index="統計年月", aggfunc="sum", sort=False)
-        plots[f"{key}_總和_{suffix}"] = plotLine(
+        plots[f"{key}_總和_{suffix}"] = plot_line(
             df_total, f"{key}_總和_{suffix} {df_total.index[0]}~{df_total.index[-1]}"
         )
 
         df_total_男女 = df.pivot_table(values=[男, 女], index="統計年月", aggfunc="sum", sort=False)
-        plots[f"{key}_總和_男女_{suffix}"] = plotLine(
+        plots[f"{key}_總和_男女_{suffix}"] = plot_line(
             df_total_男女,
             f"{key}_總和_男女_{suffix} {df_total_男女.index[0]}~{df_total_男女.index[-1]}",
         )
@@ -1174,7 +1266,7 @@ if __name__ == "__main__":
         df_區域別 = df.pivot_table(
             values=合計, index="統計年月", columns="縣市", aggfunc="sum", sort=False
         )
-        plots[f"{key}_區域別_{suffix}"] = plotLine(
+        plots[f"{key}_區域別_{suffix}"] = plot_line(
             df_區域別, f"{key}_區域別_{suffix} {df_區域別.index[0]}~{df_區域別.index[-1]}"
         )
 
@@ -1186,7 +1278,7 @@ if __name__ == "__main__":
             sort=False,
         )
         df_區域別_男女.columns = [f"{region}_{sex}" for sex, region in df_區域別_男女.columns]
-        plots[f"{key}_區域別_男女_{suffix}"] = plotLine(
+        plots[f"{key}_區域別_男女_{suffix}"] = plot_line(
             df_區域別_男女,
             f"{key}_區域別_男女_{suffix} {df_區域別_男女.index[0]}~{df_區域別_男女.index[-1]}",
         )
@@ -1200,13 +1292,13 @@ if __name__ == "__main__":
         df["結婚對數_異性"] + df["結婚對數_同性"] + df["結婚對數_同性_男"] + df["結婚對數_同性_女"]
     )
     df_total = df.pivot_table(values="結婚對數", index="統計年月", aggfunc="sum", sort=False)
-    plots[f"{key}_總和_結婚對數"] = plotLine(
+    plots[f"{key}_總和_結婚對數"] = plot_line(
         df_total, f"{key}_總和_結婚對數 {df_total.index[0]}~{df_total.index[-1]}"
     )
     df_區域別 = df.pivot_table(
         values="結婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別_結婚對數"] = plotLine(
+    plots[f"{key}_區域別_結婚對數"] = plot_line(
         df_區域別, f"{key}_區域別_結婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
@@ -1214,13 +1306,13 @@ if __name__ == "__main__":
         df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
     )
     df_total = df.pivot_table(values="離婚對數", index="統計年月", aggfunc="sum", sort=False)
-    plots[f"{key}_總和_離婚對數"] = plotLine(
+    plots[f"{key}_總和_離婚對數"] = plot_line(
         df_total, f"{key}_總和_離婚對數 {df_total.index[0]}~{df_total.index[-1]}"
     )
     df_區域別 = df.pivot_table(
         values="離婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別_離婚對數"] = plotLine(
+    plots[f"{key}_區域別_離婚對數"] = plot_line(
         df_區域別, f"{key}_區域別_離婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
@@ -1231,12 +1323,12 @@ if __name__ == "__main__":
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{yyy} 請指定年
     key = "結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
     url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{year}?page={page}"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
-        os.makedirs(path.parent, exist_ok=True)
+        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
+        _ensure_dir_exists(path)
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
@@ -1273,79 +1365,79 @@ if __name__ == "__main__":
     years = df["year"].unique().tolist()
 
     df_total = df.pivot_table(values="number_of_marry", index="year", aggfunc="sum", sort=False)
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="number_of_marry", index="year", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_婚姻類型 = df.pivot_table(
         values="number_of_marry", index="year", columns="marriage_type", aggfunc="sum", sort=False
     )
-    plots[f"{key}_婚姻類型"] = plotLine(
+    plots[f"{key}_婚姻類型"] = plot_line(
         df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="number_of_marry", index="year", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_原屬國籍 = df.pivot_table(
         values="number_of_marry", index="year", columns="nation", aggfunc="sum", sort=False
     )
-    plots[f"{key}_原屬國籍"] = plotLine(
+    plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
     )
 
     df_教育程度 = df.pivot_table(
         values="number_of_marry", index="year", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_教育程度"] = plotLine(
+    plots[f"{key}_教育程度"] = plot_line(
         df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
     )
 
     df_年齡 = df.pivot_table(
         values="number_of_marry", index="year", columns="age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
         values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_女_年齡_縣市"] = plotLine(
+    plots[f"{key}_女_年齡_縣市"] = plot_line(
         df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
     )
 
     df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
         values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_男_年齡_縣市"] = plotLine(
+    plots[f"{key}_男_年齡_縣市"] = plot_line(
         df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
         values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_女_年齡_教育"] = plotLine(
+    plots[f"{key}_女_年齡_教育"] = plot_line(
         df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
         values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_男_年齡_教育"] = plotLine(
+    plots[f"{key}_男_年齡_教育"] = plot_line(
         df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
     )
 
     # https://data.gov.tw/dataset/130547
     key = "結婚對數按婚姻類型、性別及年齡分(按登記)"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     urls = {
         108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=50E1F8E9-3A75-45A7-A50D-306CC625A700",
         109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8BB88A9D-4F47-4798-9557-682D338923B9",
@@ -1357,8 +1449,8 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
-        data = read_csv_and_save(path, url)
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
         df.append(data)
 
     df = pd.concat(df)
@@ -1377,15 +1469,11 @@ if __name__ == "__main__":
             aggfunc="sum",
             sort=False,
         )
-        graph = plotLine(
+        plots[f"{key}_女_{kind}"] = plot_line(
             df_女,
             f"{key}_女_{kind} {years[0]}~{years[-1]}",
-        )
-        graph = mergeDict(
-            json.loads(graph),
             {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
         )
-        plots[f"{key}_女_{kind}"] = json.dumps(graph)
 
         df_男 = df.pivot_table(
             values="結婚對數",
@@ -1394,15 +1482,11 @@ if __name__ == "__main__":
             aggfunc="sum",
             sort=False,
         )
-        graph = plotLine(
+        plots[f"{key}_男_{kind}"] = plot_line(
             df_男,
             f"{key}_男_{kind} {years[0]}~{years[-1]}",
-        )
-        graph = mergeDict(
-            json.loads(graph),
             {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
         )
-        plots[f"{key}_男_{kind}"] = json.dumps(graph)
 
     df_女_縣市 = df.pivot_table(
         values="結婚對數",
@@ -1411,15 +1495,11 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    graph = plotLine(
+    plots[f"{key}_女_縣市"] = plot_line(
         df_女_縣市,
         f"{key}_女_縣市 {years[0]}~{years[-1]}",
-    )
-    graph = mergeDict(
-        json.loads(graph),
         {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
     )
-    plots[f"{key}_女_縣市"] = json.dumps(graph)
 
     df_男_縣市 = df.pivot_table(
         values="結婚對數",
@@ -1428,15 +1508,11 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    graph = plotLine(
+    plots[f"{key}_男_縣市"] = plot_line(
         df_男_縣市,
         f"{key}_男_縣市 {years[0]}~{years[-1]}",
-    )
-    graph = mergeDict(
-        json.loads(graph),
         {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
     )
-    plots[f"{key}_男_縣市"] = json.dumps(graph)
 
     # https://data.gov.tw/dataset/32945
     # API 說明文件
@@ -1445,12 +1521,12 @@ if __name__ == "__main__":
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{yyy} 請指定年
     key = "嬰兒出生數按性別、生母原屬國籍（地區）、年齡及教育程度分(按登記)"
     url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{year}?page={page}"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
-        os.makedirs(path.parent, exist_ok=True)
+        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
+        _ensure_dir_exists(path)
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
@@ -1506,21 +1582,21 @@ if __name__ == "__main__":
     df_total = df.pivot_table(
         values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="birth_sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_原屬國籍 = df.pivot_table(
         values="birth_count",
@@ -1529,7 +1605,7 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_原屬國籍"] = plotLine(
+    plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
     )
 
@@ -1540,19 +1616,19 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_教育程度"] = plotLine(
+    plots[f"{key}_教育程度"] = plot_line(
         df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
     )
 
     df_年齡 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_年齡_縣市 = df.pivot_table(
         values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_縣市"] = plotLine(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
 
     df_年齡_教育 = df.pivot_table(
         values="birth_count",
@@ -1561,11 +1637,11 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_年齡_教育"] = plotLine(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
 
     # https://data.gov.tw/dataset/102764
     key = "嬰兒出生數按性別、生父原屬國籍（地區）、年齡及教育程度分(按登記)"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     urls = {
         107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5BAD1943-66B8-4641-93C2-E782756EBDA1",
         108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=4188B9D4-195C-423B-A936-0A61D9AE5F01",
@@ -1577,8 +1653,8 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
-        data = read_csv_and_save(path, url)
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
         df.append(data)
 
     df = pd.concat(df)
@@ -1590,21 +1666,21 @@ if __name__ == "__main__":
     df["生父年齡"] = df["生父年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_原屬國籍 = df.pivot_table(
         values="嬰兒出生數",
@@ -1613,7 +1689,7 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_原屬國籍"] = plotLine(
+    plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
     )
 
@@ -1624,19 +1700,19 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_教育程度"] = plotLine(
+    plots[f"{key}_教育程度"] = plot_line(
         df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
     )
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生父年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_年齡_縣市 = df.pivot_table(
         values="嬰兒出生數", index="生父年齡", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_縣市"] = plotLine(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
 
     df_年齡_教育 = df.pivot_table(
         values="嬰兒出生數",
@@ -1645,7 +1721,7 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_年齡_教育"] = plotLine(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
 
     # https://data.gov.tw/dataset/127527
     # API 說明文件
@@ -1654,12 +1730,12 @@ if __name__ == "__main__":
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{yyy} 請指定年
     key = "嬰兒出生數按嬰兒性別及生父母年齡分(按登記)"
     url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{year}?page={page}"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
-        os.makedirs(path.parent, exist_ok=True)
+        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
+        _ensure_dir_exists(path)
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
@@ -1716,21 +1792,21 @@ if __name__ == "__main__":
     df_total = df.pivot_table(
         values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_生父年齡 = df.pivot_table(
         values="birth_count",
@@ -1739,28 +1815,28 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_生父年齡"] = plotLine(
+    plots[f"{key}_生父年齡"] = plot_line(
         df_生父年齡, f"{key}_生父年齡 {df_生父年齡.index[0]}~{df_生父年齡.index[-1]}"
     )
 
     df_生母年齡 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_生母年齡"] = plotLine(
+    plots[f"{key}_生母年齡"] = plot_line(
         df_生母年齡, f"{key}_生母年齡 {df_生母年齡.index[0]}~{df_生母年齡.index[-1]}"
     )
 
     df_生母年齡_縣市 = df.pivot_table(
         values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_生母年齡_縣市"] = plotLine(
+    plots[f"{key}_生母年齡_縣市"] = plot_line(
         df_生母年齡_縣市, f"{key}_生母年齡_縣市 {years[0]}~{years[-1]}"
     )
 
     df_生父年齡_縣市 = df.pivot_table(
         values="birth_count", index="father_age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_生父年齡_縣市"] = plotLine(
+    plots[f"{key}_生父年齡_縣市"] = plot_line(
         df_生父年齡_縣市, f"{key}_生父年齡_縣市 {years[0]}~{years[-1]}"
     )
 
@@ -1771,16 +1847,15 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    graph = plotLine(df_生母年齡_生父年齡, f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}")
-    graph = mergeDict(
-        json.loads(graph),
+    plots[f"{key}_生母年齡_生父年齡"] = plot_line(
+        df_生母年齡_生父年齡,
+        f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}",
         {"layout": {"xaxis": {"title": {"text": "生母年齡"}}}},
     )
-    plots[f"{key}_生母年齡_生父年齡"] = json.dumps(graph)
 
     # https://data.gov.tw/dataset/102765
     key = "嬰兒出生數按生母年齡及出生身分分(按登記)"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     urls = {
         107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=94BFACA3-69FD-4A0A-BEB9-44D0EC534415",
         108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CCB9654B-B722-44A3-8A95-84D56B048F10",
@@ -1793,8 +1868,8 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
-        data = read_csv_and_save(path, url)
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
         df.append(data)
 
     df = pd.concat(df)
@@ -1806,42 +1881,42 @@ if __name__ == "__main__":
     df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_身分 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生身分", aggfunc="sum", sort=False
     )
-    plots[f"{key}_身分"] = plotLine(df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}")
+    plots[f"{key}_身分"] = plot_line(df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}")
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_年齡_身分 = df.pivot_table(
         values="嬰兒出生數", index="生母年齡", columns="出生身分", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_身分"] = plotLine(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_身分"] = plot_line(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}")
 
     df_身分_縣市 = df.pivot_table(
         values="嬰兒出生數", index="出生身分", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_身分_縣市"] = plotBarGroup(
+    plots[f"{key}_身分_縣市"] = plot_bar_group(
         df_身分_縣市, f"{key}_身分_縣市 {years[0]}~{years[-1]}"
     )
 
     # https://data.gov.tw/dataset/100324
     key = "嬰兒出生數按性別、胎次及生母年齡分(按登記)"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     urls = {
         106: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=E2E702A0-EA3B-4689-8CA9-DD9083E15534",
         107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5F11E0E0-8F23-4F95-B187-E15F6EF8AAE6",
@@ -1855,8 +1930,8 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
-        data = read_csv_and_save(path, url)
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
         df.append(data)
 
     df = pd.concat(df)
@@ -1868,47 +1943,47 @@ if __name__ == "__main__":
     df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_胎次 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="胎次", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎次"] = plotLine(df_胎次, f"{key}_胎次 {df_胎次.index[0]}~{df_胎次.index[-1]}")
+    plots[f"{key}_胎次"] = plot_line(df_胎次, f"{key}_胎次 {df_胎次.index[0]}~{df_胎次.index[-1]}")
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_年齡_胎次 = df.pivot_table(
         values="嬰兒出生數", index="生母年齡", columns="胎次", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_胎次"] = plotLine(df_年齡_胎次, f"{key}_年齡_胎次 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_胎次"] = plot_line(df_年齡_胎次, f"{key}_年齡_胎次 {years[0]}~{years[-1]}")
 
     df_胎次_縣市 = df.pivot_table(
         values="嬰兒出生數", index="胎次", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎次_縣市"] = plotBarGroup(
+    plots[f"{key}_胎次_縣市"] = plot_bar_group(
         df_胎次_縣市, f"{key}_胎次_縣市 {years[0]}~{years[-1]}"
     )
 
     # https://data.gov.tw/dataset/152789
     key = "嬰兒出生數按嬰兒性別及出生胎別分(按登記)"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     urls = {
         110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C89BA952-9140-47C5-805A-34F3A0773978",
         111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CBD76D1D-2609-4553-9B8E-06BA912249B8",
@@ -1918,8 +1993,8 @@ if __name__ == "__main__":
 
     df = []
     for filename, url in urls.items():
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{filename}.gz"))
-        data = read_csv_and_save(path, url)
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
         df.append(data)
 
     df = pd.concat(df)
@@ -1930,31 +2005,31 @@ if __name__ == "__main__":
     years = df["統計年"].unique().tolist()
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年", aggfunc="sum", sort=False)
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_胎別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="胎別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎別"] = plotLine(df_胎別, f"{key}_胎別 {df_胎別.index[0]}~{df_胎別.index[-1]}")
+    plots[f"{key}_胎別"] = plot_line(df_胎別, f"{key}_胎別 {df_胎別.index[0]}~{df_胎別.index[-1]}")
 
     df_胎別_縣市 = df.pivot_table(
         values="嬰兒出生數", index="胎別", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎別_縣市"] = plotBarGroup(
+    plots[f"{key}_胎別_縣市"] = plot_bar_group(
         df_胎別_縣市, f"{key}_胎別_縣市 {years[0]}~{years[-1]}"
     )
 
@@ -1965,12 +2040,12 @@ if __name__ == "__main__":
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{yyy} 請指定年
     key = "離婚/終止結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
     url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{year}?page={page}"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = []
 
     def get_data(year, page):
-        path = Path(os.path.join("./extraData/TW_Analysis", key, f"{year}_{page}.gz"))
-        os.makedirs(path.parent, exist_ok=True)
+        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
+        _ensure_dir_exists(path)
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
@@ -2009,14 +2084,14 @@ if __name__ == "__main__":
     df_total = df.pivot_table(
         values="divorce_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
-    plots[f"{key}_總和"] = plotLine(
+    plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
     )
 
     df_區域別 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_區域別"] = plotLine(
+    plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
@@ -2027,59 +2102,59 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_婚姻類型"] = plotLine(
+    plots[f"{key}_婚姻類型"] = plot_line(
         df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
     )
 
     df_性別 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plotLine(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
 
     df_原屬國籍 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="nation", aggfunc="sum", sort=False
     )
-    plots[f"{key}_原屬國籍"] = plotLine(
+    plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
     )
 
     df_教育程度 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_教育程度"] = plotLine(
+    plots[f"{key}_教育程度"] = plot_line(
         df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
     )
 
     df_年齡 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plotLine(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
 
     df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
         values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_女_年齡_縣市"] = plotLine(
+    plots[f"{key}_女_年齡_縣市"] = plot_line(
         df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
     )
 
     df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
         values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_男_年齡_縣市"] = plotLine(
+    plots[f"{key}_男_年齡_縣市"] = plot_line(
         df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
         values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_女_年齡_教育"] = plotLine(
+    plots[f"{key}_女_年齡_教育"] = plot_line(
         df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
         values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
     )
-    plots[f"{key}_男_年齡_教育"] = plotLine(
+    plots[f"{key}_男_年齡_教育"] = plot_line(
         df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
     )
 
@@ -2088,7 +2163,7 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/41236
     key = "全國公立動物收容所收容處理情形統計表"
     url = "https://data.moa.gov.tw/Service/OpenData/TransService.aspx?UnitId=DyplMIk3U1hf&IsTransData=1"
-    key = re.sub(rstr, "_", key)
+    key = sanitize_filename(key)
     df = read_json(url)
     df = df.rename(
         columns={
@@ -2112,7 +2187,7 @@ if __name__ == "__main__":
     df["所內死亡率_%"] = df["所內死亡率_%"].str.rstrip("%").astype("float") / 100.0
 
     columns = df.drop(["年度", "月份", "縣市名"], axis=1).columns
-    columns_revise = columns.str.replace(rstr, "_", regex=True)
+    columns_revise = columns.map(sanitize_filename)
     items[key] = columns_revise
 
     data = df
@@ -2125,29 +2200,29 @@ if __name__ == "__main__":
             aggfunc="sum",
             fill_value=0,
         )
-        plots[f"{key}_{col}"] = plotLine(
+        plots[f"{key}_{col}"] = plot_line(
             df_item, f"{key}_{col} {df_item.index[-1]}~{df_item.index[0]}"
         )
 
     # ========================================================================
 
     prefix = "TW_Analysis"
-    path = os.path.join(os.path.dirname(__file__), "report")
+    report_dir = Path("report")
     with app.app_context():
-        jsfolder = f"{prefix}"
-        os.makedirs(os.path.join(path, jsfolder), exist_ok=True)
+        jsfolder = Path("report") / prefix
+        _ensure_dir_exists(jsfolder)
 
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)
-            with open(os.path.join(path, f"{jsfolder}/{key}.js"), "w", encoding="UTF-8") as f:
+            with open(jsfolder / f"{key}.js", "w", encoding="UTF-8") as f:
                 f.write(graph)
 
         html = render_template(
             "tw_analysis.html.j2",
             plots=plots,
-            jsfolder=jsfolder,
+            jsfolder=jsfolder.name,
             title=f"{prefix} Report",
             items=items,
         )
-        with open(os.path.join(path, f"{prefix}_Report.html"), "w", encoding="UTF-8") as f:
+        with open(report_dir / f"{prefix}_Report.html", "w", encoding="UTF-8") as f:
             f.write(html)

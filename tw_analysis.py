@@ -1,15 +1,16 @@
-from datetime import datetime
 import gzip
 import json
 import os
-from pathlib import Path
 import re
 import pandas as pd
 import io
 import plotly
 import requests
-from typing import Optional, Dict, Any
+import copy
 
+from datetime import datetime
+from typing import Optional, Dict, Any
+from pathlib import Path
 from flask import Flask, render_template
 
 app = Flask(__name__)
@@ -153,7 +154,7 @@ def plot_line(
             "type": "category"
         },  # Ensure x-axis type is category for discrete values if needed
     }
-    final_layout = merge_dict(default_layout.copy(), layout)  # Start with a copy of default_layout
+    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
         final_layout = merge_dict(final_layout, additional_layout)
 
@@ -187,7 +188,7 @@ def plot_bar(
         "hovermode": "x",  # "closest" might be better for bar charts
         "yaxis": {"tickformat": ".2%"},  # Default, can be overridden by additional_layout
     }
-    final_layout = merge_dict(default_layout.copy(), layout)
+    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
         final_layout = merge_dict(final_layout, additional_layout)
 
@@ -213,7 +214,7 @@ def plot_bar_group(
         "hovermode": "x",
         "barmode": "group",  # Explicitly set barmode for grouped bars
     }
-    final_layout = merge_dict(default_layout.copy(), layout)
+    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
         final_layout = merge_dict(final_layout, additional_layout)
 
@@ -256,7 +257,7 @@ def index_原始值_年增率_plot(
     plots[f"{key}_年增率"] = plot_line(
         pivot_df / 100,
         f"{key} 年增率(%) {title_suffix} {date_range}",
-        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+        {"yaxis": {"tickformat": ".2%"}},
     )
 
 
@@ -382,7 +383,7 @@ if __name__ == "__main__":
     plots[f"{key}_年增率_當期價格"] = plot_line(
         df_filter / 100,
         f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
-        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+        {"yaxis": {"tickformat": ".2%"}},
     )
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
@@ -391,7 +392,7 @@ if __name__ == "__main__":
     plots[f"{key}_年增率_連鎖實質值"] = plot_line(
         df_filter / 100,
         f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
-        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+        {"yaxis": {"tickformat": ".2%"}},
     )
 
     pat_filter = "平減指數(2021年=100)"
@@ -400,7 +401,7 @@ if __name__ == "__main__":
     plots[f"{key}_年增率_平減指數"] = plot_line(
         df_filter / 100,
         f"{key} 年增率(%) {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
-        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+        {"yaxis": {"tickformat": ".2%"}},
     )
 
     # https://data.gov.tw/dataset/6799
@@ -427,7 +428,7 @@ if __name__ == "__main__":
     plots[f"{key}_年增率"] = plot_line(
         pivot_df / 100,
         f"{key} 年增率(%) {pivot_df.index[0]}~{pivot_df.index[-1]}",
-        {"layout": {"yaxis": {"tickformat": ".2%"}}},
+        {"yaxis": {"tickformat": ".2%"}},
     )
 
     # =================================================
@@ -519,7 +520,7 @@ if __name__ == "__main__":
         "家庭收支調查-所得收入者五等分位平均每人可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/089-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "可支配所得按所得收入者人數五等分位組之平均每人可支配所得-",
-        "",
+        "平均每人可支配所得=平均每位所得收入者可支配所得",
     )
 
     # =================================================
@@ -687,7 +688,7 @@ if __name__ == "__main__":
         "家庭收支調查-所得收入者各縣市別平均每人可支配所得",
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/080-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
         "-元",
-        "-元 可支配所得=所得收入-非消費支出",
+        "-元 可支配所得=所得收入-非消費支出, 平均每人可支配所得=平均每位所得收入者可支配所得",
     )
 
     # https://www.stat.gov.tw/cp.aspx?n=2773
@@ -739,7 +740,7 @@ if __name__ == "__main__":
         "hovermode": "x",
         "barmode": "stack",
     }
-    layout = merge_dict(layout, default_layout)
+    layout = merge_dict(copy.deepcopy(default_layout), layout)
 
     graph = {"data": dataList, "layout": layout}
     plots[f"{key}"] = plotly_json_dump(graph)
@@ -926,7 +927,7 @@ if __name__ == "__main__":
     df_平均每人可支配所得 = df_平均每人可支配所得.set_index("年別")
     plots[f"{key}_平均每人可支配所得"] = plot_line(
         df_平均每人可支配所得,
-        f"{key}_平均每人可支配所得 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}",
+        f"{key}_平均每人可支配所得_每人可支配所得=每戶可支配所得/每戶人數 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}",
     )
 
     r = requests.get(url_可支配所得中位數, verify=False)
@@ -940,7 +941,7 @@ if __name__ == "__main__":
     df_每人可支配所得中位數 = df_每人可支配所得中位數.set_index("年別")
     plots[f"{key}_每人可支配所得中位數"] = plot_line(
         df_每人可支配所得中位數,
-        f"{key}_每人可支配所得中位數 {df_每人可支配所得中位數.index[0]}~{df_每人可支配所得中位數.index[-1]}",
+        f"{key}_每人可支配所得中位數_每人可支配所得=每戶可支配所得/每戶人數 {df_每人可支配所得中位數.index[0]}~{df_每人可支配所得中位數.index[-1]}",
     )
 
     # ============================================================
@@ -2265,7 +2266,7 @@ if __name__ == "__main__":
     report_dir = Path("report")
     with app.app_context():
         jsfolder = Path("report") / prefix
-        _ensure_dir_exists(jsfolder)
+        jsfolder.mkdir(parents=True, exist_ok=True)
 
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)

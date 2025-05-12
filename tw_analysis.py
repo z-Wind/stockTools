@@ -166,19 +166,11 @@ def plot_bar(
     df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
 ) -> str:
     data_list = []
-    for (
-        name
-    ) in (
-        df.columns
-    ):  # This loop structure is for grouped bar charts usually. If one bar per column:
+    for name in df.columns:
         data = {
             "type": "bar",
             "name": name,
-            "x": (
-                df.index.tolist()
-                if isinstance(df.index, pd.MultiIndex) or len(df.index) > 1
-                else [name]
-            ),  # df.index for multiple bars or [name] for single category
+            "x": [name],
             "y": df[name].tolist(),
         }
         data_list.append(data)
@@ -219,6 +211,32 @@ def plot_bar_group(
         final_layout = merge_dict(final_layout, additional_layout)
 
     graph = {"data": data_list, "layout": final_layout}
+    return plotly_json_dump(graph)
+
+
+def plot_bar_stack_multi_index(
+    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+) -> str:
+    data_list = []
+    for name in df.columns:
+        data = {
+            "type": "bar",
+            "name": name,
+            "x": list(zip(*df.index.tolist())),
+            "y": df[name].tolist(),
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",
+        "barmode": "stack",
+    }
+    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
+    if additional_layout:
+        final_layout = merge_dict(final_layout, additional_layout)
+
+    graph = {"data": data_list[::-1], "layout": final_layout}
     return plotly_json_dump(graph)
 
 
@@ -854,14 +872,14 @@ if __name__ == "__main__":
     plots[f"{key}_年"] = plot_line(
         df_all_year,
         f"{key}_年 {df_all_year.index[0]}~{df_all_year.index[-1]}",
-        {"layout": {"updatemenus": updatemenus}},
+        {"updatemenus": updatemenus},
     )
 
     df_all_month = df_all.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_all_month,
         f"{key}_月 {df_all_month.index[0]}~{df_all_month.index[-1]}",
-        {"layout": {"updatemenus": updatemenus}},
+        {"updatemenus": updatemenus},
     )
 
     # https://data.gov.tw/dataset/16910
@@ -1106,14 +1124,14 @@ if __name__ == "__main__":
     plots[f"{key}_年"] = plot_line(
         df_year,
         f"{key}_年(千美元) {df_year.index[0]}~{df_year.index[-1]}",
-        {"layout": {"updatemenus": updatemenus}},
+        {"updatemenus": updatemenus},
     )
 
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
         f"{key}_月(千美元) {df_month.index[0]}~{df_month.index[-1]}",
-        {"layout": {"updatemenus": updatemenus}},
+        {"updatemenus": updatemenus},
     )
 
     # https://data.gov.tw/dataset/8380
@@ -1167,6 +1185,169 @@ if __name__ == "__main__":
     )
 
     # ========================================================================
+
+    # https://data.gov.tw/dataset/77132
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{yyymm} 請指定年月
+    key = "村里戶數、單一年齡人口（新增區域代碼）"
+    url_year_page = (
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{year}{month:02d}?page={page}"
+    )
+    key = sanitize_filename(key)
+    df = []
+
+    def get_data(year, month, page):
+        path = EXTRA_DATA_DIR / key / f"{year}" / f"{year}_{month:02d}_{page}.json.gz"
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, month=month, page=page)
+            r = requests.get(url, verify=False)
+            json_data = json.loads(r.content)
+            if "responseData" in json_data:
+                with gzip.open(path, "wb") as f:
+                    f.write(r.content)
+            else:
+                return {}
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    year = datetime.today().year - 1911
+    month = datetime.today().month
+    while True:
+        page = 1
+        json_data = get_data(year, month, page)
+        if "responseData" not in json_data:
+            if month == 1:
+                year -= 1
+                month = 12
+            else:
+                month -= 1
+
+            if year * 100 + month < 11404:
+                raise f"無法獲取資料 {key}"
+            continue
+
+        data = pd.json_normalize(json_data["responseData"])
+        df.append(data)
+
+        pages = int(json_data["totalPage"])
+        for page in range(2, pages + 1):
+            json_data = get_data(year, month, page)
+            data = pd.json_normalize(json_data["responseData"])
+            df.append(data)
+        break
+
+    df = pd.concat(df, ignore_index=True)
+    df[df.columns[4:]] = df[df.columns[4:]].astype(int)
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+
+    df_男_年齡_縣市 = df.pivot_table(
+        values=df.columns[8 : 202 + 8 : 2],
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    df_男_年齡_縣市.index = df_男_年齡_縣市.index.str.removesuffix("-男")
+
+    df_女_年齡_縣市 = df.pivot_table(
+        values=df.columns[9 : 202 + 9 : 2],
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    df_女_年齡_縣市.index = df_女_年齡_縣市.index.str.removesuffix("-女")
+
+    df_男女_年齡_縣市 = pd.concat([df_男_年齡_縣市, df_女_年齡_縣市], keys=["男", "女"]).swaplevel()
+    plots[f"{key}_年齡_縣市"] = plot_bar_stack_multi_index(
+        df_男女_年齡_縣市, f"{key}_年齡_縣市 {year}年{month}月", {"bargap": 0}
+    )
+
+    # https://data.gov.tw/dataset/117986
+    # API 說明文件
+    # https://www.ris.gov.tw/rs-opendata/api/Main/docs/v1
+    # API 路徑
+    # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP052/{yyy} 請指定年
+    key = "現住人口性別、年齡、婚姻狀況(含同婚)"
+    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP052/{year}?page={page}"
+    key = sanitize_filename(key)
+    df = []
+
+    def get_data(year, page):
+        path = EXTRA_DATA_DIR / key / f"{year}" / f"{year}_{page}.json.gz"
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            url = url_year_page.format(year=year, page=page)
+            r = requests.get(url, verify=False)
+            json_data = json.loads(r.content)
+            if "responseData" in json_data:
+                with gzip.open(path, "wb") as f:
+                    f.write(r.content)
+            else:
+                return {}
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    year = datetime.today().year - 1911
+    while True:
+        page = 1
+        json_data = get_data(year, page)
+        if "responseData" not in json_data:
+            year -= 1
+            if year < 113:
+                raise f"無法獲取資料 {key}"
+            continue
+
+        data = pd.json_normalize(json_data["responseData"])
+        df.append(data)
+
+        pages = int(json_data["totalPage"])
+        for page in range(2, pages + 1):
+            json_data = get_data(year, page)
+            data = pd.json_normalize(json_data["responseData"])
+            df.append(data)
+        break
+
+    df = pd.concat(df, ignore_index=True)
+    df["population"] = df["population"].astype(int)
+    split = (
+        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+
+    df_男_年齡_婚姻_縣市 = df[df["sex"] == "男"].pivot_table(
+        values="population",
+        index=["marital_status", "age"],
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_男_年齡_婚姻_縣市"] = plot_bar_stack_multi_index(
+        df_男_年齡_婚姻_縣市, f"{key}_男_年齡_婚姻_縣市 {year}年"
+    )
+
+    df_女_年齡_婚姻_縣市 = df[df["sex"] == "女"].pivot_table(
+        values="population",
+        index=["marital_status", "age"],
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_女_年齡_婚姻_縣市"] = plot_bar_stack_multi_index(
+        df_女_年齡_婚姻_縣市, f"{key}_女_年齡_婚姻_縣市 {year}年"
+    )
 
     # https://data.gov.tw/dataset/32970
     # https://data.gov.tw/dataset/77139
@@ -1528,7 +1709,7 @@ if __name__ == "__main__":
         plots[f"{key}_女_{kind}"] = plot_line(
             df_女,
             f"{key}_女_{kind} {years[0]}~{years[-1]}",
-            {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
+            {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
         )
 
         df_男 = df.pivot_table(
@@ -1541,7 +1722,7 @@ if __name__ == "__main__":
         plots[f"{key}_男_{kind}"] = plot_line(
             df_男,
             f"{key}_男_{kind} {years[0]}~{years[-1]}",
-            {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
+            {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},
         )
 
     df_女_縣市 = df.pivot_table(
@@ -1554,7 +1735,7 @@ if __name__ == "__main__":
     plots[f"{key}_女_縣市"] = plot_line(
         df_女_縣市,
         f"{key}_女_縣市 {years[0]}~{years[-1]}",
-        {"layout": {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}}},
+        {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
     )
 
     df_男_縣市 = df.pivot_table(
@@ -1567,7 +1748,7 @@ if __name__ == "__main__":
     plots[f"{key}_男_縣市"] = plot_line(
         df_男_縣市,
         f"{key}_男_縣市 {years[0]}~{years[-1]}",
-        {"layout": {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}}},
+        {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},
     )
 
     # https://data.gov.tw/dataset/32945
@@ -1906,7 +2087,7 @@ if __name__ == "__main__":
     plots[f"{key}_生母年齡_生父年齡"] = plot_line(
         df_生母年齡_生父年齡,
         f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}",
-        {"layout": {"xaxis": {"title": {"text": "生母年齡"}}}},
+        {"xaxis": {"title": {"text": "生母年齡"}}},
     )
 
     # https://data.gov.tw/dataset/102765
@@ -2256,8 +2437,9 @@ if __name__ == "__main__":
             aggfunc="sum",
             fill_value=0,
         )
+        df_item = df_item.sort_index()
         plots[f"{key}_{col}"] = plot_line(
-            df_item, f"{key}_{col} {df_item.index[-1]}~{df_item.index[0]}"
+            df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}"
         )
 
     # ========================================================================

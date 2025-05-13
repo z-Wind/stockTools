@@ -8,6 +8,8 @@ import plotly
 import requests
 import copy
 
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -19,6 +21,30 @@ app = Flask(__name__)
 FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）]+'
 # Base directory for caching downloaded data
 EXTRA_DATA_DIR = Path("./extraData/TW_Analysis")
+
+# define the retry strategy
+retry_strategy = Retry(
+    total=4,  # maximum number of retries
+    backoff_factor=2,
+    status_forcelist=[
+        429,
+        500,
+        502,
+        503,
+        504,
+    ],  # the HTTP status codes to retry on
+)
+
+# create an HTTP adapter with the retry strategy and mount it to the session
+adapter = HTTPAdapter(max_retries=retry_strategy)
+
+# create a new session object
+session = requests.Session()
+session.headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; rv:57.0) " "Gecko/20100101 Firefox/57.0",
+}
+session.mount("http://", adapter)
+session.mount("https://", adapter)
 
 # --- Helper Functions ---
 
@@ -34,14 +60,14 @@ def _ensure_dir_exists(path: Path):
 
 
 def read_xml(url: str, xpath: str) -> pd.DataFrame:
-    r = requests.get(url, verify=False)
+    r = session.get(url, verify=False)
     df = pd.read_xml(io.BytesIO(r.content), xpath=xpath)
 
     return df
 
 
 def read_csv(url: str, encoding: str = "utf-8") -> pd.DataFrame:
-    r = requests.get(url, verify=False)
+    r = session.get(url, verify=False)
     df = pd.read_csv(io.BytesIO(r.content), encoding=encoding)
 
     return df
@@ -51,7 +77,7 @@ def read_csv_with_cache(path: Path, url: str, encoding: str = "utf-8") -> pd.Dat
     _ensure_dir_exists(path)
 
     if not path.is_file():
-        r = requests.get(url, verify=False)
+        r = session.get(url, verify=False)
         with gzip.open(path, "wb") as f:
             f.write(r.content)
 
@@ -61,7 +87,7 @@ def read_csv_with_cache(path: Path, url: str, encoding: str = "utf-8") -> pd.Dat
 
 
 def read_json(url: str, encoding: str = "utf-8") -> pd.DataFrame:
-    r = requests.get(url, verify=False)
+    r = session.get(url, verify=False)
 
     df = pd.read_json(io.BytesIO(r.content), encoding=encoding)
 
@@ -74,7 +100,7 @@ def read_excel_with_cache(
     _ensure_dir_exists(path)
 
     if not path.is_file():
-        r = requests.get(url, verify=False)
+        r = session.get(url, verify=False)
         with gzip.open(path, "wb") as f:
             f.write(r.content)
 
@@ -89,7 +115,8 @@ def read_excel_with_cache(
 
 
 default_layout = {
-    # "height": 600,
+    "height": 600,
+    "margin": {"b": 100},
     # "autosize": False,
     "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
     "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
@@ -244,19 +271,26 @@ def plot_bar_stack_multi_index(
 
 
 def index_原始值_年增率_plot(
-    plots: Dict, key: str, url: str, xpath: str, item_remove_patt: str, title_suffix: str
+    plots: Dict,
+    key: str,
+    url: str,
+    xpath: str,
+    item_remove_patt: str,
+    title_suffix: str,
+    additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
 
     df = read_xml(url, xpath)
     df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
     date_range = f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
-    df["TIME_PERIOD"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
 
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
-    plots[f"{key}_原始值"] = plot_line(pivot_df, f"{key} 原始值 {title_suffix} {date_range}")
+    plots[f"{key}_原始值"] = plot_line(
+        pivot_df, f"{key} 原始值 {title_suffix} {date_range}", additional_layout
+    )
 
     def irr(x):
         x = x.dropna()
@@ -264,18 +298,27 @@ def index_原始值_年增率_plot(
         val = (x.iloc[-1] / x.iloc[0]) ** (365 / (x.index[-1] - x.index[0]).days) - 1
         return val
 
-    irr_df = pivot_df.apply(irr, axis=0).to_frame()
+    df["TIME_PERIOD_Datetime"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
+    pivot_df_datetime = df[df["TYPE"] == "原始值"].pivot_table(
+        index="TIME_PERIOD_Datetime", columns="Item", values="Item_VALUE", sort=False
+    )
+    irr_df = pivot_df_datetime.apply(irr, axis=0).to_frame()
     irr_df.columns = ["IRR"]
     irr_df = irr_df.T
-    plots[f"{key}_IRR"] = plot_bar(irr_df, f"{key} IRR(%) {title_suffix} {date_range}")
+    plots[f"{key}_IRR"] = plot_bar(
+        irr_df, f"{key} IRR(%) {title_suffix} {date_range}", additional_layout
+    )
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
+    additional_layout_年增率 = {"yaxis": {"tickformat": ".2%"}}
+    if additional_layout:
+        additional_layout_年增率 = merge_dict(additional_layout_年增率, additional_layout)
     plots[f"{key}_年增率"] = plot_line(
         pivot_df / 100,
         f"{key} 年增率(%) {title_suffix} {date_range}",
-        {"yaxis": {"tickformat": ".2%"}},
+        additional_layout_年增率,
     )
 
 
@@ -286,13 +329,16 @@ def 年_plot(
     columns_remove_patt: str,
     title_suffix: str,
     index_col: str = "年",
+    additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
 
     df = read_csv(url)
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
-    plots[key] = plot_line(df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}")
+    plots[key] = plot_line(
+        df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}", additional_layout
+    )
 
 
 def 年月混合_plot(
@@ -303,6 +349,7 @@ def 年月混合_plot(
     columns_remove_patt: str,
     title_suffix: str,
     encoding: str = "utf-8",
+    additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
 
@@ -312,11 +359,13 @@ def 年月混合_plot(
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
     plots[f"{key}_年"] = plot_line(
-        df_year, f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}"
+        df_year, f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}", additional_layout
     )
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
-        df_month, f"{key}_月{title_suffix} {df_month.index[0]}~{df_month.index[-1]}"
+        df_month,
+        f"{key}_月{title_suffix} {df_month.index[0]}~{df_month.index[-1]}",
+        additional_layout,
     )
 
 
@@ -374,21 +423,27 @@ if __name__ == "__main__":
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_原始值_當期價格"] = plot_line(
-        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+        df_filter,
+        f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"hovermode": "x unified"},
     )
 
     pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_原始值_連鎖實質值"] = plot_line(
-        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+        df_filter,
+        f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"hovermode": "x unified"},
     )
 
     pat_filter = "平減指數(2021年=100)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_原始值_平減指數"] = plot_line(
-        df_filter, f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}"
+        df_filter,
+        f"{key} 原始值 {pat_filter} {df_filter.index[0]}~{df_filter.index[-1]}",
+        {"hovermode": "x unified"},
     )
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
@@ -436,7 +491,9 @@ if __name__ == "__main__":
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
     plots[f"{key}_原始值"] = plot_line(
-        pivot_df, f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}"
+        pivot_df,
+        f"{key} 原始值 {pivot_df.index[0]}~{pivot_df.index[-1]}",
+        {"hovermode": "x unified"},
     )
 
     df_value = df.drop(df[df["TYPE"] == "原始值"].index)
@@ -446,7 +503,7 @@ if __name__ == "__main__":
     plots[f"{key}_年增率"] = plot_line(
         pivot_df / 100,
         f"{key} 年增率(%) {pivot_df.index[0]}~{pivot_df.index[-1]}",
-        {"yaxis": {"tickformat": ".2%"}},
+        {"yaxis": {"tickformat": ".2%"}, "hovermode": "x unified"},
     )
 
     # =================================================
@@ -755,7 +812,7 @@ if __name__ == "__main__":
 
     layout = {
         "title": {"text": title},
-        "hovermode": "x",
+        "hovermode": "x unified",
         "barmode": "stack",
     }
     layout = merge_dict(copy.deepcopy(default_layout), layout)
@@ -926,7 +983,7 @@ if __name__ == "__main__":
 
         return dfs
 
-    r = requests.get(url_平均每人月消費, verify=False)
+    r = session.get(url_平均每人月消費, verify=False)
     df_平均每人月消費 = get_data(r.content, [0, 1], 1)
     df_平均每人月消費 = df_平均每人月消費.set_index("年別")
     plots[f"{key}_平均每人月消費"] = plot_line(
@@ -934,7 +991,7 @@ if __name__ == "__main__":
         f"{key}_平均每人月消費 {df_平均每人月消費.index[0]}~{df_平均每人月消費.index[-1]}",
     )
 
-    r = requests.get(url_可支配所得平均數, verify=False)
+    r = session.get(url_可支配所得平均數, verify=False)
     df_平均每戶可支配所得 = get_data(r.content, [0, 2], 2)
     df_平均每人可支配所得 = get_data(r.content, [1, 3], 2)
     df_平均每戶可支配所得 = df_平均每戶可支配所得.set_index("年別")
@@ -948,7 +1005,7 @@ if __name__ == "__main__":
         f"{key}_平均每人可支配所得_每人可支配所得=每戶可支配所得/每戶人數 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}",
     )
 
-    r = requests.get(url_可支配所得中位數, verify=False)
+    r = session.get(url_可支配所得中位數, verify=False)
     df_每戶可支配所得中位數 = get_data(r.content, [0, 2], 2)
     df_每人可支配所得中位數 = get_data(r.content, [1, 3], 2)
     df_每戶可支配所得中位數 = df_每戶可支配所得中位數.set_index("年別")
@@ -1204,11 +1261,16 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, month=month, page=page)
-            r = requests.get(url, verify=False)
-            json_data = json.loads(r.content)
-            if "responseData" in json_data:
-                with gzip.open(path, "wb") as f:
-                    f.write(r.content)
+            for _ in range(5):
+                r = session.get(url, verify=False)
+                try:
+                    json_data = json.loads(r.content)
+                    if "responseData" in json_data:
+                        with gzip.open(path, "wb") as f:
+                            f.write(r.content)
+                    break
+                except:
+                    continue
             else:
                 return {}
 
@@ -1286,11 +1348,16 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
-            r = requests.get(url, verify=False)
-            json_data = json.loads(r.content)
-            if "responseData" in json_data:
-                with gzip.open(path, "wb") as f:
-                    f.write(r.content)
+            for _ in range(5):
+                r = session.get(url, verify=False)
+                try:
+                    json_data = json.loads(r.content)
+                    if "responseData" in json_data:
+                        with gzip.open(path, "wb") as f:
+                            f.write(r.content)
+                    break
+                except:
+                    continue
             else:
                 return {}
 
@@ -1383,11 +1450,16 @@ if __name__ == "__main__":
                 url = url_year_page_10701_10908.format(year=year, month=month, page=page)
             else:
                 url = url_year_page.format(year=year, month=month, page=page)
-            r = requests.get(url, verify=False)
-            json_data = json.loads(r.content)
-            if "responseData" in json_data:
-                with gzip.open(path, "wb") as f:
-                    f.write(r.content)
+            for _ in range(5):
+                r = session.get(url, verify=False)
+                try:
+                    json_data = json.loads(r.content)
+                    if "responseData" in json_data:
+                        with gzip.open(path, "wb") as f:
+                            f.write(r.content)
+                    break
+                except:
+                    continue
             else:
                 return {}
 
@@ -1569,7 +1641,7 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
-            r = requests.get(url, verify=False)
+            r = session.get(url, verify=False)
 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
@@ -1767,7 +1839,7 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
-            r = requests.get(url, verify=False)
+            r = session.get(url, verify=False)
 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
@@ -1976,7 +2048,7 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
-            r = requests.get(url, verify=False)
+            r = session.get(url, verify=False)
 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
@@ -2286,7 +2358,7 @@ if __name__ == "__main__":
 
         if not path.is_file():
             url = url_year_page.format(year=year, page=page)
-            r = requests.get(url, verify=False)
+            r = session.get(url, verify=False)
 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)

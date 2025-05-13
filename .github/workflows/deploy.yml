@@ -56,9 +56,11 @@ jobs:
         run: |
           maturin build --release
           python -m pip install ./target/wheels/rust_pyo3-*.whl
-      - run: |
-          python stock.py
-          python tw_analysis.py
+      - name: Stock
+        run: python stock.py
+      - name: TW Analysis
+        run: python tw_analysis.py
+        continue-on-error: true
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:

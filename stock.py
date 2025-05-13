@@ -341,13 +341,20 @@ class Figure:
         "xaxis": {
             "tickfont": {"family": "Courier New", "size": 14},
             "automargin": True,
+            "gridcolor": "#222",
+            "zerolinecolor": "#ccc",
+            "linecolor": "#ccc",
         },
         "yaxis": {
             "tickfont": {"family": "Courier New"},
             "automargin": True,
+            "gridcolor": "#222",
+            "zerolinecolor": "#ccc",
+            "linecolor": "#ccc",
         },
         "plot_bgcolor": "#000",
         "paper_bgcolor": "#000",
+        "legend": {"font": {"color": "#ffffff"}},
     }
     name_width = 7
 

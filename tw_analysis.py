@@ -116,17 +116,23 @@ def read_excel_with_cache(
 
 default_layout = {
     "height": 600,
-    "margin": {"b": 100},
+    "margin": {"b": 135},
     # "autosize": False,
     "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
     "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
     "xaxis": {
         "tickfont": {"family": "Courier New", "size": 14},
         "automargin": True,
+        "gridcolor": "#222",
+        "zerolinecolor": "#ccc",
+        "linecolor": "#ccc",
     },
     "yaxis": {
         "tickfont": {"family": "Courier New"},
         "automargin": True,
+        "gridcolor": "#222",
+        "zerolinecolor": "#ccc",
+        "linecolor": "#ccc",
     },
     "plot_bgcolor": "#000",  # Black plot background
     "paper_bgcolor": "#000",  # Black paper background

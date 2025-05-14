@@ -114,32 +114,6 @@ def read_excel_with_cache(
     return df
 
 
-default_layout = {
-    "height": 600,
-    "margin": {"b": 135},
-    # "autosize": False,
-    "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
-    "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
-    "xaxis": {
-        "tickfont": {"family": "Courier New", "size": 14},
-        "automargin": True,
-        "gridcolor": "#222",
-        "zerolinecolor": "#ccc",
-        "linecolor": "#ccc",
-    },
-    "yaxis": {
-        "tickfont": {"family": "Courier New"},
-        "automargin": True,
-        "gridcolor": "#222",
-        "zerolinecolor": "#ccc",
-        "linecolor": "#ccc",
-    },
-    "plot_bgcolor": "#000",  # Black plot background
-    "paper_bgcolor": "#000",  # Black paper background
-    "legend": {"font": {"color": "#ffffff"}},  # White legend text
-}
-
-
 def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = True) -> Dict:
     """Merges b into a. If overwrite is True, b's values will overwrite a's on conflict."""
     if path is None:
@@ -159,6 +133,38 @@ def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = 
         else:
             a[key] = b[key]
     return a
+
+
+theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
+default_template = merge_dict(
+    theme_template,
+    {
+        "layout": {
+            "height": 600,
+            "margin": {"b": 135},
+            # "autosize": False,
+            "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
+            "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
+            "xaxis": {
+                "tickfont": {"family": "Courier New", "size": 14},
+                "automargin": True,
+                # "gridcolor": "#222",
+                # "zerolinecolor": "#ccc",
+                # "linecolor": "#ccc",
+            },
+            "yaxis": {
+                "tickfont": {"family": "Courier New"},
+                "automargin": True,
+                # "gridcolor": "#222",
+                # "zerolinecolor": "#ccc",
+                # "linecolor": "#ccc",
+            },
+            # "plot_bgcolor": "#000",  # Black plot background
+            # "paper_bgcolor": "#000",  # Black paper background
+            # "legend": {"font": {"color": "#ffffff"}},  # White legend text
+        }
+    },
+)
 
 
 def plotly_json_dump(graph_dict: Dict) -> str:
@@ -187,11 +193,12 @@ def plot_line(
             "type": "category"
         },  # Ensure x-axis type is category for discrete values if needed
     }
-    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
-        final_layout = merge_dict(final_layout, additional_layout)
+        layout = merge_dict(layout, additional_layout)
 
-    graph = {"data": data_list, "layout": final_layout}
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
     return plotly_json_dump(graph)
 
 
@@ -213,11 +220,12 @@ def plot_bar(
         "hovermode": "x",  # "closest" might be better for bar charts
         "yaxis": {"tickformat": ".2%"},  # Default, can be overridden by additional_layout
     }
-    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
-        final_layout = merge_dict(final_layout, additional_layout)
+        layout = merge_dict(layout, additional_layout)
 
-    graph = {"data": data_list, "layout": final_layout}
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
     return plotly_json_dump(graph)
 
 
@@ -239,11 +247,12 @@ def plot_bar_group(
         "hovermode": "x",
         "barmode": "group",  # Explicitly set barmode for grouped bars
     }
-    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
-        final_layout = merge_dict(final_layout, additional_layout)
+        layout = merge_dict(layout, additional_layout)
 
-    graph = {"data": data_list, "layout": final_layout}
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
     return plotly_json_dump(graph)
 
 
@@ -265,11 +274,12 @@ def plot_bar_stack_multi_index(
         "hovermode": "x",
         "barmode": "stack",
     }
-    final_layout = merge_dict(copy.deepcopy(default_layout), layout)
     if additional_layout:
-        final_layout = merge_dict(final_layout, additional_layout)
+        layout = merge_dict(layout, additional_layout)
 
-    graph = {"data": data_list[::-1], "layout": final_layout}
+    graph = {"data": data_list[::-1], "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
     return plotly_json_dump(graph)
 
 
@@ -821,9 +831,10 @@ if __name__ == "__main__":
         "hovermode": "x unified",
         "barmode": "stack",
     }
-    layout = merge_dict(copy.deepcopy(default_layout), layout)
 
     graph = {"data": dataList, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
     plots[f"{key}"] = plotly_json_dump(graph)
 
     # ============================================================
@@ -1274,7 +1285,9 @@ if __name__ == "__main__":
                     if "responseData" in json_data:
                         with gzip.open(path, "wb") as f:
                             f.write(r.content)
-                    break
+                        break
+                    else:
+                        return {}
                 except:
                     continue
             else:
@@ -1361,7 +1374,9 @@ if __name__ == "__main__":
                     if "responseData" in json_data:
                         with gzip.open(path, "wb") as f:
                             f.write(r.content)
-                    break
+                        break
+                    else:
+                        return {}
                 except:
                     continue
             else:
@@ -1463,7 +1478,9 @@ if __name__ == "__main__":
                     if "responseData" in json_data:
                         with gzip.open(path, "wb") as f:
                             f.write(r.content)
-                    break
+                        break
+                    else:
+                        return {}
                 except:
                     continue
             else:

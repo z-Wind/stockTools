@@ -1,3 +1,4 @@
+import copy
 import os
 import yfinance as yf
 import pandas as pd
@@ -333,28 +334,31 @@ class Stock:
 
 
 class Figure:
-    default_layout = {
-        "height": 600,
-        # "autosize": False,
-        "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
-        "font": {"family": "Courier New", "color": "#ffffff"},
-        "xaxis": {
-            "tickfont": {"family": "Courier New", "size": 14},
-            "automargin": True,
-            "gridcolor": "#222",
-            "zerolinecolor": "#ccc",
-            "linecolor": "#ccc",
-        },
-        "yaxis": {
-            "tickfont": {"family": "Courier New"},
-            "automargin": True,
-            "gridcolor": "#222",
-            "zerolinecolor": "#ccc",
-            "linecolor": "#ccc",
-        },
-        "plot_bgcolor": "#000",
-        "paper_bgcolor": "#000",
-        "legend": {"font": {"color": "#ffffff"}},
+    theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
+    default_template = {
+        "layout": {
+            "height": 600,
+            # "autosize": False,
+            "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
+            "font": {"family": "Courier New", "color": "#ffffff"},
+            "xaxis": {
+                "tickfont": {"family": "Courier New", "size": 14},
+                "automargin": True,
+                "gridcolor": "#222",
+                "zerolinecolor": "#ccc",
+                "linecolor": "#ccc",
+            },
+            "yaxis": {
+                "tickfont": {"family": "Courier New"},
+                "automargin": True,
+                "gridcolor": "#222",
+                "zerolinecolor": "#ccc",
+                "linecolor": "#ccc",
+            },
+            "plot_bgcolor": "#000",
+            "paper_bgcolor": "#000",
+            "legend": {"font": {"color": "#ffffff"}},
+        }
     }
     name_width = 7
 
@@ -371,6 +375,8 @@ class Figure:
         image=False,
         name_width=7,
     ):
+        self.default_template = self._mergeDict(self.theme_template, self.default_template)
+
         self.start = start
         self.end = end
         self.prefix = prefix
@@ -408,21 +414,22 @@ class Figure:
         for stock in self.stocks:
             stock.set_end_datetime(end)
 
-    def _mergeDict(self, a, b, path=None, overwrite=False):
-        "merges b into a"
+    def _mergeDict(self, a, b, path=None, overwrite=True):
+        """Merges b into a. If overwrite is True, b's values will overwrite a's on conflict."""
         if path is None:
             path = []
         for key in b:
             if key in a:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
-                    self._mergeDict(a[key], b[key], path + [str(key)])
+                    self._mergeDict(a[key], b[key], path + [str(key)], overwrite)
+                elif a[key] != b[key] and overwrite:
+                    a[key] = b[key]
                 elif a[key] == b[key]:
                     pass  # same leaf value
-                else:
-                    if overwrite:
-                        a[key] = b[key]
-
-                    # raise Exception("Conflict at %s" % ".".join(path + [str(key)]))
+                elif not overwrite:
+                    print(
+                        f"Conflict at {'.'.join(path + [str(key)])} and overwrite is False. Keeping original value."
+                    )
             else:
                 a[key] = b[key]
         return a
@@ -495,9 +502,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -518,9 +525,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -548,9 +555,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -577,9 +584,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -608,9 +615,9 @@ class Figure:
             },
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -646,9 +653,9 @@ class Figure:
                 "gridcolor": "rgba(0, 0, 0, 0)",
             },
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": [data], "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -680,9 +687,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -715,9 +722,9 @@ class Figure:
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -909,9 +916,9 @@ class Figure:
                 },
             ],
         }
-        layout = self._mergeDict(layout, self.default_layout)
 
         graph = {"data": dataList, "layout": layout}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)

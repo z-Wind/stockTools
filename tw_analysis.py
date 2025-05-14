@@ -283,6 +283,74 @@ def plot_bar_stack_multi_index(
     return plotly_json_dump(graph)
 
 
+def plot_lines_bars(
+    df: pd.DataFrame,
+    lines_left_axis: list[str],
+    lines_right_axis: list[str],
+    bars: list[str],
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    legendgroup: bool = False,
+):
+    data_list = []
+    for name in lines_left_axis:
+        data = {
+            "type": "scatter",
+            "name": name,
+            "x": df.index.tolist(),
+            "y": df[name].tolist(),
+            "mode": "lines",
+        }
+        if legendgroup:
+            data["legendgroup"] = str.rsplit(name, "_", 1)[1]
+        data_list.append(data)
+
+    for name in lines_right_axis:
+        data = {
+            "type": "scatter",
+            "name": name,
+            "x": df.index.tolist(),
+            "y": df[name].tolist(),
+            "mode": "lines",
+            "yaxis": "y2",
+        }
+        if legendgroup:
+            data["legendgroup"] = str.rsplit(name, "_", 1)[1]
+        data_list.append(data)
+
+    for name in bars:
+        data = {
+            "type": "bar",
+            "name": name,
+            "x": df.index.tolist(),
+            "y": df[name].tolist(),
+            "mode": "lines",
+        }
+        if legendgroup:
+            data["legendgroup"] = str.rsplit(name, "_", 1)[1]
+        data_list.append(data)
+
+    data_list.sort(key=lambda x: str.rsplit(x["name"], "_", 1)[1])
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x unified",
+        "xaxis": {"type": "category"},
+        "yaxis2": {
+            "overlaying": "y",
+            "side": "right",
+        },
+    }
+
+    if additional_layout:
+        layout = merge_dict(layout, additional_layout)
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    return plotly_json_dump(graph)
+
+
 # --- Specific Data Processing and Plotting Functions ---
 
 
@@ -1289,6 +1357,7 @@ if __name__ == "__main__":
                     else:
                         return {}
                 except:
+                    print("no data", url)
                     continue
             else:
                 return {}
@@ -1378,6 +1447,7 @@ if __name__ == "__main__":
                     else:
                         return {}
                 except:
+                    print("no data", url)
                     continue
             else:
                 return {}
@@ -1471,6 +1541,7 @@ if __name__ == "__main__":
                 url = url_year_page_10701_10908.format(year=year, month=month, page=page)
             else:
                 url = url_year_page.format(year=year, month=month, page=page)
+
             for _ in range(5):
                 r = session.get(url, verify=False)
                 try:
@@ -1482,6 +1553,7 @@ if __name__ == "__main__":
                     else:
                         return {}
                 except:
+                    print("no data", url)
                     continue
             else:
                 return {}
@@ -1558,7 +1630,7 @@ if __name__ == "__main__":
     today = datetime.today()
     for year in range(106, today.year - 1911 + 1):
         for month in range(1, 13):
-            if year > today.year + 1911 or (year == today.year + 1911 and month > today.month):
+            if year + 1911 > today.year or (year + 1911 == today.year and month > today.month):
                 break
 
             page = 1
@@ -1581,6 +1653,13 @@ if __name__ == "__main__":
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
+    df["死亡人數_合計"] = df["死亡人數_男"] + df["死亡人數_女"]
+    df["結婚對數_合計"] = (
+        df["結婚對數_異性"] + df["結婚對數_同性"] + df["結婚對數_同性_男"] + df["結婚對數_同性_女"]
+    )
+    df["離婚對數_合計"] = (
+        df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
+    )
     yearsmonths = df["統計年月"].unique().tolist()
 
     def summary(df, suffix, 合計, 男, 女):
@@ -1617,32 +1696,258 @@ if __name__ == "__main__":
 
     summary(df, "人口數", "人口數_合計", "人口數_男", "人口數_女")
     summary(df, "出生數", "出生數_合計", "出生數_合計_男", "出生數_合計_女")
-    df["死亡人數_合計"] = df["死亡人數_男"] + df["死亡人數_女"]
     summary(df, "死亡人數", "死亡人數_合計", "死亡人數_男", "死亡人數_女")
 
-    df["結婚對數"] = (
-        df["結婚對數_異性"] + df["結婚對數_同性"] + df["結婚對數_同性_男"] + df["結婚對數_同性_女"]
+    df_人口_出生_死亡 = df.pivot_table(
+        values=[
+            "人口數_合計",
+            "人口數_男",
+            "人口數_女",
+            "出生數_合計",
+            "出生數_合計_男",
+            "出生數_合計_女",
+            "死亡人數_合計",
+            "死亡人數_男",
+            "死亡人數_女",
+        ],
+        index="統計年月",
+        aggfunc="sum",
+        sort=False,
     )
-    df_total = df.pivot_table(values="結婚對數", index="統計年月", aggfunc="sum", sort=False)
+    df_人口_出生_死亡["人口自然增加數_合計"] = (
+        df_人口_出生_死亡["出生數_合計"] - df_人口_出生_死亡["死亡人數_合計"]
+    )
+    df_人口_出生_死亡["人口自然增加數_男"] = (
+        df_人口_出生_死亡["出生數_合計_男"] - df_人口_出生_死亡["死亡人數_男"]
+    )
+    df_人口_出生_死亡["人口自然增加數_女"] = (
+        df_人口_出生_死亡["出生數_合計_女"] - df_人口_出生_死亡["死亡人數_女"]
+    )
+
+    plots[f"{key}_人口_出生_死亡"] = plot_lines_bars(
+        df_人口_出生_死亡,
+        lines_left_axis=["出生數_合計", "死亡人數_合計"],
+        lines_right_axis=["人口數_合計"],
+        bars=["人口自然增加數_合計"],
+        title=f"{key}_人口_出生_死亡",
+    )
+
+    plots[f"{key}_人口_出生_死亡_男女"] = plot_lines_bars(
+        df_人口_出生_死亡,
+        lines_left_axis=[
+            "出生數_合計_男",
+            "死亡人數_男",
+            "出生數_合計_女",
+            "死亡人數_女",
+        ],
+        lines_right_axis=["人口數_男", "人口數_女"],
+        bars=["人口自然增加數_男", "人口自然增加數_女"],
+        title=f"{key}_人口_出生_死亡_男女",
+    )
+
+    df_人口_出生_死亡_縣市 = df.pivot_table(
+        values=[
+            "人口數_合計",
+            "人口數_男",
+            "人口數_女",
+            "出生數_合計",
+            "出生數_合計_男",
+            "出生數_合計_女",
+            "死亡人數_合計",
+            "死亡人數_男",
+            "死亡人數_女",
+        ],
+        columns="縣市",
+        index="統計年月",
+        aggfunc="sum",
+        sort=False,
+    )
+    regions = df["縣市"].unique().tolist()
+    for region in regions:
+        df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)] = (
+            df_人口_出生_死亡_縣市[("出生數_合計", region)]
+            - df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
+        )
+        df_人口_出生_死亡_縣市[("人口自然增加數_男", region)] = (
+            df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
+            - df_人口_出生_死亡_縣市[("死亡人數_男", region)]
+        )
+        df_人口_出生_死亡_縣市[("人口自然增加數_女", region)] = (
+            df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
+            - df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+        )
+
+    df_人口_出生_死亡_縣市.columns = [
+        f"{num}_{region}" for num, region in df_人口_出生_死亡_縣市.columns
+    ]
+
+    plots[f"{key}_人口_出生_死亡_縣市"] = plot_lines_bars(
+        df_人口_出生_死亡_縣市,
+        lines_left_axis=sum(
+            [
+                [
+                    f"出生數_合計_{region}",
+                    f"死亡人數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        lines_right_axis=sum(
+            [
+                [
+                    f"人口數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        bars=sum(
+            [
+                [
+                    f"人口自然增加數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        title=f"{key}_人口_出生_死亡_縣市",
+        legendgroup=True,
+    )
+
+    plots[f"{key}_人口_出生_死亡_縣市_男女"] = plot_lines_bars(
+        df_人口_出生_死亡_縣市,
+        lines_left_axis=sum(
+            [
+                [
+                    f"出生數_合計_男_{region}",
+                    f"死亡人數_男_{region}",
+                    f"出生數_合計_女_{region}",
+                    f"死亡人數_女_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        lines_right_axis=sum(
+            [
+                [
+                    f"人口數_男_{region}",
+                    f"人口數_女_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        bars=sum(
+            [
+                [
+                    f"人口自然增加數_男_{region}",
+                    f"人口自然增加數_女_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        title=f"{key}_人口_出生_死亡_縣市_男女",
+        legendgroup=True,
+    )
+
+    df_出生_結婚_離婚 = df.pivot_table(
+        values=[
+            "出生數_合計",
+            "結婚對數_合計",
+            "離婚對數_合計",
+        ],
+        index="統計年月",
+        aggfunc="sum",
+        sort=False,
+    )
+    df_出生_結婚_離婚["婚姻自然增加數_合計"] = (
+        df_出生_結婚_離婚["結婚對數_合計"] - df_出生_結婚_離婚["離婚對數_合計"]
+    )
+
+    plots[f"{key}_出生_結婚_離婚"] = plot_lines_bars(
+        df_出生_結婚_離婚,
+        lines_left_axis=["結婚對數_合計", "離婚對數_合計"],
+        lines_right_axis=["出生數_合計"],
+        bars=["婚姻自然增加數_合計"],
+        title=f"{key}_出生_結婚_離婚",
+    )
+
+    df_出生_結婚_離婚_縣市 = df.pivot_table(
+        values=[
+            "出生數_合計",
+            "結婚對數_合計",
+            "離婚對數_合計",
+        ],
+        columns="縣市",
+        index="統計年月",
+        aggfunc="sum",
+        sort=False,
+    )
+    regions = df["縣市"].unique().tolist()
+    for region in regions:
+        df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)] = (
+            df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
+            - df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
+        )
+
+    df_出生_結婚_離婚_縣市.columns = [
+        f"{num}_{region}" for num, region in df_出生_結婚_離婚_縣市.columns
+    ]
+
+    plots[f"{key}_出生_結婚_離婚_縣市"] = plot_lines_bars(
+        df_出生_結婚_離婚_縣市,
+        lines_left_axis=sum(
+            [
+                [
+                    f"結婚對數_合計_{region}",
+                    f"離婚對數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        lines_right_axis=sum(
+            [
+                [
+                    f"出生數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        bars=sum(
+            [
+                [
+                    f"婚姻自然增加數_合計_{region}",
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        title=f"{key}_出生_結婚_離婚_縣市",
+        legendgroup=True,
+    )
+
+    df_total = df.pivot_table(values="結婚對數_合計", index="統計年月", aggfunc="sum", sort=False)
     plots[f"{key}_總和_結婚對數"] = plot_line(
         df_total, f"{key}_總和_結婚對數 {df_total.index[0]}~{df_total.index[-1]}"
     )
     df_區域別 = df.pivot_table(
-        values="結婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
+        values="結婚對數_合計", index="統計年月", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別_結婚對數"] = plot_line(
         df_區域別, f"{key}_區域別_結婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
     )
 
-    df["離婚對數"] = (
-        df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
-    )
-    df_total = df.pivot_table(values="離婚對數", index="統計年月", aggfunc="sum", sort=False)
+    df_total = df.pivot_table(values="離婚對數_合計", index="統計年月", aggfunc="sum", sort=False)
     plots[f"{key}_總和_離婚對數"] = plot_line(
         df_total, f"{key}_總和_離婚對數 {df_total.index[0]}~{df_total.index[-1]}"
     )
     df_區域別 = df.pivot_table(
-        values="離婚對數", index="統計年月", columns="縣市", aggfunc="sum", sort=False
+        values="離婚對數_合計", index="統計年月", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別_離婚對數"] = plot_line(
         df_區域別, f"{key}_區域別_離婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"

@@ -438,6 +438,8 @@ def 年月混合_plot(
     key = sanitize_filename(key)
 
     df = read_csv(url, encoding)
+    df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
+    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
@@ -914,6 +916,8 @@ if __name__ == "__main__":
     key = sanitize_filename(key)
 
     df = read_csv(url)
+    df = df.replace("－", 0.0)
+    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
 
     split = df["地區別"].str.split("/", expand=True)
     df["時間"] = split[0].str.strip()
@@ -1031,6 +1035,8 @@ if __name__ == "__main__":
     key = sanitize_filename(key)
 
     df = read_csv(url)
+    df = df.replace("－", 0.0)
+    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     split = df["項目別"].str.split("/", expand=True)
     df["時間"] = split[0].str.strip()
     df["類別"] = split[1].str.strip()

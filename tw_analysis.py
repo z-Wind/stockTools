@@ -291,6 +291,7 @@ def plot_lines_bars(
     title: Optional[str] = None,
     additional_layout: Optional[Dict] = None,
     legendgroup: bool = False,
+    sort: bool = True,
 ):
     data_list = []
     for name in lines_left_axis:
@@ -329,8 +330,8 @@ def plot_lines_bars(
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
         data_list.append(data)
-
-    data_list.sort(key=lambda x: str.rsplit(x["name"], "_", 1)[1])
+    if sort:
+        data_list.sort(key=lambda x: str.rsplit(x["name"], "_", 1)[1])
 
     layout = {
         "title": {"text": title},
@@ -1511,6 +1512,138 @@ if __name__ == "__main__":
     )
     plots[f"{key}_女_年齡_婚姻_縣市"] = plot_bar_stack_multi_index(
         df_女_年齡_婚姻_縣市, f"{key}_女_年齡_婚姻_縣市 {year}年"
+    )
+
+    df_男女_年齡_婚姻 = df.pivot_table(
+        values="population",
+        index="age",
+        columns=["sex", "marital_status"],
+        aggfunc="sum",
+        sort=False,
+    )
+    df_男女_年齡_婚姻[("男", "單身")] = (
+        df_男女_年齡_婚姻[("男", "未婚")]
+        + df_男女_年齡_婚姻[("男", "離婚_不同性別")]
+        + df_男女_年齡_婚姻[("男", "離婚_相同性別")]
+        + df_男女_年齡_婚姻[("男", "喪偶_不同性別")]
+        + df_男女_年齡_婚姻[("男", "喪偶_相同性別")]
+    )
+    df_男女_年齡_婚姻[("女", "單身")] = (
+        df_男女_年齡_婚姻[("女", "未婚")]
+        + df_男女_年齡_婚姻[("女", "離婚_不同性別")]
+        + df_男女_年齡_婚姻[("女", "離婚_相同性別")]
+        + df_男女_年齡_婚姻[("女", "喪偶_不同性別")]
+        + df_男女_年齡_婚姻[("女", "喪偶_相同性別")]
+    )
+
+    df_男女_年齡_未婚 = pd.concat(
+        [df_男女_年齡_婚姻[("男", "未婚")], df_男女_年齡_婚姻[("女", "未婚")]],
+        axis="columns",
+        keys=["男", "女"],
+    )
+    df_男女_年齡_未婚["女男比"] = df_男女_年齡_未婚["女"] / df_男女_年齡_未婚["男"]
+    plots[f"{key}_男女_年齡_未婚"] = plot_lines_bars(
+        df_男女_年齡_未婚,
+        lines_left_axis=[],
+        lines_right_axis=["女男比"],
+        bars=["女", "男"],
+        title=f"{key}_男女_年齡_未婚 {year}年",
+        sort=False,
+    )
+
+    df_男女_年齡_單身 = pd.concat(
+        [df_男女_年齡_婚姻[("男", "單身")], df_男女_年齡_婚姻[("女", "單身")]],
+        axis="columns",
+        keys=["男", "女"],
+    )
+    df_男女_年齡_單身["女男比"] = df_男女_年齡_單身["女"] / df_男女_年齡_單身["男"]
+    plots[f"{key}_男女_年齡_單身"] = plot_lines_bars(
+        df_男女_年齡_單身,
+        lines_left_axis=[],
+        lines_right_axis=["女男比"],
+        bars=["女", "男"],
+        title=f"{key}_男女_年齡_單身(含離婚、喪偶) {year}年",
+        sort=False,
+    )
+
+    df_男女_年齡_婚姻_縣市 = df.pivot_table(
+        values="population",
+        index="age",
+        columns=["sex", "marital_status", "縣市"],
+        aggfunc="sum",
+        sort=False,
+    )
+    regions = df["縣市"].unique().tolist()
+    for region in regions:
+        df_男女_年齡_婚姻_縣市[("男", "單身", region)] = (
+            df_男女_年齡_婚姻_縣市[("男", "未婚", region)]
+            + df_男女_年齡_婚姻_縣市[("男", "離婚_不同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("男", "離婚_相同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("男", "喪偶_不同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("男", "喪偶_相同性別", region)]
+        )
+        df_男女_年齡_婚姻_縣市[("女", "單身", region)] = (
+            df_男女_年齡_婚姻_縣市[("女", "未婚", region)]
+            + df_男女_年齡_婚姻_縣市[("女", "離婚_不同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("女", "離婚_相同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("女", "喪偶_不同性別", region)]
+            + df_男女_年齡_婚姻_縣市[("女", "喪偶_相同性別", region)]
+        )
+
+    df_男女_年齡_未婚_縣市 = pd.concat(
+        sum(
+            [
+                [
+                    df_男女_年齡_婚姻_縣市[("男", "未婚", region)],
+                    df_男女_年齡_婚姻_縣市[("女", "未婚", region)],
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        axis="columns",
+        keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
+    )
+    for region in regions:
+        df_男女_年齡_未婚_縣市[f"女男比_{region}"] = (
+            df_男女_年齡_未婚_縣市[f"女_{region}"] / df_男女_年齡_未婚_縣市[f"男_{region}"]
+        )
+
+    plots[f"{key}_男女_年齡_未婚_縣市"] = plot_lines_bars(
+        df_男女_年齡_未婚_縣市,
+        lines_left_axis=[],
+        lines_right_axis=[f"女男比_{region}" for region in regions],
+        bars=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
+        title=f"{key}_男女_年齡_未婚_縣市 {year}年",
+        legendgroup=True,
+    )
+
+    df_男女_年齡_單身_縣市 = pd.concat(
+        sum(
+            [
+                [
+                    df_男女_年齡_婚姻_縣市[("男", "單身", region)],
+                    df_男女_年齡_婚姻_縣市[("女", "單身", region)],
+                ]
+                for region in regions
+            ],
+            [],
+        ),
+        axis="columns",
+        keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
+    )
+    for region in regions:
+        df_男女_年齡_單身_縣市[f"女男比_{region}"] = (
+            df_男女_年齡_單身_縣市[f"女_{region}"] / df_男女_年齡_單身_縣市[f"男_{region}"]
+        )
+
+    plots[f"{key}_男女_年齡_單身_縣市"] = plot_lines_bars(
+        df_男女_年齡_單身_縣市,
+        lines_left_axis=[],
+        lines_right_axis=[f"女男比_{region}" for region in regions],
+        bars=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
+        title=f"{key}_男女_年齡_單身(含離婚、喪偶)_縣市 {year}年",
+        legendgroup=True,
     )
 
     # https://data.gov.tw/dataset/32970

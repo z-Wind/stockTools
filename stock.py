@@ -340,24 +340,15 @@ class Figure:
             "height": 600,
             # "autosize": False,
             "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
-            "font": {"family": "Courier New", "color": "#ffffff"},
+            "font": {"family": "Courier New"},
             "xaxis": {
                 "tickfont": {"family": "Courier New", "size": 14},
                 "automargin": True,
-                "gridcolor": "#222",
-                "zerolinecolor": "#ccc",
-                "linecolor": "#ccc",
             },
             "yaxis": {
                 "tickfont": {"family": "Courier New"},
                 "automargin": True,
-                "gridcolor": "#222",
-                "zerolinecolor": "#ccc",
-                "linecolor": "#ccc",
             },
-            "plot_bgcolor": "#000",
-            "paper_bgcolor": "#000",
-            "legend": {"font": {"color": "#ffffff"}},
         }
     }
     name_width = 7
@@ -919,6 +910,22 @@ class Figure:
 
         graph = {"data": dataList, "layout": layout}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)

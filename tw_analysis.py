@@ -1789,6 +1789,11 @@ if __name__ == "__main__":
     df = pd.concat(df, ignore_index=True)
     df = df.fillna(0)
     df[df.columns[4:]] = df[df.columns[4:]].astype(int)
+    split = (
+        df["統計年月"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
+    df["年"] = split[0].str.strip()
+    df["月"] = split[1].str.strip()
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
@@ -1801,28 +1806,28 @@ if __name__ == "__main__":
     )
     yearsmonths = df["統計年月"].unique().tolist()
 
-    def summary(df, suffix, 合計, 男, 女):
-        df_total = df.pivot_table(values=合計, index="統計年月", aggfunc="sum", sort=False)
+    def summary(df, suffix, 合計, 男, 女, index):
+        df_total = df.pivot_table(values=合計, index=index, aggfunc="sum", sort=False)
         plots[f"{key}_總和_{suffix}"] = plot_line(
-            df_total, f"{key}_總和_{suffix} {df_total.index[0]}~{df_total.index[-1]}"
+            df_total, f"{key}_總和_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
 
-        df_total_男女 = df.pivot_table(values=[男, 女], index="統計年月", aggfunc="sum", sort=False)
+        df_total_男女 = df.pivot_table(values=[男, 女], index=index, aggfunc="sum", sort=False)
         plots[f"{key}_總和_男女_{suffix}"] = plot_line(
             df_total_男女,
-            f"{key}_總和_男女_{suffix} {df_total_男女.index[0]}~{df_total_男女.index[-1]}",
+            f"{key}_總和_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
         df_區域別 = df.pivot_table(
-            values=合計, index="統計年月", columns="縣市", aggfunc="sum", sort=False
+            values=合計, index=index, columns="縣市", aggfunc="sum", sort=False
         )
         plots[f"{key}_區域別_{suffix}"] = plot_line(
-            df_區域別, f"{key}_區域別_{suffix} {df_區域別.index[0]}~{df_區域別.index[-1]}"
+            df_區域別, f"{key}_區域別_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
 
         df_區域別_男女 = df.pivot_table(
             values=[男, 女],
-            index="統計年月",
+            index=index,
             columns="縣市",
             aggfunc="sum",
             sort=False,
@@ -1830,430 +1835,494 @@ if __name__ == "__main__":
         df_區域別_男女.columns = [f"{region}_{sex}" for sex, region in df_區域別_男女.columns]
         plots[f"{key}_區域別_男女_{suffix}"] = plot_line(
             df_區域別_男女,
-            f"{key}_區域別_男女_{suffix} {df_區域別_男女.index[0]}~{df_區域別_男女.index[-1]}",
+            f"{key}_區域別_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
-    summary(df, "人口數", "人口數_合計", "人口數_男", "人口數_女")
-    summary(df, "出生數", "出生數_合計", "出生數_合計_男", "出生數_合計_女")
-    summary(df, "死亡人數", "死亡人數_合計", "死亡人數_男", "死亡人數_女")
+    df_人口_年 = df[df["統計年月"].str.contains(r"\d{3}12")]
+    if df_人口_年["年"].iloc[-1] != df["年"].iloc[-1]:
+        df_人口_年 = pd.concat(
+            [df_人口_年, df[df["統計年月"] == df["統計年月"].iloc[-1]]], axis="index"
+        )
+    summary(df_人口_年, "人口數_年", "人口數_合計", "人口數_男", "人口數_女", "年")
+    summary(df, "人口數_年月", "人口數_合計", "人口數_男", "人口數_女", "統計年月")
+    summary(df, "出生數_年", "出生數_合計", "出生數_合計_男", "出生數_合計_女", "年")
+    summary(df, "出生數_年月", "出生數_合計", "出生數_合計_男", "出生數_合計_女", "統計年月")
+    summary(df, "死亡人數_年", "死亡人數_合計", "死亡人數_男", "死亡人數_女", "年")
+    summary(df, "死亡人數_年月", "死亡人數_合計", "死亡人數_男", "死亡人數_女", "統計年月")
 
-    df_人口_出生_死亡 = df.pivot_table(
-        values=[
-            "人口數_合計",
-            "人口數_男",
-            "人口數_女",
-            "出生數_合計",
-            "出生數_合計_男",
-            "出生數_合計_女",
-            "死亡人數_合計",
-            "死亡人數_男",
-            "死亡人數_女",
-        ],
-        index="統計年月",
-        aggfunc="sum",
-        sort=False,
-    )
-    df_人口_出生_死亡["人口自然增加數_合計"] = (
-        df_人口_出生_死亡["出生數_合計"] - df_人口_出生_死亡["死亡人數_合計"]
-    )
-    df_人口_出生_死亡["人口自然增加數_男"] = (
-        df_人口_出生_死亡["出生數_合計_男"] - df_人口_出生_死亡["死亡人數_男"]
-    )
-    df_人口_出生_死亡["人口自然增加數_女"] = (
-        df_人口_出生_死亡["出生數_合計_女"] - df_人口_出生_死亡["死亡人數_女"]
-    )
-    df_人口_出生_死亡["出生率_合計"] = (
-        df_人口_出生_死亡["出生數_合計"] / df_人口_出生_死亡["人口數_合計"]
-    )
-    df_人口_出生_死亡["出生率_男"] = (
-        df_人口_出生_死亡["出生數_合計_男"] / df_人口_出生_死亡["人口數_男"]
-    )
-    df_人口_出生_死亡["出生率_女"] = (
-        df_人口_出生_死亡["出生數_合計_女"] / df_人口_出生_死亡["人口數_女"]
-    )
-    df_人口_出生_死亡["死亡率_合計"] = (
-        df_人口_出生_死亡["死亡人數_合計"] / df_人口_出生_死亡["人口數_合計"]
-    )
-    df_人口_出生_死亡["死亡率_男"] = (
-        df_人口_出生_死亡["死亡人數_男"] / df_人口_出生_死亡["人口數_男"]
-    )
-    df_人口_出生_死亡["死亡率_女"] = (
-        df_人口_出生_死亡["死亡人數_女"] / df_人口_出生_死亡["人口數_女"]
-    )
+    for suffix, index in [("年月", "統計年月"), ("年", "年")]:
+        df_人口_出生_死亡 = df.pivot_table(
+            values=[
+                "人口數_合計",
+                "人口數_男",
+                "人口數_女",
+                "出生數_合計",
+                "出生數_合計_男",
+                "出生數_合計_女",
+                "死亡人數_合計",
+                "死亡人數_男",
+                "死亡人數_女",
+            ],
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
+        if index == "年":
+            df_人口 = df_人口_年.pivot_table(
+                values=[
+                    "人口數_合計",
+                    "人口數_男",
+                    "人口數_女",
+                ],
+                index=index,
+                aggfunc="sum",
+                sort=False,
+            )
+            df_人口_出生_死亡["人口數_合計"] = df_人口["人口數_合計"]
+            df_人口_出生_死亡["人口數_男"] = df_人口["人口數_男"]
+            df_人口_出生_死亡["人口數_女"] = df_人口["人口數_女"]
 
-    plots[f"{key}_人口_出生_死亡"] = plot_lines_bars(
-        df_人口_出生_死亡,
-        lines_left_axis=["出生數_合計", "死亡人數_合計"],
-        lines_right_axis=["人口數_合計"],
-        bars=["人口自然增加數_合計"],
-        title=f"{key}_人口_出生_死亡",
-    )
-
-    plots[f"{key}_人口_出生_死亡_男女"] = plot_lines_bars(
-        df_人口_出生_死亡,
-        lines_left_axis=[
-            "出生數_合計_男",
-            "死亡人數_男",
-            "出生數_合計_女",
-            "死亡人數_女",
-        ],
-        lines_right_axis=["人口數_男", "人口數_女"],
-        bars=["人口自然增加數_男", "人口自然增加數_女"],
-        title=f"{key}_人口_出生_死亡_男女",
-    )
-
-    plots[f"{key}_出生率"] = plot_line(
-        df_人口_出生_死亡[["出生率_合計", "出生率_男", "出生率_女"]],
-        title=f"{key}_出生率",
-        additional_layout={"yaxis": {"tickformat": ".2%"}},
-    )
-    plots[f"{key}_死亡率"] = plot_line(
-        df_人口_出生_死亡[["死亡率_合計", "死亡率_男", "死亡率_女"]],
-        title=f"{key}_死亡率",
-        additional_layout={"yaxis": {"tickformat": ".2%"}},
-    )
-
-    df_人口_出生_死亡_縣市 = df.pivot_table(
-        values=[
-            "人口數_合計",
-            "人口數_男",
-            "人口數_女",
-            "出生數_合計",
-            "出生數_合計_男",
-            "出生數_合計_女",
-            "死亡人數_合計",
-            "死亡人數_男",
-            "死亡人數_女",
-        ],
-        columns="縣市",
-        index="統計年月",
-        aggfunc="sum",
-        sort=False,
-    )
-    regions = df["縣市"].unique().tolist()
-    for region in regions:
-        df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計", region)]
-            - df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
+        df_人口_出生_死亡["人口自然增加數_合計"] = (
+            df_人口_出生_死亡["出生數_合計"] - df_人口_出生_死亡["死亡人數_合計"]
         )
-        df_人口_出生_死亡_縣市[("人口自然增加數_男", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
-            - df_人口_出生_死亡_縣市[("死亡人數_男", region)]
+        df_人口_出生_死亡["人口自然增加數_男"] = (
+            df_人口_出生_死亡["出生數_合計_男"] - df_人口_出生_死亡["死亡人數_男"]
         )
-        df_人口_出生_死亡_縣市[("人口自然增加數_女", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
-            - df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+        df_人口_出生_死亡["人口自然增加數_女"] = (
+            df_人口_出生_死亡["出生數_合計_女"] - df_人口_出生_死亡["死亡人數_女"]
         )
-        df_人口_出生_死亡_縣市[("出生率_合計", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計", region)]
-            / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+        df_人口_出生_死亡["出生率_合計"] = (
+            df_人口_出生_死亡["出生數_合計"] / df_人口_出生_死亡["人口數_合計"]
         )
-        df_人口_出生_死亡_縣市[("出生率_男", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
-            / df_人口_出生_死亡_縣市[("人口數_男", region)]
+        df_人口_出生_死亡["出生率_男"] = (
+            df_人口_出生_死亡["出生數_合計_男"] / df_人口_出生_死亡["人口數_男"]
         )
-        df_人口_出生_死亡_縣市[("出生率_女", region)] = (
-            df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
-            / df_人口_出生_死亡_縣市[("人口數_女", region)]
+        df_人口_出生_死亡["出生率_女"] = (
+            df_人口_出生_死亡["出生數_合計_女"] / df_人口_出生_死亡["人口數_女"]
         )
-        df_人口_出生_死亡_縣市[("死亡率_合計", region)] = (
-            df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
-            / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+        df_人口_出生_死亡["死亡率_合計"] = (
+            df_人口_出生_死亡["死亡人數_合計"] / df_人口_出生_死亡["人口數_合計"]
         )
-        df_人口_出生_死亡_縣市[("死亡率_男", region)] = (
-            df_人口_出生_死亡_縣市[("死亡人數_男", region)]
-            / df_人口_出生_死亡_縣市[("人口數_男", region)]
+        df_人口_出生_死亡["死亡率_男"] = (
+            df_人口_出生_死亡["死亡人數_男"] / df_人口_出生_死亡["人口數_男"]
         )
-        df_人口_出生_死亡_縣市[("死亡率_女", region)] = (
-            df_人口_出生_死亡_縣市[("死亡人數_女", region)]
-            / df_人口_出生_死亡_縣市[("人口數_女", region)]
+        df_人口_出生_死亡["死亡率_女"] = (
+            df_人口_出生_死亡["死亡人數_女"] / df_人口_出生_死亡["人口數_女"]
         )
 
-    df_人口_出生_死亡_縣市.columns = [
-        f"{num}_{region}" for num, region in df_人口_出生_死亡_縣市.columns
-    ]
-
-    plots[f"{key}_人口_出生_死亡_縣市"] = plot_lines_bars(
-        df_人口_出生_死亡_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"出生數_合計_{region}",
-                    f"死亡人數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=sum(
-            [
-                [
-                    f"人口數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        bars=sum(
-            [
-                [
-                    f"人口自然增加數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        title=f"{key}_人口_出生_死亡_縣市",
-        legendgroup=True,
-    )
-
-    plots[f"{key}_人口_出生_死亡_縣市_男女"] = plot_lines_bars(
-        df_人口_出生_死亡_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"出生數_合計_男_{region}",
-                    f"死亡人數_男_{region}",
-                    f"出生數_合計_女_{region}",
-                    f"死亡人數_女_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=sum(
-            [
-                [
-                    f"人口數_男_{region}",
-                    f"人口數_女_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        bars=sum(
-            [
-                [
-                    f"人口自然增加數_男_{region}",
-                    f"人口自然增加數_女_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        title=f"{key}_人口_出生_死亡_縣市_男女",
-        legendgroup=True,
-    )
-    plots[f"{key}_出生率_縣市"] = plot_lines_bars(
-        df_人口_出生_死亡_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"出生率_合計_{region}",
-                    f"出生率_男_{region}",
-                    f"出生率_女_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=[],
-        bars=[],
-        title=f"{key}_出生率_縣市",
-        additional_layout={
-            "yaxis": {"tickformat": ".2%"},
-            "hovermode": "x",
-        },
-        legendgroup=True,
-    )
-    plots[f"{key}_死亡率_縣市"] = plot_lines_bars(
-        df_人口_出生_死亡_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"死亡率_合計_{region}",
-                    f"死亡率_男_{region}",
-                    f"死亡率_女_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=[],
-        bars=[],
-        title=f"{key}_死亡率_縣市",
-        additional_layout={
-            "yaxis": {"tickformat": ".2%"},
-            "hovermode": "x",
-        },
-        legendgroup=True,
-    )
-
-    df_出生_結婚_離婚 = df.pivot_table(
-        values=[
-            "出生數_合計",
-            "結婚對數_合計",
-            "離婚對數_合計",
-            "人口數_合計",
-        ],
-        index="統計年月",
-        aggfunc="sum",
-        sort=False,
-    )
-    df_出生_結婚_離婚["婚姻自然增加數_合計"] = (
-        df_出生_結婚_離婚["結婚對數_合計"] - df_出生_結婚_離婚["離婚對數_合計"]
-    )
-    df_出生_結婚_離婚["結婚率_合計"] = (
-        df_出生_結婚_離婚["結婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
-    )
-    df_出生_結婚_離婚["離婚率_合計"] = (
-        df_出生_結婚_離婚["離婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
-    )
-
-    plots[f"{key}_出生_結婚_離婚"] = plot_lines_bars(
-        df_出生_結婚_離婚,
-        lines_left_axis=["結婚對數_合計", "離婚對數_合計"],
-        lines_right_axis=["出生數_合計"],
-        bars=["婚姻自然增加數_合計"],
-        title=f"{key}_出生_結婚_離婚",
-    )
-    plots[f"{key}_結婚率"] = plot_line(
-        df_出生_結婚_離婚[["結婚率_合計"]],
-        title=f"{key}_結婚率",
-        additional_layout={"yaxis": {"tickformat": ".2%"}},
-    )
-    plots[f"{key}_離婚率"] = plot_line(
-        df_出生_結婚_離婚[["離婚率_合計"]],
-        title=f"{key}_離婚率",
-        additional_layout={"yaxis": {"tickformat": ".2%"}},
-    )
-
-    df_出生_結婚_離婚_縣市 = df.pivot_table(
-        values=[
-            "出生數_合計",
-            "結婚對數_合計",
-            "離婚對數_合計",
-            "人口數_合計",
-        ],
-        columns="縣市",
-        index="統計年月",
-        aggfunc="sum",
-        sort=False,
-    )
-    regions = df["縣市"].unique().tolist()
-    for region in regions:
-        df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)] = (
-            df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
-            - df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
-        )
-        df_出生_結婚_離婚_縣市[("結婚率_合計", region)] = (
-            df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
-            / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
-        )
-        df_出生_結婚_離婚_縣市[("離婚率_合計", region)] = (
-            df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
-            / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+        plots[f"{key}_人口_出生_死亡_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡,
+            lines_left_axis=["出生數_合計", "死亡人數_合計"],
+            lines_right_axis=["人口數_合計"],
+            bars=["人口自然增加數_合計"],
+            title=f"{key}_人口_出生_死亡_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
-    df_出生_結婚_離婚_縣市.columns = [
-        f"{num}_{region}" for num, region in df_出生_結婚_離婚_縣市.columns
-    ]
+        plots[f"{key}_人口_出生_死亡_男女_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡,
+            lines_left_axis=[
+                "出生數_合計_男",
+                "死亡人數_男",
+                "出生數_合計_女",
+                "死亡人數_女",
+            ],
+            lines_right_axis=["人口數_男", "人口數_女"],
+            bars=["人口自然增加數_男", "人口自然增加數_女"],
+            title=f"{key}_人口_出生_死亡_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+        )
 
-    plots[f"{key}_出生_結婚_離婚_縣市"] = plot_lines_bars(
-        df_出生_結婚_離婚_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"結婚對數_合計_{region}",
-                    f"離婚對數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=sum(
-            [
-                [
-                    f"出生數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        bars=sum(
-            [
-                [
-                    f"婚姻自然增加數_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        title=f"{key}_出生_結婚_離婚_縣市",
-        legendgroup=True,
-    )
-    plots[f"{key}_結婚率_縣市"] = plot_lines_bars(
-        df_出生_結婚_離婚_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"結婚率_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=[],
-        bars=[],
-        title=f"{key}_結婚率_縣市",
-        additional_layout={
-            "yaxis": {"tickformat": ".2%"},
-            "hovermode": "x",
-        },
-        legendgroup=True,
-    )
-    plots[f"{key}_離婚率_縣市"] = plot_lines_bars(
-        df_出生_結婚_離婚_縣市,
-        lines_left_axis=sum(
-            [
-                [
-                    f"離婚率_合計_{region}",
-                ]
-                for region in regions
-            ],
-            [],
-        ),
-        lines_right_axis=[],
-        bars=[],
-        title=f"{key}_離婚率_縣市",
-        additional_layout={
-            "yaxis": {"tickformat": ".2%"},
-            "hovermode": "x",
-        },
-        legendgroup=True,
-    )
+        plots[f"{key}_出生率_{suffix}"] = plot_line(
+            df_人口_出生_死亡[["出生率_合計", "出生率_男", "出生率_女"]],
+            title=f"{key}_出生率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
+        plots[f"{key}_死亡率_{suffix}"] = plot_line(
+            df_人口_出生_死亡[["死亡率_合計", "死亡率_男", "死亡率_女"]],
+            title=f"{key}_死亡率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
 
-    df_total = df.pivot_table(values="結婚對數_合計", index="統計年月", aggfunc="sum", sort=False)
-    plots[f"{key}_總和_結婚對數"] = plot_line(
-        df_total, f"{key}_總和_結婚對數 {df_total.index[0]}~{df_total.index[-1]}"
-    )
-    df_區域別 = df.pivot_table(
-        values="結婚對數_合計", index="統計年月", columns="縣市", aggfunc="sum", sort=False
-    )
-    plots[f"{key}_區域別_結婚對數"] = plot_line(
-        df_區域別, f"{key}_區域別_結婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
-    )
+        df_人口_出生_死亡_縣市 = df.pivot_table(
+            values=[
+                "人口數_合計",
+                "人口數_男",
+                "人口數_女",
+                "出生數_合計",
+                "出生數_合計_男",
+                "出生數_合計_女",
+                "死亡人數_合計",
+                "死亡人數_男",
+                "死亡人數_女",
+            ],
+            columns="縣市",
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
+        if index == "年":
+            df_人口 = df_人口_年.pivot_table(
+                values=[
+                    "人口數_合計",
+                    "人口數_男",
+                    "人口數_女",
+                ],
+                columns="縣市",
+                index=index,
+                aggfunc="sum",
+                sort=False,
+            )
+            df_人口_出生_死亡_縣市["人口數_合計"] = df_人口["人口數_合計"]
+            df_人口_出生_死亡_縣市["人口數_男"] = df_人口["人口數_男"]
+            df_人口_出生_死亡_縣市["人口數_女"] = df_人口["人口數_女"]
 
-    df_total = df.pivot_table(values="離婚對數_合計", index="統計年月", aggfunc="sum", sort=False)
-    plots[f"{key}_總和_離婚對數"] = plot_line(
-        df_total, f"{key}_總和_離婚對數 {df_total.index[0]}~{df_total.index[-1]}"
-    )
-    df_區域別 = df.pivot_table(
-        values="離婚對數_合計", index="統計年月", columns="縣市", aggfunc="sum", sort=False
-    )
-    plots[f"{key}_區域別_離婚對數"] = plot_line(
-        df_區域別, f"{key}_區域別_離婚對數 {df_區域別.index[0]}~{df_區域別.index[-1]}"
-    )
+        regions = df["縣市"].unique().tolist()
+        for region in regions:
+            df_人口_出生_死亡_縣市 = df_人口_出生_死亡_縣市.copy()
+            df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計", region)]
+                - df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口自然增加數_男", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
+                - df_人口_出生_死亡_縣市[("死亡人數_男", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口自然增加數_女", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
+                - df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+            )
+            df_人口_出生_死亡_縣市[("出生率_合計", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計", region)]
+                / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+            )
+            df_人口_出生_死亡_縣市[("出生率_男", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
+                / df_人口_出生_死亡_縣市[("人口數_男", region)]
+            )
+            df_人口_出生_死亡_縣市[("出生率_女", region)] = (
+                df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
+                / df_人口_出生_死亡_縣市[("人口數_女", region)]
+            )
+            df_人口_出生_死亡_縣市[("死亡率_合計", region)] = (
+                df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
+                / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+            )
+            df_人口_出生_死亡_縣市[("死亡率_男", region)] = (
+                df_人口_出生_死亡_縣市[("死亡人數_男", region)]
+                / df_人口_出生_死亡_縣市[("人口數_男", region)]
+            )
+            df_人口_出生_死亡_縣市[("死亡率_女", region)] = (
+                df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+                / df_人口_出生_死亡_縣市[("人口數_女", region)]
+            )
+
+        df_人口_出生_死亡_縣市.columns = [
+            f"{num}_{region}" for num, region in df_人口_出生_死亡_縣市.columns
+        ]
+
+        plots[f"{key}_人口_出生_死亡_縣市_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"出生數_合計_{region}",
+                        f"死亡人數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=sum(
+                [
+                    [
+                        f"人口數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            bars=sum(
+                [
+                    [
+                        f"人口自然增加數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            title=f"{key}_人口_出生_死亡_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            legendgroup=True,
+        )
+
+        plots[f"{key}_人口_出生_死亡_縣市_男女_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"出生數_合計_男_{region}",
+                        f"死亡人數_男_{region}",
+                        f"出生數_合計_女_{region}",
+                        f"死亡人數_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=sum(
+                [
+                    [
+                        f"人口數_男_{region}",
+                        f"人口數_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            bars=sum(
+                [
+                    [
+                        f"人口自然增加數_男_{region}",
+                        f"人口自然增加數_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            title=f"{key}_人口_出生_死亡_縣市_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            legendgroup=True,
+        )
+        plots[f"{key}_出生率_縣市_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"出生率_合計_{region}",
+                        f"出生率_男_{region}",
+                        f"出生率_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars=[],
+            title=f"{key}_出生率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+        )
+        plots[f"{key}_死亡率_縣市_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"死亡率_合計_{region}",
+                        f"死亡率_男_{region}",
+                        f"死亡率_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars=[],
+            title=f"{key}_死亡率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+        )
+
+        df_出生_結婚_離婚 = df.pivot_table(
+            values=[
+                "出生數_合計",
+                "結婚對數_合計",
+                "離婚對數_合計",
+                "人口數_合計",
+            ],
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
+        if index == "年":
+            df_人口 = df_人口_年.pivot_table(
+                values=[
+                    "人口數_合計",
+                ],
+                index=index,
+                aggfunc="sum",
+                sort=False,
+            )
+            df_出生_結婚_離婚["人口數_合計"] = df_人口["人口數_合計"]
+
+        df_出生_結婚_離婚["婚姻自然增加數_合計"] = (
+            df_出生_結婚_離婚["結婚對數_合計"] - df_出生_結婚_離婚["離婚對數_合計"]
+        )
+        df_出生_結婚_離婚["結婚率_合計"] = (
+            df_出生_結婚_離婚["結婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["離婚率_合計"] = (
+            df_出生_結婚_離婚["離婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+
+        plots[f"{key}_出生_結婚_離婚_{suffix}"] = plot_lines_bars(
+            df_出生_結婚_離婚,
+            lines_left_axis=["結婚對數_合計", "離婚對數_合計"],
+            lines_right_axis=["出生數_合計"],
+            bars=["婚姻自然增加數_合計"],
+            title=f"{key}_出生_結婚_離婚_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+        )
+        plots[f"{key}_結婚率_{suffix}"] = plot_line(
+            df_出生_結婚_離婚[["結婚率_合計"]],
+            title=f"{key}_結婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
+        plots[f"{key}_離婚率_{suffix}"] = plot_line(
+            df_出生_結婚_離婚[["離婚率_合計"]],
+            title=f"{key}_離婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
+
+        df_出生_結婚_離婚_縣市 = df.pivot_table(
+            values=[
+                "出生數_合計",
+                "結婚對數_合計",
+                "離婚對數_合計",
+                "人口數_合計",
+            ],
+            columns="縣市",
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
+        if index == "年":
+            df_人口 = df_人口_年.pivot_table(
+                values=[
+                    "人口數_合計",
+                ],
+                columns="縣市",
+                index=index,
+                aggfunc="sum",
+                sort=False,
+            )
+            df_出生_結婚_離婚_縣市["人口數_合計"] = df_人口["人口數_合計"]
+
+        regions = df["縣市"].unique().tolist()
+        for region in regions:
+            df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
+                - df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("結婚率_合計", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("離婚率_合計", region)] = (
+                df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+
+        df_出生_結婚_離婚_縣市.columns = [
+            f"{num}_{region}" for num, region in df_出生_結婚_離婚_縣市.columns
+        ]
+
+        plots[f"{key}_出生_結婚_離婚_縣市_{suffix}"] = plot_lines_bars(
+            df_出生_結婚_離婚_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"結婚對數_合計_{region}",
+                        f"離婚對數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=sum(
+                [
+                    [
+                        f"出生數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            bars=sum(
+                [
+                    [
+                        f"婚姻自然增加數_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            title=f"{key}_出生_結婚_離婚_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            legendgroup=True,
+        )
+        plots[f"{key}_結婚率_縣市_{suffix}"] = plot_lines_bars(
+            df_出生_結婚_離婚_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"結婚率_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars=[],
+            title=f"{key}_結婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+        )
+        plots[f"{key}_離婚率_縣市_{suffix}"] = plot_lines_bars(
+            df_出生_結婚_離婚_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"離婚率_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars=[],
+            title=f"{key}_離婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+        )
+
+        df_total = df.pivot_table(values="結婚對數_合計", index=index, aggfunc="sum", sort=False)
+        plots[f"{key}_總和_結婚對數_{suffix}"] = plot_line(
+            df_total, f"{key}_總和_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+        )
+        df_區域別 = df.pivot_table(
+            values="結婚對數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+        )
+        plots[f"{key}_區域別_結婚對數_{suffix}"] = plot_line(
+            df_區域別, f"{key}_區域別_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+        )
+
+        df_total = df.pivot_table(values="離婚對數_合計", index=index, aggfunc="sum", sort=False)
+        plots[f"{key}_總和_離婚對數_{suffix}"] = plot_line(
+            df_total, f"{key}_總和_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+        )
+        df_區域別 = df.pivot_table(
+            values="離婚對數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+        )
+        plots[f"{key}_區域別_離婚對數_{suffix}"] = plot_line(
+            df_區域別, f"{key}_區域別_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+        )
 
     # https://data.gov.tw/dataset/139388
     # API 說明文件

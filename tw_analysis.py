@@ -1007,7 +1007,7 @@ if __name__ == "__main__":
     for name in df_縣市別.index:
         data = {
             "type": "box",
-            "name": name,
+            "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
             "x": [name],
             "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
             "median": [df_縣市別.loc[name, "中位數"] * 1000],
@@ -1056,7 +1056,7 @@ if __name__ == "__main__":
     for name in df_縣市別.index:
         data = {
             "type": "box",
-            "name": name,
+            "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
             "x": [name],
             "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
             "median": [df_縣市別.loc[name, "中位數"] * 1000],

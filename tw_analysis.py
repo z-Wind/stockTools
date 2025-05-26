@@ -928,19 +928,22 @@ if __name__ == "__main__":
             "非擔任主管之全時員工薪資中位數(仟元/人)",
         ]
     ]
-    df_薪資 = df_薪資.rename(
-        columns={
-            "非擔任主管職務之全時員工薪資平均數(仟元/人)": "平均數",
-            "非擔任主管之全時員工薪資中位數(仟元/人)": "中位數",
-        }
+    df_薪資 = (
+        df_薪資.rename(
+            columns={
+                "非擔任主管職務之全時員工薪資平均數(仟元/人)": "平均數",
+                "非擔任主管之全時員工薪資中位數(仟元/人)": "中位數",
+            }
+        )
+        * 1000
     )
     plots[f"{key}_非擔任主管職務之全時員工薪資"] = plot_bar_group(
         df_薪資,
-        f"{key}_非擔任主管職務之全時員工薪資(仟元/人) {year}",
+        f"{key}_非擔任主管職務之全時員工薪資 {year}年",
     )
     plots[f"{key}_非擔任主管職務之全時員工薪資_排序"] = plot_bar_group(
         df_薪資.sort_values(["中位數", "平均數"]).dropna(),
-        f"{key}_非擔任主管職務之全時員工薪資_排序(仟元/人) {year}",
+        f"{key}_非擔任主管職務之全時員工薪資_排序 {year}年",
     )
 
     df_職災 = df[
@@ -959,19 +962,20 @@ if __name__ == "__main__":
     plots[f"{key}_職業災害人數及比率"] = plot_lines_bars(
         df_職災,
         lines_left_axis=[],
-        lines_right_axis=["人數"],
-        bars=["比率"],
-        title=f"{key}_職業災害人數及比率 {year}",
+        lines_right_axis=["比率"],
+        bars=["人數"],
+        title=f"{key}_職業災害人數及比率 {year}年",
         sort=False,
+        additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
     )
     plots[f"{key}_職業災害人數及比率_排序"] = plot_lines_bars(
         df_職災.sort_values(["人數", "比率"]),
         lines_left_axis=[],
-        lines_right_axis=["人數"],
-        bars=["比率"],
-        title=f"{key}_職業災害人數及比率_排序 {year}",
+        lines_right_axis=["比率"],
+        bars=["人數"],
+        title=f"{key}_職業災害人數及比率_排序 {year}年",
         sort=False,
-        additional_layout={"yaxis": {"title": {"text": "比率(%)"}}},
+        additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
     )
 
     # https://data.gov.tw/dataset/17963
@@ -1057,7 +1061,7 @@ if __name__ == "__main__":
             "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
             "median": [df_縣市別.loc[name, "中位數"] * 1000],
             "q3": [df_縣市別.loc[name, "第三分位數"] * 1000],
-            # "mean": [df_縣市別.loc[name, "平均數"] * 1000],
+            "mean": [df_縣市別.loc[name, "平均數"] * 1000],
             # "sd": [df_縣市別.loc[name, "標準差"] * 1000],
             # "lowerfence": [],
             # "upperfence": [],

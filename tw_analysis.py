@@ -908,6 +908,266 @@ if __name__ == "__main__":
 
     plots[f"{key}"] = plotly_json_dump(graph)
 
+    # https://data.gov.tw/dataset/155869
+    # https://data.gov.tw/dataset/156379
+    key = "企業ESG資訊揭露彙總資料-人力發展"
+    key = sanitize_filename(key)
+    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
+    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap46_O_5.csv"
+
+    year = 112
+    df_上市 = read_csv_with_cache(EXTRA_DATA_DIR / key / f"{year}_上市.csv.gz", url_上市)
+    df_上櫃 = read_csv_with_cache(EXTRA_DATA_DIR / key / f"{year}_上櫃.csv.gz", url_上櫃)
+
+    df = pd.concat([df_上市, df_上櫃])
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
+    df = df.set_index("公司")
+    df_薪資 = df[
+        [
+            "非擔任主管職務之全時員工薪資平均數(仟元/人)",
+            "非擔任主管之全時員工薪資中位數(仟元/人)",
+        ]
+    ]
+    df_薪資 = df_薪資.rename(
+        columns={
+            "非擔任主管職務之全時員工薪資平均數(仟元/人)": "平均數",
+            "非擔任主管之全時員工薪資中位數(仟元/人)": "中位數",
+        }
+    )
+    plots[f"{key}_非擔任主管職務之全時員工薪資"] = plot_bar_group(
+        df_薪資,
+        f"{key}_非擔任主管職務之全時員工薪資(仟元/人) {year}",
+    )
+    plots[f"{key}_非擔任主管職務之全時員工薪資_排序"] = plot_bar_group(
+        df_薪資.sort_values(["中位數", "平均數"]).dropna(),
+        f"{key}_非擔任主管職務之全時員工薪資_排序(仟元/人) {year}",
+    )
+
+    df_職災 = df[
+        [
+            "職業災害人數及比率-人數",
+            "職業災害人數及比率-比率",
+        ]
+    ]
+    df_職災 = df_職災.rename(
+        columns={
+            "職業災害人數及比率-人數": "人數",
+            "職業災害人數及比率-比率": "比率",
+        }
+    )
+    df_職災["比率"] = df_職災["比率"].str.removesuffix("%").astype(float) / 100.0
+    plots[f"{key}_職業災害人數及比率"] = plot_lines_bars(
+        df_職災,
+        lines_left_axis=[],
+        lines_right_axis=["人數"],
+        bars=["比率"],
+        title=f"{key}_職業災害人數及比率 {year}",
+        sort=False,
+    )
+    plots[f"{key}_職業災害人數及比率_排序"] = plot_lines_bars(
+        df_職災.sort_values(["人數", "比率"]),
+        lines_left_axis=[],
+        lines_right_axis=["人數"],
+        bars=["比率"],
+        title=f"{key}_職業災害人數及比率_排序 {year}",
+        sort=False,
+        additional_layout={"yaxis": {"title": {"text": "比率(%)"}}},
+    )
+
+    # https://data.gov.tw/dataset/17963
+    key = "綜稅總所得各縣市申報統計分析表"
+    key = sanitize_filename(key)
+    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_8-1.csv"
+
+    df = []
+    lastyear = 110
+    for year in range(101, lastyear + 1):
+        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
+        data = read_csv_with_cache(path, url.format(year=year))
+        data["年度"] = year
+        data = data.rename(
+            columns={
+                "鄉鎮市區": "縣市別",
+                "\ufeff縣市別": "縣市別",
+                "\ufeff鄉鎮市區": "縣市別",
+                "總所得": "綜合所得總額",
+            }
+        )
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True, axis="index")
+
+    sorted = "中位數"
+    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別").sort_values(sorted)
+    data_list = []
+    for name in df_縣市別.index:
+        data = {
+            "type": "box",
+            "name": name,
+            "x": [name],
+            "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
+            "median": [df_縣市別.loc[name, "中位數"] * 1000],
+            "q3": [df_縣市別.loc[name, "第三分位數"] * 1000],
+            "mean": [df_縣市別.loc[name, "平均數"] * 1000],
+            "sd": [df_縣市別.loc[name, "標準差"] * 1000],
+            "lowerfence": [],
+            "upperfence": [],
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": f"{key} {sorted}排序 {lastyear}年"},
+        "hovermode": "x",
+    }
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    plots[f"{key}"] = plotly_json_dump(graph)
+
+    # https://data.gov.tw/dataset/103066
+    key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
+    key = sanitize_filename(key)
+    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
+
+    df = []
+    lastyear = 110
+    for year in range(101, lastyear + 1):
+        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
+        data = read_csv_with_cache(path, url.format(year=year))
+        data["年度"] = year
+        data = data.rename(
+            columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
+        )
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True, axis="index")
+    df["縣市別村里"] = df["縣市別"] + df["村里"]
+    split = df["縣市別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+
+    sorted = "中位數"
+    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別村里").sort_values(sorted)
+    data_list = []
+    for name in df_縣市別.index:
+        data = {
+            "type": "box",
+            "name": name,
+            "x": [name],
+            "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
+            "median": [df_縣市別.loc[name, "中位數"] * 1000],
+            "q3": [df_縣市別.loc[name, "第三分位數"] * 1000],
+            # "mean": [df_縣市別.loc[name, "平均數"] * 1000],
+            # "sd": [df_縣市別.loc[name, "標準差"] * 1000],
+            # "lowerfence": [],
+            # "upperfence": [],
+        }
+        data_list.append(data)
+
+    buttons_regions_detail = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_縣市別.index),
+                }
+            ],  # 顯示所有線條
+            "label": "全部地區",
+            "method": "restyle",
+        }
+    ]
+    buttons_regions_detail.append(
+        {
+            "args": [
+                {
+                    "visible": [
+                        df_縣市別.loc[index, "村里"] == "合計" for index in df_縣市別.index
+                    ],
+                }
+            ],
+            "label": "合計",
+            "method": "restyle",
+        },
+    )
+    regions_detail = df["縣市別"].unique().tolist()
+    for region in regions_detail:
+        arr = [region in index for index in df_縣市別.index]  # 依地區篩選
+        buttons_regions_detail.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    buttons_regions = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_縣市別.index),
+                }
+            ],  # 顯示所有線條
+            "label": "全部地區",
+            "method": "restyle",
+        }
+    ]
+    regions = df["縣市"].unique().tolist()
+    for region in regions:
+        arr = [region in index for index in df_縣市別.index]  # 依地區篩選
+        buttons_regions.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.6,
+            "y": 1.03,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_regions,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+        {
+            "x": 0.7,
+            "y": 1.03,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_regions_detail,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+    ]
+
+    layout = {
+        "title": {"text": f"{key} {sorted}排序 {lastyear}年"},
+        "hovermode": "x",
+        "updatemenus": updatemenus,
+    }
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    plots[f"{key}"] = plotly_json_dump(graph)
+
     # ============================================================
 
     # https://data.gov.tw/dataset/6742

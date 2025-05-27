@@ -933,7 +933,7 @@ if __name__ == "__main__":
     df_上櫃 = read_csv(url_上櫃)
 
     df = pd.concat([df_上市, df_上櫃])
-    year = df.loc[0, "報告年度"]
+    year = df.iloc[0]["報告年度"]
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
     df = df.set_index("公司")
     df_薪資 = df[

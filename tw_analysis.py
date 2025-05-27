@@ -915,11 +915,11 @@ if __name__ == "__main__":
     url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
     url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap46_O_5.csv"
 
-    year = 112
-    df_上市 = read_csv_with_cache(EXTRA_DATA_DIR / key / f"{year}_上市.csv.gz", url_上市)
-    df_上櫃 = read_csv_with_cache(EXTRA_DATA_DIR / key / f"{year}_上櫃.csv.gz", url_上櫃)
+    df_上市 = read_csv(url_上市)
+    df_上櫃 = read_csv(url_上櫃)
 
     df = pd.concat([df_上市, df_上櫃])
+    year = df.loc[0, "報告年度"]
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
     df = df.set_index("公司")
     df_薪資 = df[
@@ -984,6 +984,243 @@ if __name__ == "__main__":
         title=f"{key}_職業災害人數及比率_排序 {year}年",
         sort=False,
         additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
+    )
+
+    # https://data.gov.tw/dataset/24274
+    # https://data.gov.tw/dataset/24278
+    key = "公司合併報表董事酬金相關資訊"
+    key = sanitize_filename(key)
+    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_L.csv"
+    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_O.csv"
+
+    df_上市 = read_csv(url_上市)
+    df_上櫃 = read_csv(url_上櫃)
+
+    df = pd.concat([df_上市, df_上櫃])
+    num_index = [
+        "董事酬金-去年支付",
+        "董事酬金-今年支付",
+        "董事酬金-合計",
+        "董事酬金加計兼任員工酬金-去年支付",
+        "董事酬金加計兼任員工酬金-今年支付",
+        "加計兼任員工酬金-合計",
+        "酬金總額占稅後損益百分比(%)-董事酬金",
+        "酬金總額占稅後損益百分比(%)-加計兼任員工酬金",
+        "平均每位董事酬金-董事酬金",
+        "平均每位董事酬金-加計兼任員工酬金",
+        "領取來自子公司以外轉投資事業或母公司酬金",
+        "稅後純益",
+        "每股盈餘",
+        "股東權益報酬率(%)",
+        "實收資本額(千元)",
+    ]
+    df[num_index] = df[num_index].replace(",", "", regex=True)
+    df[num_index] = df[num_index].astype(float)
+    df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
+    date_pub = df.iloc[0]["出表日期"]
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+    df_董事酬金 = df.sort_values("公司代號").set_index("公司")
+    df_董事酬金 = df_董事酬金[
+        [
+            "董事酬金-合計",
+            "平均每位董事酬金-董事酬金",
+            "加計兼任員工酬金-合計",
+            "平均每位董事酬金-加計兼任員工酬金",
+            "稅後純益",
+        ]
+    ]
+
+    plots[f"{key}_董事酬金"] = plot_lines_bars(
+        df_董事酬金,
+        title=f"{key}_董事酬金 出表日期:{date_pub}",
+        lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
+        lines_right_axis=[
+            "加計兼任員工酬金-合計",
+            "稅後純益",
+            "董事酬金-合計",
+        ],
+        bars=["平均每位董事酬金-董事酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+    plots[f"{key}_董事酬金_排序"] = plot_lines_bars(
+        df_董事酬金.sort_values(
+            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"], ascending=False
+        ),
+        title=f"{key}_董事酬金_排序 出表日期:{date_pub}",
+        lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
+        lines_right_axis=[
+            "加計兼任員工酬金-合計",
+            "稅後純益",
+            "董事酬金-合計",
+        ],
+        bars=["平均每位董事酬金-董事酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+
+    df_董事酬金_產業類別 = df.pivot_table(
+        values=[
+            "董事酬金-合計",
+            "平均每位董事酬金-董事酬金",
+            "加計兼任員工酬金-合計",
+            "平均每位董事酬金-加計兼任員工酬金",
+            "稅後純益",
+        ],
+        index="產業類別",
+        aggfunc="mean",
+        sort=False,
+    )
+
+    plots[f"{key}_董事酬金_產業類別"] = plot_lines_bars(
+        df_董事酬金_產業類別,
+        title=f"{key}_董事酬金_產業類別 出表日期:{date_pub}",
+        lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
+        lines_right_axis=[
+            "加計兼任員工酬金-合計",
+            "稅後純益",
+            "董事酬金-合計",
+        ],
+        bars=["平均每位董事酬金-董事酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+    plots[f"{key}_董事酬金_產業類別_排序"] = plot_lines_bars(
+        df_董事酬金_產業類別.sort_values(
+            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"], ascending=False
+        ),
+        title=f"{key}_董事酬金_產業類別_排序 出表日期:{date_pub}",
+        lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
+        lines_right_axis=[
+            "加計兼任員工酬金-合計",
+            "稅後純益",
+            "董事酬金-合計",
+        ],
+        bars=["平均每位董事酬金-董事酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+
+    # https://data.gov.tw/dataset/24275
+    # https://data.gov.tw/dataset/24279
+    key = "公司合併報表監察人酬金相關資訊"
+    key = sanitize_filename(key)
+    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap29_D_L.csv"
+    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap29_D_O.csv"
+
+    df_上市 = read_csv(url_上市)
+    df_上櫃 = read_csv(url_上櫃)
+
+    df = pd.concat([df_上市, df_上櫃])
+    num_index = [
+        "監察人酬金-去年支付",
+        "監察人酬金-今年支付",
+        "監察人酬金-合計",
+        "酬金總額占稅後損益百分比(%)",
+        "平均每位監察人酬金",
+        "領取來自子公司以外轉投資事業或母公司酬金",
+        "稅後純益",
+        "每股盈餘",
+        "股東權益報酬率(%)",
+        "實收資本額(千元)",
+    ]
+    df[num_index] = df[num_index].replace(",", "", regex=True)
+    df[num_index] = df[num_index].astype(float)
+    df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
+    date_pub = df.iloc[0]["出表日期"]
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+    df_監察人酬金 = df.sort_values("公司代號").set_index("公司")
+    df_監察人酬金 = df_監察人酬金[
+        [
+            "監察人酬金-合計",
+            "平均每位監察人酬金",
+            "稅後純益",
+        ]
+    ]
+
+    plots[f"{key}_監察人酬金"] = plot_lines_bars(
+        df_監察人酬金,
+        title=f"{key}_監察人酬金 出表日期:{date_pub}",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "監察人酬金-合計",
+            "稅後純益",
+        ],
+        bars=["平均每位監察人酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+    plots[f"{key}_監察人酬金_排序"] = plot_lines_bars(
+        df_監察人酬金.sort_values(["平均每位監察人酬金"], ascending=False),
+        title=f"{key}_監察人酬金_排序 出表日期:{date_pub}",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "監察人酬金-合計",
+            "稅後純益",
+        ],
+        bars=["平均每位監察人酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+
+    df_監察人酬金_產業類別 = df.pivot_table(
+        values=[
+            "監察人酬金-合計",
+            "平均每位監察人酬金",
+            "稅後純益",
+        ],
+        index="產業類別",
+        aggfunc="mean",
+        sort=False,
+    )
+
+    plots[f"{key}_監察人酬金_產業類別"] = plot_lines_bars(
+        df_監察人酬金_產業類別,
+        title=f"{key}_監察人酬金_產業類別 出表日期:{date_pub}",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "監察人酬金-合計",
+            "稅後純益",
+        ],
+        bars=["平均每位監察人酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
+    )
+    plots[f"{key}_監察人酬金_產業類別_排序"] = plot_lines_bars(
+        df_監察人酬金_產業類別.sort_values(["平均每位監察人酬金"], ascending=False),
+        title=f"{key}_監察人酬金_產業類別_排序 出表日期:{date_pub}",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "監察人酬金-合計",
+            "稅後純益",
+        ],
+        bars=["平均每位監察人酬金"],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {"title": {"text": "合計"}},
+        },
     )
 
     # https://data.gov.tw/dataset/17963

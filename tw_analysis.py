@@ -937,13 +937,21 @@ if __name__ == "__main__":
         )
         * 1000
     )
-    plots[f"{key}_非擔任主管職務之全時員工薪資"] = plot_bar_group(
+    plots[f"{key}_非擔任主管職務之全時員工薪資"] = plot_lines_bars(
         df_薪資,
-        f"{key}_非擔任主管職務之全時員工薪資 {year}年",
+        title=f"{key}_非擔任主管職務之全時員工薪資 {year}年",
+        lines_left_axis=["平均數"],
+        lines_right_axis=[],
+        bars=["中位數"],
+        sort=False,
     )
-    plots[f"{key}_非擔任主管職務之全時員工薪資_排序"] = plot_bar_group(
-        df_薪資.sort_values(["中位數", "平均數"]).dropna(),
-        f"{key}_非擔任主管職務之全時員工薪資_排序 {year}年",
+    plots[f"{key}_非擔任主管職務之全時員工薪資_排序"] = plot_lines_bars(
+        df_薪資.sort_values(["中位數", "平均數"], ascending=False).dropna(),
+        title=f"{key}_非擔任主管職務之全時員工薪資_排序 {year}年",
+        lines_left_axis=["平均數"],
+        lines_right_axis=[],
+        bars=["中位數"],
+        sort=False,
     )
 
     df_職災 = df[
@@ -969,7 +977,7 @@ if __name__ == "__main__":
         additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
     )
     plots[f"{key}_職業災害人數及比率_排序"] = plot_lines_bars(
-        df_職災.sort_values(["人數", "比率"]),
+        df_職災.sort_values(["人數", "比率"], ascending=False),
         lines_left_axis=[],
         lines_right_axis=["比率"],
         bars=["人數"],
@@ -1000,9 +1008,10 @@ if __name__ == "__main__":
         df.append(data)
 
     df = pd.concat(df, ignore_index=True, axis="index")
+    df["納稅單位(戶)"] = df["納稅單位(戶)"].astype(int)
 
     sorted = "中位數"
-    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別").sort_values(sorted)
+    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別").sort_values(sorted, ascending=False)
     data_list = []
     for name in df_縣市別.index:
         data = {
@@ -1051,7 +1060,9 @@ if __name__ == "__main__":
     df["鄉鎮"] = split[1].str.strip()
 
     sorted = "中位數"
-    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別村里").sort_values(sorted)
+    df_縣市別 = (
+        df[df["年度"] == lastyear].set_index("縣市別村里").sort_values(sorted, ascending=False)
+    )
     data_list = []
     for name in df_縣市別.index:
         data = {
@@ -1065,6 +1076,7 @@ if __name__ == "__main__":
             # "sd": [df_縣市別.loc[name, "標準差"] * 1000],
             # "lowerfence": [],
             # "upperfence": [],
+            "visible": True if df_縣市別.loc[name, "村里"] == "合計" else False,
         }
         data_list.append(data)
 

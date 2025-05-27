@@ -2,6 +2,7 @@ import gzip
 import json
 import os
 import re
+import numpy as np
 import pandas as pd
 import io
 import plotly
@@ -62,6 +63,19 @@ def _ensure_dir_exists(path: Path):
 def read_xml(url: str, xpath: str) -> pd.DataFrame:
     r = session.get(url, verify=False)
     df = pd.read_xml(io.BytesIO(r.content), xpath=xpath)
+
+    return df
+
+
+def read_xml_with_cache(path: Path, url: str, xpath: str) -> pd.DataFrame:
+    _ensure_dir_exists(path)
+
+    if not path.is_file():
+        r = session.get(url, verify=False)
+        with gzip.open(path, "wb") as f:
+            f.write(r.content)
+
+    df = pd.read_xml(path, compression="gzip", xpath=xpath)
 
     return df
 
@@ -985,6 +999,239 @@ if __name__ == "__main__":
         sort=False,
         additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
     )
+
+    # https://data.gov.tw/dataset/9634
+    key = "歷年受僱員工每人每月總薪資"
+    key = sanitize_filename(key)
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05001.xml"
+
+    df = read_xml(url, "//每人每月總薪資")
+    df["年月別_Year_and_month"] = df["年月別_Year_and_month"].str.replace("[^0-9]", "", regex=True)
+    df = df.set_index("年月別_Year_and_month")
+    splits = df.columns.str.split("_", n=1, expand=True)
+    df.columns = [split[0] for split in splits]
+
+    df_year = df.filter(regex=r"^\d{4}$", axis="index")
+    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}")
+    df_month = df.filter(regex=r"^\d{6}$", axis="index")
+    plots[f"{key}_月"] = plot_line(
+        df_month,
+        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+    )
+
+    # https://data.gov.tw/dataset/9663
+    key = "歷年受僱員工每人每月經常性薪資"
+    key = sanitize_filename(key)
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05002.xml"
+
+    df = read_xml(url, "//每人每月經常性薪資")
+    df["年月別_Year_and_month"] = df["年月別_Year_and_month"].str.replace("[^0-9]", "", regex=True)
+    df = df.set_index("年月別_Year_and_month")
+    splits = df.columns.str.split("_", n=1, expand=True)
+    df.columns = [split[0] for split in splits]
+
+    df_year = df.filter(regex=r"^\d{4}$", axis="index")
+    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}")
+    df_month = df.filter(regex=r"^\d{6}$", axis="index")
+    plots[f"{key}_月"] = plot_line(
+        df_month,
+        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+    )
+
+    # https://data.gov.tw/dataset/34125
+    key = "各業廠商僱用職缺按月計薪者每人每月平均最低薪資－按職類及員工規模分"
+    key = sanitize_filename(key)
+    url = {113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234463/mp05044a113.xml"}
+    lastyear = 113
+
+    df = read_xml_with_cache(
+        EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
+        url[lastyear],
+        "//各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分",
+    )
+    df = df.set_index("項目別")
+    df.columns = df.columns.str.removesuffix("_新臺幣元").str.removesuffix("_金額")
+    df = df.replace("-", np.nan).astype(float)
+    plots[f"{key}"] = plot_bar_group(
+        df.T,
+        f"{key} {lastyear}年",
+    )
+
+    # https://data.gov.tw/dataset/32751
+    key = "各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分"
+    key = sanitize_filename(key)
+    url = {112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05025a112.xml"}
+    lastyear = 112
+    df = read_xml_with_cache(
+        EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
+        url[lastyear],
+        "//各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分",
+    )
+    df = df.set_index("項目別")
+    df = df.replace("-", np.nan).astype(float) / 100
+
+    first_columns = [
+        column for column in df.columns if "視為第一重要因素之廠商比率_百分比" in column
+    ]
+    df_first = df[first_columns]
+    df_first.columns = df_first.columns.str.removesuffix("_視為第一重要因素之廠商比率_百分比")
+    plots[f"{key}_視為第一重要因素之廠商比率_百分比"] = plot_bar_group(
+        df_first.T,
+        f"{key}_視為第一重要因素之廠商比率_百分比 {lastyear}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    normal_columns = [column for column in df.columns if "視為重要因素之廠商比率_百分比" in column]
+    df_normal = df[normal_columns]
+    df_normal.columns = df_normal.columns.str.removesuffix("_視為重要因素之廠商比率_百分比")
+    plots[f"{key}_視為重要因素之廠商比率_百分比"] = plot_bar_group(
+        df_normal.T,
+        f"{key}_視為重要因素之廠商比率_百分比 {lastyear}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/32749
+    key = "各業廠商調升員工經常性薪資之廠商與員工人數比率－按行業分"
+    key = sanitize_filename(key)
+    url = {
+        103: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/Mp05023.xml",
+            "各業廠商調整員工經常性薪資之廠商與員工人數比率_百分比",
+        ],
+        104: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/Mp05023A104.xml",
+            "各業廠商調整員工經常性薪資之廠商與員工人數比率_百分比",
+        ],
+        105: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A105.xml",
+            "各業廠商調整員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
+        ],
+        106: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A106.xml",
+            "各業廠商調整員工經常性薪資之廠商與員工人數比率-按行業分_百分比",
+        ],
+        107: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A107.xml",
+            "各業廠商調整員工經常性薪資之廠商與員工人數比率-按行業分_百分比",
+        ],
+        108: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A108.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
+        ],
+        109: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A109.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
+        ],
+        110: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A110.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
+        ],
+        111: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232494/mp05023a111.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
+        ],
+        112: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05023a112.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
+        ],
+    }
+    lastyear = 112
+    df = []
+    for year in range(106, lastyear + 1):
+        data = read_xml_with_cache(
+            EXTRA_DATA_DIR / key / f"{year}.xml.gz",
+            url[year][0],
+            url[year][1],
+        )
+        data[data.columns[1:]] = data[data.columns[1:]].replace("-", np.nan).astype(float) / 100
+        data["年度"] = year
+        data = data.rename(
+            columns={
+                "項目別_百分比": "項目別",
+            }
+        )
+        df.append(data)
+    df = pd.concat(df)
+
+    df_lastyear = df[df["年度"] == lastyear].set_index("項目別")
+
+    df_廠商 = df_lastyear[
+        [
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_未滿3個百分點_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_3個百分點-未滿6個百分點_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_6個百分點-未滿9個百分點_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_9個百分點-未滿12個百分點_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_12個百分點-未滿15個百分點_百分比",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_15個百分點以上_百分比",
+            "有調升敘薪標準_不含年資晉級_百分比",
+            "有年資晉級_廠商比率_百分比",
+            "加計年資晉級_廠商調升經常性薪資比率_百分比",
+        ]
+    ]
+    df_廠商 = df_廠商.rename(
+        columns={
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_百分比": "不含年資晉級_調薪人數超過百分之50",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_未滿3個百分點_百分比": "  (1)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_<3%",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_3個百分點-未滿6個百分點_百分比": "  (2)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_3% ≤ x < 6%",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_6個百分點-未滿9個百分點_百分比": "  (3)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_6% ≤ x < 9%",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_9個百分點-未滿12個百分點_百分比": "  (4)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_9% ≤ x < 12%",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_12個百分點-未滿15個百分點_百分比": "  (5)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_12% ≤ x < 15%",
+            "有調升敘薪標準_不含年資晉級_調薪人數超過百分之50之廠商比率_平均每人調薪幅度_15個百分點以上_百分比": "  (6)不含年資晉級_調薪人數超過百分之50_平均每人調薪幅度_15% ≤ x",
+            "有調升敘薪標準_不含年資晉級_百分比": "不含年資晉級_調薪",
+            "有年資晉級_廠商比率_百分比": "有年資晉級_廠商比率",
+            "加計年資晉級_廠商調升經常性薪資比率_百分比": "加計年資晉級_廠商調升經常性薪資比率",
+        }
+    )
+
+    plots[f"{key}_廠商比率"] = plot_bar_group(
+        df_廠商,
+        f"{key}_廠商比率 {lastyear}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}, "hovermode": "x unified"},
+    )
+
+    df_員工 = df_lastyear[
+        [
+            "有調升敘薪標準_不含年資晉級_有調升經常性薪資之員工人數比率_百分比",
+            "有年資晉級_員工人數比率_百分比",
+            "加計年資晉級_經常性薪資調升之員工人數比率_百分比",
+        ]
+    ]
+    df_員工 = df_員工.rename(
+        columns={
+            "有調升敘薪標準_不含年資晉級_有調升經常性薪資之員工人數比率_百分比": "不含年資晉級_有調升經常性薪資",
+            "有年資晉級_員工人數比率_百分比": "有年資晉級_員工人數比率",
+            "加計年資晉級_經常性薪資調升之員工人數比率_百分比": "加計年資晉級_經常性薪資調升",
+        }
+    )
+
+    plots[f"{key}_員工比率"] = plot_bar_group(
+        df_員工,
+        f"{key}_員工比率 {lastyear}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}, "hovermode": "x unified"},
+    )
+
+    df_調薪_歷史 = df.pivot_table(
+        values=[
+            "有調升敘薪標準_不含年資晉級_百分比",
+            "有年資晉級_廠商比率_百分比",
+            "加計年資晉級_廠商調升經常性薪資比率_百分比",
+        ],
+        columns="項目別",
+        index="年度",
+        sort=False,
+    )
+
+    for s in [
+        "有調升敘薪標準_不含年資晉級_百分比",
+        "有年資晉級_廠商比率_百分比",
+        "加計年資晉級_廠商調升經常性薪資比率_百分比",
+    ]:
+        plots[f"{key}_調薪_歷史_{s}"] = plot_line(
+            df_調薪_歷史.loc[:, (s,)],
+            f"{key}_調薪_歷史_{s} {df_調薪_歷史.index[0]}~{df_調薪_歷史.index[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
 
     # https://data.gov.tw/dataset/24274
     # https://data.gov.tw/dataset/24278

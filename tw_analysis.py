@@ -300,12 +300,13 @@ def plot_bar_stack_multi_index(
 def plot_lines_bars(
     df: pd.DataFrame,
     lines_left_axis: list[str],
-    lines_right_axis: list[str],
-    bars: list[str],
+    lines_right_axis: list[str] = [],
+    bars_left_axis: list[str] = [],
+    bars_right_axis: list[str] = [],
     title: Optional[str] = None,
     additional_layout: Optional[Dict] = None,
     legendgroup: bool = False,
-    sort: bool = True,
+    sort: bool = False,
 ):
     data_list = []
     for name in lines_left_axis:
@@ -333,17 +334,29 @@ def plot_lines_bars(
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
         data_list.append(data)
 
-    for name in bars:
+    for name in bars_left_axis:
         data = {
             "type": "bar",
             "name": name,
             "x": df.index.tolist(),
             "y": df[name].tolist(),
-            "mode": "lines",
         }
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
         data_list.append(data)
+
+    for name in bars_right_axis:
+        data = {
+            "type": "bar",
+            "name": name,
+            "x": df.index.tolist(),
+            "y": df[name].tolist(),
+            "yaxis": "y2",
+        }
+        if legendgroup:
+            data["legendgroup"] = str.rsplit(name, "_", 1)[1]
+        data_list.append(data)
+
     if sort:
         data_list.sort(key=lambda x: str.rsplit(x["name"], "_", 1)[1])
 
@@ -924,6 +937,320 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/155869
     # https://data.gov.tw/dataset/156379
+    # https://data.gov.tw/dataset/24274
+    # https://data.gov.tw/dataset/24278
+    # https://mopsov.twse.com.tw/mops/web/t100sb14
+    key = "企業ESG資訊揭露彙總資料-人力發展 vs 公司合併報表董事酬金相關資訊"
+    key = sanitize_filename(key)
+    url_上市_ESG = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
+    url_上櫃_ESG = "https://mopsfin.twse.com.tw/opendata/t187ap46_O_5.csv"
+    url_上市_董事酬金 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_L.csv"
+    url_上櫃_董事酬金 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_O.csv"
+
+    df_上市_ESG = read_csv(url_上市_ESG)
+    df_上櫃_ESG = read_csv(url_上櫃_ESG)
+    df_上市_董事酬金 = read_csv(url_上市_董事酬金)
+    df_上櫃_董事酬金 = read_csv(url_上櫃_董事酬金)
+
+    df_ESG = pd.concat([df_上市_ESG, df_上櫃_ESG])
+    df_ESG[
+        [
+            "員工福利平均數",
+            "員工薪資平均數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "非擔任主管之全時員工薪資中位數",
+        ]
+    ] = (
+        df_ESG[
+            [
+                "員工福利平均數(仟元/人)",
+                "員工薪資平均數(仟元/人)",
+                "非擔任主管職務之全時員工薪資平均數(仟元/人)",
+                "非擔任主管之全時員工薪資中位數(仟元/人)",
+            ]
+        ]
+        * 1000
+    )
+    year_ESG = df_ESG.iloc[0]["報告年度"]
+
+    df_董事酬金 = pd.concat([df_上市_董事酬金, df_上櫃_董事酬金])
+    num_index = [
+        "董事酬金-去年支付",
+        "董事酬金-今年支付",
+        "董事酬金-合計",
+        "董事酬金加計兼任員工酬金-去年支付",
+        "董事酬金加計兼任員工酬金-今年支付",
+        "加計兼任員工酬金-合計",
+        "酬金總額占稅後損益百分比(%)-董事酬金",
+        "酬金總額占稅後損益百分比(%)-加計兼任員工酬金",
+        "平均每位董事酬金-董事酬金",
+        "平均每位董事酬金-加計兼任員工酬金",
+        "領取來自子公司以外轉投資事業或母公司酬金",
+        "稅後純益",
+        "每股盈餘",
+        "股東權益報酬率(%)",
+        "實收資本額(千元)",
+    ]
+    df_董事酬金[num_index] = df_董事酬金[num_index].replace(",", "", regex=True)
+    df_董事酬金[num_index] = df_董事酬金[num_index].astype(float)
+    df_董事酬金.loc[:, "稅後純益"] = df_董事酬金.loc[:, "稅後純益"] * 1000
+    year_董事酬金 = df_董事酬金.iloc[0]["出表日期"]
+
+    df = pd.merge(
+        df_ESG,
+        df_董事酬金,
+        how="outer",
+        suffixes=["_ESG", "_董事酬金"],
+        on=["公司代號", "公司名稱"],
+    )
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
+    df["董事總酬金平均/員工福利平均"] = (
+        df["平均每位董事酬金-加計兼任員工酬金"] / df["員工福利平均數"]
+    )
+    df["董事總酬金平均/員工薪資平均"] = (
+        df["平均每位董事酬金-加計兼任員工酬金"] / df["員工薪資平均數"]
+    )
+    df["董事總酬金平均/非主管員工薪資平均"] = (
+        df["平均每位董事酬金-加計兼任員工酬金"] / df["非擔任主管職務之全時員工薪資平均數"]
+    )
+    df["董事總酬金平均/非主管員工薪資中位數"] = (
+        df["平均每位董事酬金-加計兼任員工酬金"] / df["非擔任主管之全時員工薪資中位數"]
+    )
+
+    df_公司 = df.set_index("公司")
+    plots[f"{key}"] = plot_lines_bars(
+        df_公司,
+        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        lines_left_axis=[
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ],
+        bars_right_axis=[
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ],
+        additional_layout={
+            "yaxis": {"title": {"text": "比值"}},
+            "hovermode": "x unified",
+        },
+        sort=False,
+    )
+    plots[f"{key}_排序"] = plot_lines_bars(
+        df_公司.sort_values(
+            [
+                "董事總酬金平均/非主管員工薪資中位數",
+                "董事總酬金平均/非主管員工薪資平均",
+                "董事總酬金平均/員工薪資平均",
+                "董事總酬金平均/員工福利平均",
+            ],
+            ascending=False,
+        ),
+        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        lines_left_axis=[
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ],
+        bars_right_axis=[
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ],
+        additional_layout={
+            "yaxis": {"title": {"text": "比值"}},
+            "hovermode": "x unified",
+        },
+        sort=False,
+    )
+
+    df_產業 = df.pivot_table(
+        [
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ],
+        index="產業類別",
+        sort=False,
+        aggfunc="mean",
+    )
+    plots[f"{key}_產業"] = plot_lines_bars(
+        df_產業,
+        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        lines_left_axis=[
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ],
+        bars_right_axis=[
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ],
+        additional_layout={
+            "yaxis": {"title": {"text": "比值"}},
+            "hovermode": "x unified",
+        },
+        sort=False,
+    )
+    plots[f"{key}_產業_排序"] = plot_lines_bars(
+        df_產業.sort_values(
+            [
+                "董事總酬金平均/非主管員工薪資中位數",
+                "董事總酬金平均/非主管員工薪資平均",
+                "董事總酬金平均/員工薪資平均",
+                "董事總酬金平均/員工福利平均",
+            ],
+            ascending=False,
+        ),
+        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        lines_left_axis=[
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ],
+        bars_right_axis=[
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ],
+        additional_layout={
+            "yaxis": {"title": {"text": "比值"}},
+            "hovermode": "x unified",
+        },
+        sort=False,
+    )
+
+    data_list = []
+    df_公司 = df.set_index("公司").sort_values(
+        [
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ],
+        ascending=False,
+    )
+    for company in df_公司.index:
+        names = [
+            "董事總酬金平均/非主管員工薪資中位數",
+            "董事總酬金平均/非主管員工薪資平均",
+            "董事總酬金平均/員工薪資平均",
+            "董事總酬金平均/員工福利平均",
+        ]
+        data = {
+            "type": "scatter",
+            "name": f"{company}_比值",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "mode": "markers",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+        names = [
+            "非擔任主管之全時員工薪資中位數",
+            "非擔任主管職務之全時員工薪資平均數",
+            "員工薪資平均數",
+            "員工福利平均數",
+            "平均每位董事酬金-加計兼任員工酬金",
+        ]
+        data = {
+            "type": "bar",
+            "name": f"{company}_金額",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "yaxis": "y2",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_公司.index) * 2,
+                }
+            ],  # 顯示所有線條
+            "label": "全部公司",
+            "method": "restyle",
+        }
+    ]
+    kinds = df["產業類別"].dropna().unique().tolist()
+    for kind in kinds:
+        arr = [
+            [True, True] if df_公司.loc[index, "產業類別"] == kind else [False, False]
+            for index in df_公司.index
+        ]
+        arr = sum(arr, [])
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+    ]
+
+    layout = {
+        "title": {
+            "text": f"{key}_公司_產業_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}"
+        },
+        "hovermode": "x",
+        "xaxis": {"type": "category"},
+        "yaxis2": {
+            "overlaying": "y",
+            "side": "right",
+        },
+        "yaxis": {"title": {"text": "比值"}},
+        "barmode": "group",
+        "updatemenus": updatemenus,
+    }
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+    plots[f"{key}_公司_產業_排序"] = plotly_json_dump(graph)
+
+    # https://data.gov.tw/dataset/155869
+    # https://data.gov.tw/dataset/156379
     key = "企業ESG資訊揭露彙總資料-人力發展"
     key = sanitize_filename(key)
     url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
@@ -956,7 +1283,7 @@ if __name__ == "__main__":
         title=f"{key}_非擔任主管職務之全時員工薪資 {year}年",
         lines_left_axis=["平均數"],
         lines_right_axis=[],
-        bars=["中位數"],
+        bars_left_axis=["中位數"],
         sort=False,
     )
     plots[f"{key}_非擔任主管職務之全時員工薪資_排序"] = plot_lines_bars(
@@ -964,7 +1291,7 @@ if __name__ == "__main__":
         title=f"{key}_非擔任主管職務之全時員工薪資_排序 {year}年",
         lines_left_axis=["平均數"],
         lines_right_axis=[],
-        bars=["中位數"],
+        bars_left_axis=["中位數"],
         sort=False,
     )
 
@@ -985,7 +1312,7 @@ if __name__ == "__main__":
         df_職災,
         lines_left_axis=[],
         lines_right_axis=["比率"],
-        bars=["人數"],
+        bars_left_axis=["人數"],
         title=f"{key}_職業災害人數及比率 {year}年",
         sort=False,
         additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
@@ -994,7 +1321,7 @@ if __name__ == "__main__":
         df_職災.sort_values(["人數", "比率"], ascending=False),
         lines_left_axis=[],
         lines_right_axis=["比率"],
-        bars=["人數"],
+        bars_left_axis=["人數"],
         title=f"{key}_職業災害人數及比率_排序 {year}年",
         sort=False,
         additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
@@ -1286,7 +1613,7 @@ if __name__ == "__main__":
             "稅後純益",
             "董事酬金-合計",
         ],
-        bars=["平均每位董事酬金-董事酬金"],
+        bars_left_axis=["平均每位董事酬金-董事酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1304,7 +1631,7 @@ if __name__ == "__main__":
             "稅後純益",
             "董事酬金-合計",
         ],
-        bars=["平均每位董事酬金-董事酬金"],
+        bars_left_axis=["平均每位董事酬金-董事酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1334,7 +1661,7 @@ if __name__ == "__main__":
             "稅後純益",
             "董事酬金-合計",
         ],
-        bars=["平均每位董事酬金-董事酬金"],
+        bars_left_axis=["平均每位董事酬金-董事酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1352,7 +1679,7 @@ if __name__ == "__main__":
             "稅後純益",
             "董事酬金-合計",
         ],
-        bars=["平均每位董事酬金-董事酬金"],
+        bars_left_axis=["平均每位董事酬金-董事酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1405,7 +1732,7 @@ if __name__ == "__main__":
             "監察人酬金-合計",
             "稅後純益",
         ],
-        bars=["平均每位監察人酬金"],
+        bars_left_axis=["平均每位監察人酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1420,7 +1747,7 @@ if __name__ == "__main__":
             "監察人酬金-合計",
             "稅後純益",
         ],
-        bars=["平均每位監察人酬金"],
+        bars_left_axis=["平均每位監察人酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1447,7 +1774,7 @@ if __name__ == "__main__":
             "監察人酬金-合計",
             "稅後純益",
         ],
-        bars=["平均每位監察人酬金"],
+        bars_left_axis=["平均每位監察人酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -1462,7 +1789,7 @@ if __name__ == "__main__":
             "監察人酬金-合計",
             "稅後純益",
         ],
-        bars=["平均每位監察人酬金"],
+        bars_left_axis=["平均每位監察人酬金"],
         sort=False,
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
@@ -2306,7 +2633,7 @@ if __name__ == "__main__":
         df_男女_年齡_未婚,
         lines_left_axis=[],
         lines_right_axis=["女男比"],
-        bars=["女", "男"],
+        bars_left_axis=["女", "男"],
         title=f"{key}_男女_年齡_未婚 {year}年",
         sort=False,
     )
@@ -2321,7 +2648,7 @@ if __name__ == "__main__":
         df_男女_年齡_單身,
         lines_left_axis=[],
         lines_right_axis=["女男比"],
-        bars=["女", "男"],
+        bars_left_axis=["女", "男"],
         title=f"{key}_男女_年齡_單身(含離婚、喪偶) {year}年",
         sort=False,
     )
@@ -2373,9 +2700,10 @@ if __name__ == "__main__":
         df_男女_年齡_未婚_縣市,
         lines_left_axis=[],
         lines_right_axis=[f"女男比_{region}" for region in regions],
-        bars=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
+        bars_left_axis=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
         title=f"{key}_男女_年齡_未婚_縣市 {year}年",
         legendgroup=True,
+        sort=True,
     )
 
     df_男女_年齡_單身_縣市 = pd.concat(
@@ -2401,9 +2729,10 @@ if __name__ == "__main__":
         df_男女_年齡_單身_縣市,
         lines_left_axis=[],
         lines_right_axis=[f"女男比_{region}" for region in regions],
-        bars=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
+        bars_left_axis=sum([[f"女_{region}", f"男_{region}"] for region in regions], []),
         title=f"{key}_男女_年齡_單身(含離婚、喪偶)_縣市 {year}年",
         legendgroup=True,
+        sort=True,
     )
 
     # https://data.gov.tw/dataset/32970
@@ -2674,8 +3003,9 @@ if __name__ == "__main__":
             df_人口_出生_死亡,
             lines_left_axis=["出生數_合計", "死亡人數_合計"],
             lines_right_axis=["人口數_合計"],
-            bars=["人口自然增加數_合計"],
+            bars_left_axis=["人口自然增加數_合計"],
             title=f"{key}_人口_出生_死亡_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            sort=True,
         )
 
         plots[f"{key}_人口_出生_死亡_男女_{suffix}"] = plot_lines_bars(
@@ -2687,8 +3017,9 @@ if __name__ == "__main__":
                 "死亡人數_女",
             ],
             lines_right_axis=["人口數_男", "人口數_女"],
-            bars=["人口自然增加數_男", "人口自然增加數_女"],
+            bars_left_axis=["人口自然增加數_男", "人口自然增加數_女"],
             title=f"{key}_人口_出生_死亡_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            sort=True,
         )
 
         plots[f"{key}_出生率_{suffix}"] = plot_line(
@@ -2800,7 +3131,7 @@ if __name__ == "__main__":
                 ],
                 [],
             ),
-            bars=sum(
+            bars_left_axis=sum(
                 [
                     [
                         f"人口自然增加數_合計_{region}",
@@ -2811,6 +3142,7 @@ if __name__ == "__main__":
             ),
             title=f"{key}_人口_出生_死亡_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             legendgroup=True,
+            sort=True,
         )
 
         plots[f"{key}_人口_出生_死亡_縣市_男女_{suffix}"] = plot_lines_bars(
@@ -2837,7 +3169,7 @@ if __name__ == "__main__":
                 ],
                 [],
             ),
-            bars=sum(
+            bars_left_axis=sum(
                 [
                     [
                         f"人口自然增加數_男_{region}",
@@ -2849,6 +3181,7 @@ if __name__ == "__main__":
             ),
             title=f"{key}_人口_出生_死亡_縣市_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             legendgroup=True,
+            sort=True,
         )
         plots[f"{key}_出生率_縣市_{suffix}"] = plot_lines_bars(
             df_人口_出生_死亡_縣市,
@@ -2864,13 +3197,14 @@ if __name__ == "__main__":
                 [],
             ),
             lines_right_axis=[],
-            bars=[],
+            bars_left_axis=[],
             title=f"{key}_出生率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
             },
             legendgroup=True,
+            sort=True,
         )
         plots[f"{key}_死亡率_縣市_{suffix}"] = plot_lines_bars(
             df_人口_出生_死亡_縣市,
@@ -2886,13 +3220,14 @@ if __name__ == "__main__":
                 [],
             ),
             lines_right_axis=[],
-            bars=[],
+            bars_left_axis=[],
             title=f"{key}_死亡率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
             },
             legendgroup=True,
+            sort=True,
         )
 
         df_出生_結婚_離婚 = df.pivot_table(
@@ -2931,8 +3266,9 @@ if __name__ == "__main__":
             df_出生_結婚_離婚,
             lines_left_axis=["結婚對數_合計", "離婚對數_合計"],
             lines_right_axis=["出生數_合計"],
-            bars=["婚姻自然增加數_合計"],
+            bars_left_axis=["婚姻自然增加數_合計"],
             title=f"{key}_出生_結婚_離婚_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            sort=True,
         )
         plots[f"{key}_結婚率_{suffix}"] = plot_line(
             df_出生_結婚_離婚[["結婚率_合計"]],
@@ -3009,7 +3345,7 @@ if __name__ == "__main__":
                 ],
                 [],
             ),
-            bars=sum(
+            bars_left_axis=sum(
                 [
                     [
                         f"婚姻自然增加數_合計_{region}",
@@ -3020,6 +3356,7 @@ if __name__ == "__main__":
             ),
             title=f"{key}_出生_結婚_離婚_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             legendgroup=True,
+            sort=True,
         )
         plots[f"{key}_結婚率_縣市_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚_縣市,
@@ -3033,13 +3370,14 @@ if __name__ == "__main__":
                 [],
             ),
             lines_right_axis=[],
-            bars=[],
+            bars_left_axis=[],
             title=f"{key}_結婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
             },
             legendgroup=True,
+            sort=True,
         )
         plots[f"{key}_離婚率_縣市_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚_縣市,
@@ -3053,13 +3391,14 @@ if __name__ == "__main__":
                 [],
             ),
             lines_right_axis=[],
-            bars=[],
+            bars_left_axis=[],
             title=f"{key}_離婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
             },
             legendgroup=True,
+            sort=True,
         )
 
         df_total = df.pivot_table(values="結婚對數_合計", index=index, aggfunc="sum", sort=False)

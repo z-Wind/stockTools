@@ -19,7 +19,7 @@ from flask import Flask, render_template
 app = Flask(__name__)
 
 # Regular expression for sanitizing strings for use as keys or filenames
-FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）]+'
+FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）—]+'
 # Base directory for caching downloaded data
 EXTRA_DATA_DIR = Path("./extraData/TW_Analysis")
 
@@ -515,6 +515,718 @@ if __name__ == "__main__":
         "//Obs",
         r"\(民國105年=100\)",
         "(指數基期：民國105年=100)",
+    )
+
+    # https://data.gov.tw/dataset/6637
+    key = "人力資源調查失業率"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230038/mp0101a07.xml"
+    xpath = "//失業率"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df = df.set_index("年月別_Year_and_month")
+    df.columns = df.columns.str.replace(r"_?[a-zA-Z_]*_百分比$", r"", regex=True).str.replace(
+        r"_[a-zA-Z_]+$", r"", regex=True
+    )
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+
+    df_year = df.filter(regex=r"^\d{4}$", axis="index").dropna(axis="index", how="all")
+    if df_year.index[-1] != datetime.today().year:
+        last_year = df.filter(regex=rf"^{datetime.today().year}M", axis="index")
+        df_year = pd.concat([df_year, last_year])
+
+    plots[f"{key}_年"] = plot_line(
+        df_year,
+        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    df_month = df.filter(regex=r"^\d{4}M", axis="index")
+    plots[f"{key}_月"] = plot_line(
+        df_month,
+        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/6640
+    key = "人力資源調查縣市別失業率"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230038/mp0101a10.xml"
+    xpath = "//縣市別失業率"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df = df.set_index("年月別_Year_and_month")
+    df.columns = df.columns.str.replace(r"_[a-zA-Z_]+_百分比$", r"", regex=True)
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+
+    df_year = df.filter(regex=r"^\d{4}$", axis="index")
+    plots[f"{key}_年"] = plot_line(
+        df_year,
+        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    df_month = df.filter(regex=r"[a-zA-Z]", axis="index")
+    plots[f"{key}_月"] = plot_line(
+        df_month,
+        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/31055
+    key = "歷年人力資源調查重要指標"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04014.xml"
+    xpath = "//歷年人力資源調查重要指標"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df = df.set_index("年月別_Year_and_month")
+    df = df.filter(regex=r"\d{4}$", axis="index")
+    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
+    df.columns = df.columns.str.replace(r"_[0-9a-zA-Z_]+_百分比$", r"", regex=True).str.replace(
+        r"_[a-zA-Z_]+$", r"", regex=True
+    )
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/33442
+    key = "人力資源調查重要指標"
+    urls = {
+        104: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037.xml",
+        105: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A105.xml",
+        106: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A106.xml",
+        107: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A107.xml",
+        108: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A108.xml",
+        109: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A109.xml",
+        110: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A110.xml",
+        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231127/mp04037a111.xml",
+        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04037a112.xml",
+        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04037a113.xml",
+    }
+    xpath = "//人力資源調查重要指標"
+    key = sanitize_filename(key)
+
+    df = []
+    for year, url in urls.items():
+        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
+        data["年度"] = year
+        data = data.rename(
+            columns={
+                "地區別_District_or_region": "按地區別分_District_or_region",
+                "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population_百分比": "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population",
+                "勞動力_占總人口之比率_Labor_force_Proportion_of_labor_force_to_total_population_百分比": "勞動力_占總人口之比率_Labor_force_Proportion_of_labor_force_to_total_population",
+                "勞動力_占15歲以上民間人口之比率_勞動力參與率_總計_Labor_force_Labor_force_participation_rate_Total_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_總計_Labor_force_Labor_force_participation_rate_Total",
+                "勞動力_占15歲以上民間人口之比率_勞動力參與率_男_Labor_force_Labor_force_participation_rate_Male_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_男_Labor_force_Labor_force_participation_rate_Male",
+                "勞動力_占15歲以上民間人口之比率_勞動力參與率_女_Labor_force_Labor_force_participation_rate_Female_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_女_Labor_force_Labor_force_participation_rate_Female",
+                "就業者_占總人口之比率_Employed_Proportion_of_employed_persons_to_total_population_百分比": "就業者_占總人口之比率_Employed_Proportion_of_employed_persons_to_total_population",
+                "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over_百分比": "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over",
+                "就業者_占勞動力之比率_Employed_Proportion_of_employed_persons_to_labor_force_百分比": "就業者_占勞動力之比率_Employed_Proportion_of_employed_persons_to_labor_force",
+                "失業率_總計_Unemployment_rate_Total_百分比": "失業率_總計_Unemployment_rate_Total",
+                "失業率_男_Unemployment_rate_Male_百分比": "失業率_男_Unemployment_rate_Male",
+                "失業率_女_Unemployment_rate_Female_百分比": "失業率_女_Unemployment_rate_Female",
+                "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_age_15_and_above_to_total_population_百分比": "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population",
+                "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_age_15_and_above_百分比": "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over",
+            }
+        )
+        df.append(data)
+    df = pd.concat(df)
+
+    df["按地區別分_District_or_region"] = (
+        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
+    )
+
+    df.columns = df.columns.str.replace(r"[_a-zA-Z0-9]+$", "", regex=True)
+    num_columns = [
+        column for column in df.columns if "年度" not in column and "地區別分" not in column
+    ]
+    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+
+    df_類別_地區 = df.pivot_table(
+        values=num_columns, index="年度", columns="按地區別分", sort=False
+    )
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_類別_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部指標",
+            "method": "restyle",
+        }
+    ]
+    for kind in num_columns:
+        arr = [kind_col == kind for kind_col, region_col in df_類別_地區.columns]
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    buttons_region = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_類別_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部區域",
+            "method": "restyle",
+        }
+    ]
+    regions = df["按地區別分"].unique().tolist()
+    for region in regions:
+        arr = [region_col == region for kind_col, region_col in df_類別_地區.columns]
+        buttons_region.append(
+            {
+                "args": [
+                    {"visible": arr},
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "指標選擇",
+        },
+        {
+            "x": 0.8,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_region,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+    ]
+
+    df_類別_地區.columns = [f"{region}_{kind}" for kind, region in df_類別_地區.columns]
+    plots[f"{key}"] = plot_line(
+        df_類別_地區,
+        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}",
+        additional_layout={
+            "hovermode": "x",
+            "yaxis": {"tickformat": ".2%"},
+            "updatemenus": updatemenus,
+        },
+    )
+
+    # https://data.gov.tw/dataset/32741
+    key = "歷年教育程度別失業率"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04033.xml"
+    xpath = "//歷年教育程度別失業率"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df = df.set_index("年月別_Year_and_month")
+    df = df.filter(regex=r"\d{4}$", axis="index")
+    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
+    df.columns = df.columns.str.replace(r"_[_a-zA-Z]+_百分比", "", regex=True)
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/34118
+    key = "教育程度別失業率"
+    urls = {
+        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049.xml",
+        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A105.xml",
+        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A106.xml",
+        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A107.xml",
+        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A108.xml",
+        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A109.xml",
+        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A110.xml",
+        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04049a111.xml",
+        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04049a112.xml",
+        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04049a113.xml",
+    }
+    xpath = "//教育程度別失業率"
+    key = sanitize_filename(key)
+
+    df = []
+    for year, url in urls.items():
+        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
+        data["年度"] = year
+        data = data.rename(
+            columns={
+                "地區別_District_or_region": "按地區別分_District_or_region",
+                "高級中等_高中_高職_女_Senior_high_school_regular_and_vocational_Senior_high_and_vocational_Female_百分比": "高級中等_高中_高職_女_Senior_high_school_regular_and_vocational_Female_百分比",
+            }
+        )
+        df.append(data)
+    df = pd.concat(df)
+    df["按地區別分_District_or_region"] = (
+        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
+    )
+    df.columns = df.columns.str.replace(r"_[_a-zA-Z]+_百分比", "", regex=True)
+    num_columns = [
+        column for column in df.columns if "年度" not in column and "地區別分" not in column
+    ]
+    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+
+    df_類別_地區 = df.pivot_table(
+        values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
+    )
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_類別_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部類別",
+            "method": "restyle",
+        }
+    ]
+    for kind in num_columns:
+        arr = [kind_col == kind for kind_col, region_col in df_類別_地區.columns]
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    buttons_region = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_類別_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部區域",
+            "method": "restyle",
+        }
+    ]
+    regions = df["按地區別分_District_or_region"].unique().tolist()
+    for region in regions:
+        arr = [region_col == region for kind_col, region_col in df_類別_地區.columns]
+        buttons_region.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "產業選擇",
+        },
+        {
+            "x": 0.65,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_region,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "稅後純益選擇",
+        },
+    ]
+
+    df_類別_地區.columns = [f"{region}_{kind}" for kind, region in df_類別_地區.columns]
+    plots[f"{key}"] = plot_line(
+        df_類別_地區,
+        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}",
+        additional_layout={
+            "hovermode": "x",
+            "yaxis": {"tickformat": ".2%"},
+            "updatemenus": updatemenus,
+        },
+    )
+
+    # https://data.gov.tw/dataset/32743
+    key = "歷年年齡組別失業率"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04031.xml"
+    xpath = "//歷年年齡組別失業率"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df = df.set_index("年月別_Year_and_month")
+    df = df.filter(regex=r"\d{4}$", axis="index")
+    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
+    df.columns = df.columns.str.replace(
+        r"_(合計|小計|男|女).*_百分比$", r"_\1", regex=True
+    ).str.replace(r"_[a-zA-Z]+_百分比$", "", regex=True)
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/34117
+    key = "年齡組別失業率"
+    urls = {
+        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048.xml",
+        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A105.xml",
+        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A106.xml",
+        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A107.xml",
+        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A108.xml",
+        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A109.xml",
+        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A110.xml",
+        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04048a111.xml",
+        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04048a112.xml",
+        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04048a113.xml",
+    }
+    xpath = "//年齡組別失業率"
+    key = sanitize_filename(key)
+
+    df = []
+    for year, url in urls.items():
+        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
+        data["年度"] = year
+        data = data.rename(
+            columns={
+                "地區別_District_or_region": "按地區別分_District_or_region",
+                "年齡65歲以上_男_65_years_and_above_Male_百分比": "年齡65歲以上_男_65_years_and_over_Male_百分比",
+                "年齡65歲以上_女_65_years_and_above_Female_百分比": "年齡65歲以上_女_65_years_and_over_Female_百分比",
+                "年齡65歲以上_合計_65_years_and_above_Total_百分比": "年齡65歲以上_合計_65_years_and_over_Total_百分比",
+            }
+        )
+        df.append(data)
+    df = pd.concat(df)
+    df["按地區別分_District_or_region"] = (
+        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
+    )
+    df.columns = df.columns.str.replace(
+        r"_(合計|小計|男|女).*_百分比$", r"_\1", regex=True
+    ).str.replace(r"_[a-zA-Z]+_百分比$", "", regex=True)
+
+    num_columns = [
+        column for column in df.columns if "年度" not in column and "地區別分" not in column
+    ]
+    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+
+    df_年齡_地區 = df.pivot_table(
+        values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
+    )
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_年齡_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部年齡",
+            "method": "restyle",
+        }
+    ]
+    for age in num_columns:
+        arr = [age_col == age for age_col, region_col in df_年齡_地區.columns]
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": age,
+                "method": "restyle",
+            },
+        )
+
+    buttons_region = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_年齡_地區.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部區域",
+            "method": "restyle",
+        }
+    ]
+    regions = df["按地區別分_District_or_region"].unique().tolist()
+    for region in regions:
+        arr = [region_col == region for age_col, region_col in df_年齡_地區.columns]
+        buttons_region.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "產業選擇",
+        },
+        {
+            "x": 0.65,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_region,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "稅後純益選擇",
+        },
+    ]
+
+    df_年齡_地區.columns = [f"{region}_{age}" for age, region in df_年齡_地區.columns]
+    plots[f"{key}"] = plot_line(
+        df_年齡_地區,
+        f"{key} {df_年齡_地區.index[0]}~{df_年齡_地區.index[-1]}",
+        additional_layout={
+            "hovermode": "x",
+            "yaxis": {"tickformat": ".2%"},
+            "updatemenus": updatemenus,
+        },
+    )
+
+    # https://data.gov.tw/dataset/37971
+    key = "教育程度別失業率—按年齡分"
+    urls = {
+        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068.xml",
+        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A105.xml",
+        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A106.xml",
+        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A107.xml",
+        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A108.xml",
+        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A109.xml",
+        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A110.xml",
+        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/mp04068a111.xml",
+        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04068a112.xml",
+        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04068a113.xml",
+    }
+    xpath = "//教育程度別失業率_按年齡分"
+    key = sanitize_filename(key)
+
+    df = []
+    for year, url in urls.items():
+        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
+        data["年度"] = year
+        data = data[~data["項目別_Item"].str.contains("按")]
+        df.append(data)
+    df = pd.concat(df)
+
+    df["項目別_Item"] = (
+        df["項目別_Item"]
+        .str.strip()
+        .str.replace(r"[a-zA-Z ]+", "", regex=True)
+        .str.replace("～", "~")
+        .str.replace("０", "0")
+        .str.replace("１", "1")
+        .str.replace("２", "2")
+        .str.replace("３", "3")
+        .str.replace("４", "4")
+        .str.replace("５", "5")
+        .str.replace("６", "6")
+        .str.replace("９", "9")
+    )
+    df.columns = df.columns.str.replace(r"_[a-zA-Z_]+_百分比$", "", regex=True)
+
+    num_columns = [
+        column for column in df.columns if "年度" not in column and "項目別" not in column
+    ]
+    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+
+    df_年齡_教育 = df.pivot_table(
+        values=num_columns, index="年度", columns="項目別_Item", sort=False
+    )
+
+    buttons_edu = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_年齡_教育.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部教育程度",
+            "method": "restyle",
+        }
+    ]
+    for edu in num_columns:
+        arr = [edu_col == edu for edu_col, age_col in df_年齡_教育.columns]
+        buttons_edu.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": edu,
+                "method": "restyle",
+            },
+        )
+
+    buttons_age = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_年齡_教育.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部年齡",
+            "method": "restyle",
+        }
+    ]
+    ages = df["項目別_Item"].unique().tolist()
+    for age in ages:
+        arr = [age_col == age for edu_col, age_col in df_年齡_教育.columns]
+        buttons_age.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": age,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_edu,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "產業選擇",
+        },
+        {
+            "x": 0.7,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_age,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "稅後純益選擇",
+        },
+    ]
+
+    df_年齡_教育.columns = [f"{edu}_{age}" for age, edu in df_年齡_教育.columns]
+    plots[f"{key}"] = plot_line(
+        df_年齡_教育,
+        f"{key} {df_年齡_教育.index[0]}~{df_年齡_教育.index[-1]}",
+        additional_layout={
+            "hovermode": "x",
+            "yaxis": {"tickformat": ".2%"},
+            "updatemenus": updatemenus,
+        },
+    )
+
+    # https://data.gov.tw/dataset/151323
+    key = "就業率"
+    url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=$mQvpHYEayTTt8pmhMjRvA@@"
+    xpath = "//DataTable"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df["Period"] /= 100
+    df["Period"] = df["Period"].astype(int)
+    df = df.pivot_table(values="Val", columns=["Category1Title", "Category2Title"], index="Period")
+    df.columns = [f"{kind}_{edu}" for kind, edu in df.columns]
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+    plots[f"{key}_教育程度別"] = plot_line(
+        df,
+        f"{key}_教育程度別 {df.index[0]}~{df.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
+    )
+
+    url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=oa8xEQOEl3KZNyQ8EOJT3A@@"
+    xpath = "//DataTable"
+    key = sanitize_filename(key)
+
+    df = read_xml(url, xpath)
+    df["Period"] /= 100
+    df["Period"] = df["Period"].astype(int)
+    df = df.pivot_table(values="Val", columns=["Category1Title", "Category2Title"], index="Period")
+    df.columns = [f"{kind}_{edu}" for kind, edu in df.columns]
+    df = df.replace("-", np.nan)
+    df = df.astype(float) / 100
+    plots[f"{key}_年齡別"] = plot_line(
+        df,
+        f"{key}_年齡別 {df.index[0]}~{df.index[-1]}",
+        additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
     # ==================================================================
@@ -1164,6 +1876,7 @@ if __name__ == "__main__":
             "y": df_公司.loc[company, names].tolist(),
             "mode": "markers",
             "legendgroup": company,
+            "visible": False if df_公司.loc[company, "稅後純益"] > 0 else True,
         }
         data_list.append(data)
 
@@ -1181,6 +1894,7 @@ if __name__ == "__main__":
             "y": df_公司.loc[company, names].tolist(),
             "yaxis": "y2",
             "legendgroup": company,
+            "visible": False if df_公司.loc[company, "稅後純益"] > 0 else True,
         }
         data_list.append(data)
 
@@ -1214,6 +1928,48 @@ if __name__ == "__main__":
             },
         )
 
+    buttons_稅後 = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_公司.index) * 2,
+                }
+            ],  # 顯示所有線條
+            "label": "全部公司",
+            "method": "restyle",
+        }
+    ]
+
+    arr_pos = sum(
+        [
+            [True, True] if df_公司.loc[index, "稅後純益"] > 0 else [False, False]
+            for index in df_公司.index
+        ],
+        [],
+    )
+    buttons_稅後.append(
+        {
+            "args": [
+                {
+                    "visible": arr_pos,
+                }
+            ],
+            "label": "稅後純益 > 0",
+            "method": "restyle",
+        },
+    )
+    buttons_稅後.append(
+        {
+            "args": [
+                {
+                    "visible": [not show for show in arr_pos],
+                }
+            ],
+            "label": "稅後純益 ≤ 0",
+            "method": "restyle",
+        },
+    )
+
     updatemenus = [
         {
             "x": 0.5,
@@ -1226,7 +1982,20 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "地區選擇",
+            "name": "產業選擇",
+        },
+        {
+            "x": 0.65,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_稅後,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 2,
+            "font": {"color": "#AAAAAA"},
+            "name": "稅後純益選擇",
         },
     ]
 

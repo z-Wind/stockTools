@@ -397,6 +397,69 @@ def index_原始值_年增率_plot(
     df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
     date_range = f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
 
+    kinds = df["Item"].unique().tolist()
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(kinds),
+                }
+            ],  # 顯示所有線條
+            "label": "全部類別",
+            "method": "restyle",
+        }
+    ]
+    primary_category = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
+    secondary_category = [f"{i}." for i in range(1, 100)]
+
+    def check_string_contains_any(text, substrings):
+        return any(substring in text for substring in substrings)
+
+    for i, kind in enumerate(kinds):
+        if check_string_contains_any(kind, primary_category):
+            category = primary_category
+        elif check_string_contains_any(kind, secondary_category):
+            category = primary_category + secondary_category
+        else:
+            continue
+
+        for j in range(i + 1, len(kinds)):
+            if check_string_contains_any(kinds[j], category):
+                break
+        else:
+            j = len(kinds)
+
+        arr = [i <= k and k < j for k in range(len(kinds))]
+        buttons_kinds.append(
+            {
+                "args": [
+                    {"visible": arr},
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "類別選擇",
+        },
+    ]
+    if additional_layout:
+        additional_layout = merge_dict({"updatemenus": updatemenus}, additional_layout)
+    else:
+        additional_layout = {"updatemenus": updatemenus}
+
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
@@ -418,7 +481,9 @@ def index_原始值_年增率_plot(
     irr_df.columns = ["IRR"]
     irr_df = irr_df.T
     plots[f"{key}_IRR"] = plot_bar(
-        irr_df, f"{key} IRR(%) {title_suffix} {date_range}", additional_layout
+        irr_df,
+        f"{key} IRR(%) {title_suffix} {date_range}",
+        additional_layout,
     )
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
@@ -2748,7 +2813,7 @@ if __name__ == "__main__":
             "buttons": buttons_regions_detail,
             "type": "dropdown",
             "direction": "down",
-            "active": 0,
+            "active": 1,
             "font": {"color": "#AAAAAA"},
             "name": "地區選擇",
         },
@@ -2972,18 +3037,18 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/15392
     年月混合_plot(
         plots,
-        "出口貿易值_按洲別 ∕ 國別分(CY2001~)",
-        "https://service.mof.gov.tw/public/data/statistic/trade/u2010ex.csv",
-        "Exports to Country (Unit: US$ Thousand)",
+        "進口貿易值_按洲別 ∕ 國別分(CY2001~)",
+        "https://service.mof.gov.tw/public/data/statistic/trade/u2010im.csv",
+        "Imports from Country (Unit : US$ Thousand)",
         r"\(千元\)",
         "(千元 Unit: US$ Thousand)",
         encoding="big5",
     )
     年月混合_plot(
         plots,
-        "進口貿易值_按洲別 ∕ 國別分(CY2001~)",
-        "https://service.mof.gov.tw/public/data/statistic/trade/u2010im.csv",
-        "Imports from Country (Unit : US$ Thousand)",
+        "出口貿易值_按洲別 ∕ 國別分(CY2001~)",
+        "https://service.mof.gov.tw/public/data/statistic/trade/u2010ex.csv",
+        "Exports to Country (Unit: US$ Thousand)",
         r"\(千元\)",
         "(千元 Unit: US$ Thousand)",
         encoding="big5",
@@ -3139,6 +3204,16 @@ if __name__ == "__main__":
         {"updatemenus": updatemenus},
     )
 
+    # https://data.gov.tw/dataset/8381
+    年月混合_plot(
+        plots,
+        "進口值_按主要貨品分",
+        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i8122&cycle=41&outmode=12&compmode=00&outkind=1&fld0=1&codlst0=11100011010101000111111101001000001101&utf=1",
+        "幣別",
+        r"按美元計算\(百萬美元\)\/ ",
+        "按美元計算(百萬美元)",
+    )
+
     # https://data.gov.tw/dataset/8380
     年月混合_plot(
         plots,
@@ -3169,21 +3244,21 @@ if __name__ == "__main__":
         "(採連鎖法，參考年為110年)",
     )
 
-    # https://data.gov.tw/dataset/8387
-    年月混合_plot(
-        plots,
-        "貿易指數－出口數量指數",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9304&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,8,9,7,17,1,25,2,&utf=1",
-        "貨品別",
-        r"",
-        "(參考年為110年)",
-    )
-
     # https://data.gov.tw/dataset/8389
     年月混合_plot(
         plots,
         "貿易指數－進口數量指數",
         "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9305&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,6,7,1,9,1,11,7,20,1,28,2,&utf=1",
+        "貨品別",
+        r"",
+        "(參考年為110年)",
+    )
+
+    # https://data.gov.tw/dataset/8387
+    年月混合_plot(
+        plots,
+        "貿易指數－出口數量指數",
+        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9304&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,8,9,7,17,1,25,2,&utf=1",
         "貨品別",
         r"",
         "(參考年為110年)",

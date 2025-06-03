@@ -930,7 +930,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "產業選擇",
+            "name": "類別選擇",
         },
         {
             "x": 0.65,
@@ -943,7 +943,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "稅後純益選擇",
+            "name": "區域選擇",
         },
     ]
 
@@ -1089,7 +1089,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "產業選擇",
+            "name": "年齡選擇",
         },
         {
             "x": 0.65,
@@ -1102,7 +1102,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "稅後純益選擇",
+            "name": "地區選擇",
         },
     ]
 
@@ -1230,7 +1230,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "產業選擇",
+            "name": "教育選擇",
         },
         {
             "x": 0.7,
@@ -1243,7 +1243,7 @@ if __name__ == "__main__":
             "direction": "down",
             "active": 0,
             "font": {"color": "#AAAAAA"},
-            "name": "稅後純益選擇",
+            "name": "年齡選擇",
         },
     ]
 
@@ -1711,6 +1711,287 @@ if __name__ == "__main__":
     graph = merge_dict(copy.deepcopy(default_template), graph)
 
     plots[f"{key}"] = plotly_json_dump(graph)
+
+    # https://mopsov.twse.com.tw/mops/web/t100sb14
+    key = "公開資訊觀測站_財務報告附註揭露之員工福利(薪資)資訊"
+    key = sanitize_filename(key)
+    url = "https://mopsov.twse.com.tw/mops/web/ajax_t100sb14"
+    last_year = 113
+
+    def get_df(path, url, data):
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            r = session.post(url, data)
+            pd.read_html(io.BytesIO(r.content), encoding="utf8")[0]
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        return pd.read_html(path, encoding="utf8")[0]
+
+    for year in range(113, 114):  # datetime.today().year - 1911 + 1):
+        data_上市 = {
+            "encodeURIComponent": 1,
+            "step": 1,
+            "firstin": 1,
+            "TYPEK": "sii",
+            "RYEAR": year,
+            "code": "",
+        }
+        data_上櫃 = {
+            "encodeURIComponent": 1,
+            "step": 1,
+            "firstin": 1,
+            "TYPEK": "otc",
+            "RYEAR": year,
+            "code": "",
+        }
+
+        try:
+            df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
+            df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
+            last_year = year
+        except:
+            break
+
+    def clear_data(df: pd.DataFrame) -> pd.DataFrame:
+        df = df[df.columns[:-4]]
+
+        df.columns = [
+            "產業類別",
+            "公司代號",
+            "公司名稱",
+            "公司類別",
+            "員工福利費用(仟元)",
+            "員工薪資費用(仟元)",
+            "員工人數(人)",
+            "平均員工福利費用(仟元/人)",
+            f"平均員工薪資費用{last_year}年度(仟元/人)",
+            f"平均員工薪資費用{last_year-1}年度(仟元/人)",
+            "平均員工薪資費用調整變動情形(%)",
+            "每股盈餘(元/股)",
+        ]
+
+        df.loc[:, ["員工福利費用"]] = (
+            df["員工福利費用(仟元)"].replace("-", np.nan).astype(float) * 1000
+        )
+        df.loc[:, ["員工薪資費用"]] = (
+            df["員工薪資費用(仟元)"].replace("-", np.nan).astype(float) * 1000
+        )
+        df.loc[:, ["平均員工福利費用(人)"]] = (
+            df["平均員工福利費用(仟元/人)"].replace("-", np.nan).astype(float) * 1000
+        )
+        df.loc[:, [f"平均員工薪資費用{last_year}年度(人)"]] = (
+            df[f"平均員工薪資費用{last_year}年度(仟元/人)"].replace("-", np.nan).astype(float)
+            * 1000
+        )
+        df.loc[:, [f"平均員工薪資費用{last_year-1}年度(人)"]] = (
+            df[f"平均員工薪資費用{last_year-1}年度(仟元/人)"].replace("-", np.nan).astype(float)
+            * 1000
+        )
+
+        df.loc[:, ["平均員工薪資費用調整變動情形"]] = (
+            df["平均員工薪資費用調整變動情形(%)"]
+            .str.replace("%", "")
+            .replace("-", np.nan)
+            .astype(float)
+            / 100
+        )
+
+        return df
+
+    df_上市 = clear_data(df_上市)
+    df_上櫃 = clear_data(df_上櫃)
+
+    df = pd.concat([df_上市, df_上櫃])
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+
+    df_薪資 = df.sort_values("公司代號").set_index("公司")
+    df_薪資 = df_薪資[
+        [
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+            "平均員工薪資費用調整變動情形",
+        ]
+    ]
+
+    plots[f"{key}"] = plot_lines_bars(
+        df_薪資,
+        title=f"{key} {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "平均員工薪資費用調整變動情形",
+        ],
+        bars_left_axis=[
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {
+                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+    plots[f"{key}_排序"] = plot_lines_bars(
+        df_薪資.sort_values(["平均員工福利費用(人)"], ascending=False),
+        title=f"{key}_排序 {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "平均員工薪資費用調整變動情形",
+        ],
+        bars_left_axis=[
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {
+                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+
+    df_薪資_產業類別 = df.pivot_table(
+        values=[
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+            "平均員工薪資費用調整變動情形",
+        ],
+        index="產業類別",
+        aggfunc="mean",
+        sort=False,
+    )
+
+    plots[f"{key}_產業類別_排序"] = plot_lines_bars(
+        df_薪資_產業類別.sort_values(["平均員工福利費用(人)"], ascending=False),
+        title=f"{key}_產業類別_排序 {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "平均員工薪資費用調整變動情形",
+        ],
+        bars_left_axis=[
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {
+                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+
+    data_list = []
+    df_公司 = df.set_index("公司").sort_values(
+        ["平均員工福利費用(人)"],
+        ascending=False,
+    )
+    for company in df_公司.index:
+        names = [
+            "平均員工福利費用(人)",
+            f"平均員工薪資費用{last_year}年度(人)",
+            f"平均員工薪資費用{last_year-1}年度(人)",
+        ]
+        data = {
+            "type": "scatter",
+            "name": f"{company}_金額",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "mode": "markers",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+        names = [
+            "平均員工薪資費用調整變動情形",
+        ]
+        data = {
+            "type": "scatter",
+            "name": f"{company}_薪資變動",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "yaxis": "y2",
+            "mode": "markers",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_公司.index) * 4,
+                }
+            ],  # 顯示所有線條
+            "label": "全部公司",
+            "method": "restyle",
+        }
+    ]
+    kinds = df["產業類別"].dropna().unique().tolist()
+    for kind in kinds:
+        arr = [
+            [True] * 2 if df_公司.loc[index, "產業類別"] == kind else [False] * 2
+            for index in df_公司.index
+        ]
+        arr = sum(arr, [])
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "產業選擇",
+        },
+    ]
+
+    layout = {
+        "title": {"text": f"{key}_公司_產業類別_排序 {last_year}年度"},
+        "hovermode": "x",
+        "xaxis": {"type": "category"},
+        "yaxis2": {
+            "overlaying": "y",
+            "side": "right",
+            "tickformat": ".2%",
+            "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+        },
+        "yaxis": {"title": {"text": "平均"}},
+        "barmode": "group",
+        "updatemenus": updatemenus,
+    }
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+    plots[f"{key}_公司_產業_排序"] = plotly_json_dump(graph)
 
     # https://data.gov.tw/dataset/155869
     # https://data.gov.tw/dataset/156379

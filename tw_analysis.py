@@ -599,7 +599,7 @@ if __name__ == "__main__":
     df_year = df.filter(regex=r"^\d{4}$", axis="index").dropna(axis="index", how="all")
     if df_year.index[-1] != datetime.today().year:
         last_year = df.filter(regex=rf"^{datetime.today().year}M", axis="index")
-        df_year = pd.concat([df_year, last_year])
+        df_year = pd.concat([df_year, last_year], ignore_index=True)
 
     plots[f"{key}_年"] = plot_line(
         df_year,
@@ -701,7 +701,7 @@ if __name__ == "__main__":
             }
         )
         df.append(data)
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
 
     df["按地區別分_District_or_region"] = (
         df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
@@ -853,7 +853,7 @@ if __name__ == "__main__":
             }
         )
         df.append(data)
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["按地區別分_District_or_region"] = (
         df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
     )
@@ -1009,7 +1009,7 @@ if __name__ == "__main__":
             }
         )
         df.append(data)
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
     df["按地區別分_District_or_region"] = (
         df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
     )
@@ -1140,7 +1140,7 @@ if __name__ == "__main__":
         data["年度"] = year
         data = data[~data["項目別_Item"].str.contains("按")]
         df.append(data)
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
 
     df["項目別_Item"] = (
         df["項目別_Item"]
@@ -1803,7 +1803,7 @@ if __name__ == "__main__":
     df_上市 = clear_data(df_上市)
     df_上櫃 = clear_data(df_上櫃)
 
-    df = pd.concat([df_上市, df_上櫃])
+    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
 
     df_薪資 = df.sort_values("公司代號").set_index("公司")
@@ -2010,7 +2010,7 @@ if __name__ == "__main__":
     df_上市_董事酬金 = read_csv(url_上市_董事酬金)
     df_上櫃_董事酬金 = read_csv(url_上櫃_董事酬金)
 
-    df_ESG = pd.concat([df_上市_ESG, df_上櫃_ESG])
+    df_ESG = pd.concat([df_上市_ESG, df_上櫃_ESG], ignore_index=True)
     df_ESG[
         [
             "員工福利平均數",
@@ -2031,7 +2031,7 @@ if __name__ == "__main__":
     )
     year_ESG = df_ESG.iloc[0]["報告年度"]
 
-    df_董事酬金 = pd.concat([df_上市_董事酬金, df_上櫃_董事酬金])
+    df_董事酬金 = pd.concat([df_上市_董事酬金, df_上櫃_董事酬金], ignore_index=True)
     num_index = [
         "董事酬金-去年支付",
         "董事酬金-今年支付",
@@ -2374,7 +2374,7 @@ if __name__ == "__main__":
     df_上市 = read_csv(url_上市)
     df_上櫃 = read_csv(url_上櫃)
 
-    df = pd.concat([df_上市, df_上櫃])
+    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
     year = df.iloc[0]["報告年度"]
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
     df = df.set_index("公司")
@@ -2593,7 +2593,7 @@ if __name__ == "__main__":
             }
         )
         df.append(data)
-    df = pd.concat(df)
+    df = pd.concat(df, ignore_index=True)
 
     df_lastyear = df[df["年度"] == lastyear].set_index("項目別")
 
@@ -2685,7 +2685,7 @@ if __name__ == "__main__":
     df_上市 = read_csv(url_上市)
     df_上櫃 = read_csv(url_上櫃)
 
-    df = pd.concat([df_上市, df_上櫃])
+    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
     num_index = [
         "董事酬金-去年支付",
         "董事酬金-今年支付",
@@ -2812,7 +2812,7 @@ if __name__ == "__main__":
     df_上市 = read_csv(url_上市)
     df_上櫃 = read_csv(url_上櫃)
 
-    df = pd.concat([df_上市, df_上櫃])
+    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
     num_index = [
         "監察人酬金-去年支付",
         "監察人酬金-今年支付",
@@ -3634,7 +3634,9 @@ if __name__ == "__main__":
     )
     df_女_年齡_縣市.index = df_女_年齡_縣市.index.str.removesuffix("-女")
 
-    df_男女_年齡_縣市 = pd.concat([df_男_年齡_縣市, df_女_年齡_縣市], keys=["男", "女"]).swaplevel()
+    df_男女_年齡_縣市 = pd.concat(
+        [df_男_年齡_縣市, df_女_年齡_縣市], keys=["男", "女"], ignore_index=True
+    ).swaplevel()
     plots[f"{key}_年齡_縣市"] = plot_bar_stack_multi_index(
         df_男女_年齡_縣市, f"{key}_年齡_縣市 {year}年{month}月", {"bargap": 0}
     )
@@ -3752,6 +3754,7 @@ if __name__ == "__main__":
         [df_男女_年齡_婚姻[("男", "未婚")], df_男女_年齡_婚姻[("女", "未婚")]],
         axis="columns",
         keys=["男", "女"],
+        ignore_index=True,
     )
     df_男女_年齡_未婚["女男比"] = df_男女_年齡_未婚["女"] / df_男女_年齡_未婚["男"]
     plots[f"{key}_男女_年齡_未婚"] = plot_lines_bars(
@@ -3767,6 +3770,7 @@ if __name__ == "__main__":
         [df_男女_年齡_婚姻[("男", "單身")], df_男女_年齡_婚姻[("女", "單身")]],
         axis="columns",
         keys=["男", "女"],
+        ignore_index=True,
     )
     df_男女_年齡_單身["女男比"] = df_男女_年齡_單身["女"] / df_男女_年齡_單身["男"]
     plots[f"{key}_男女_年齡_單身"] = plot_lines_bars(
@@ -3815,6 +3819,7 @@ if __name__ == "__main__":
         ),
         axis="columns",
         keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
+        ignore_index=True,
     )
     for region in regions:
         df_男女_年齡_未婚_縣市[f"女男比_{region}"] = (
@@ -3844,6 +3849,7 @@ if __name__ == "__main__":
         ),
         axis="columns",
         keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
+        ignore_index=True,
     )
     for region in regions:
         df_男女_年齡_單身_縣市[f"女男比_{region}"] = (
@@ -4055,7 +4061,9 @@ if __name__ == "__main__":
     df_人口_年 = df[df["統計年月"].str.contains(r"\d{3}12")]
     if df_人口_年["年"].iloc[-1] != df["年"].iloc[-1]:
         df_人口_年 = pd.concat(
-            [df_人口_年, df[df["統計年月"] == df["統計年月"].iloc[-1]]], axis="index"
+            [df_人口_年, df[df["統計年月"] == df["統計年月"].iloc[-1]]],
+            axis="index",
+            ignore_index=True,
         )
     summary(df_人口_年, "人口數_年", "人口數_合計", "人口數_男", "人口數_女", "年")
     summary(df, "人口數_年月", "人口數_合計", "人口數_男", "人口數_女", "統計年月")
@@ -5212,6 +5220,157 @@ if __name__ == "__main__":
     plots[f"{key}_胎次_縣市"] = plot_bar_group(
         df_胎次_縣市, f"{key}_胎次_縣市 {years[0]}~{years[-1]}"
     )
+
+    # =================================================================
+    # https://data.gov.tw/dataset/100324
+    key = "嬰兒出生數按性別、胎次及生母年齡分(按登記)"
+    key = sanitize_filename(key)
+    urls = {
+        106: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=E2E702A0-EA3B-4689-8CA9-DD9083E15534",
+        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5F11E0E0-8F23-4F95-B187-E15F6EF8AAE6",
+        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=87673B9A-31D7-4900-9D7D-62C715EB54AC",
+        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8B7C2D82-9F36-452C-86F5-2CD370C0CCA4",
+        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=205DD511-67C3-464C-8B47-A273B1258F61",
+        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=D7B783A1-90C2-4C8B-B143-20DBC826F4C2",
+        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A5E5E762-D38E-463F-9262-0CFFCE2E5AE7",
+        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1858BBBA-82EC-4E00-8C77-0E206E4CCED2",
+    }
+
+    df_胎次 = []
+    for filename, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
+        df_胎次.append(data)
+
+    df_胎次 = pd.concat(df_胎次, ignore_index=True)
+    df_胎次["嬰兒出生數"] = df_胎次["嬰兒出生數"].astype(int)
+    df_胎次["生母年齡"] = df_胎次["生母年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    # https://data.gov.tw/dataset/103066
+    key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
+    key = sanitize_filename(key)
+    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
+
+    df_所得總額 = []
+    lastyear = 110
+    for year in range(101, lastyear + 1):
+        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
+        data = read_csv_with_cache(path, url.format(year=year))
+        data["統計年度"] = year
+        data = data.rename(
+            columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
+        )
+        df_所得總額.append(data)
+
+    df_所得總額 = pd.concat(df_所得總額, ignore_index=True, axis="index")
+    df_所得總額 = df_所得總額.rename(columns={"縣市別": "區域別"})
+    df_所得總額 = df_所得總額.pivot_table(
+        values=["綜合所得總額", "納稅單位(戶)"],
+        index=["區域別", "統計年度"],
+        aggfunc="sum",
+        sort=False,
+    ).reset_index()
+    df_所得總額["平均數"] = df_所得總額["綜合所得總額"] / df_所得總額["納稅單位(戶)"]
+
+    # https://data.gov.tw/dataset/100324
+    key = "嬰兒胎次 vs 綜稅綜合所得總額"
+    key = sanitize_filename(key)
+
+    df = pd.merge(
+        df_胎次,
+        df_所得總額,
+        how="outer",
+        suffixes=["_胎次", "_所得總額"],
+        on=[
+            "統計年度",
+            "區域別",
+        ],
+    )
+    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市"] = split[0].str.strip()
+    df["鄉鎮"] = split[1].str.strip()
+    df = df[~df["按照別"].isna()]
+    df = df[~df["綜合所得總額"].isna()]
+    df["所得平均數區間"] = pd.cut(
+        df["平均數"], [0] + list(range(500, 2001, 100)) + [3000, np.inf], right=False
+    )
+
+    years = sorted(df["統計年度"].unique().tolist())
+
+    df_胎次_所得平均數 = df.pivot_table(
+        values="嬰兒出生數",
+        index="胎次",
+        columns="所得平均數區間",
+        aggfunc="sum",
+        dropna=False,
+        sort=False,
+        observed=False,
+    )
+
+    df_胎次_所得平均數.columns = df_胎次_所得平均數.columns.astype(str)
+    plots[f"{key}_平均數區間"] = plot_bar_group(
+        df_胎次_所得平均數, f"{key}_平均數區間(仟元) {years[0]}~{years[-1]}年"
+    )
+
+    df_胎次_所得平均數_縣市 = df.pivot_table(
+        values="嬰兒出生數",
+        index="胎次",
+        columns=["縣市", "所得平均數區間"],
+        aggfunc="sum",
+        dropna=False,
+        sort=False,
+        observed=False,
+    )
+
+    buttons_region = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_胎次_所得平均數_縣市.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部區域",
+            "method": "restyle",
+        }
+    ]
+    regions = df["縣市"].unique().tolist()
+    for region in regions:
+        arr = [region_col == region for region_col, _ in df_胎次_所得平均數_縣市.columns]
+        buttons_region.append(
+            {
+                "args": [
+                    {"visible": arr},
+                ],
+                "label": region,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_region,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "地區選擇",
+        },
+    ]
+
+    df_胎次_所得平均數_縣市.columns = [
+        f"{region}_{interval}" for region, interval in df_胎次_所得平均數_縣市.columns
+    ]
+    plots[f"{key}_平均數區間_縣市"] = plot_bar_group(
+        df_胎次_所得平均數_縣市,
+        f"{key}_平均數區間(仟元)_縣市 {years[0]}~{years[-1]}年",
+        additional_layout={"updatemenus": updatemenus},
+    )
+    # =================================================================
 
     # https://data.gov.tw/dataset/152789
     key = "嬰兒出生數按嬰兒性別及出生胎別分(按登記)"

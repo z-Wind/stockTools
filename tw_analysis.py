@@ -1,20 +1,16 @@
-import gzip
 import json
-import os
-import re
 import numpy as np
 import pandas as pd
-import io
 import plotly
-import requests
 import copy
 
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
+
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any
 from pathlib import Path
 from flask import Flask, render_template
+
+from tw_analysis_data import *
 
 app = Flask(__name__)
 
@@ -22,110 +18,6 @@ app = Flask(__name__)
 FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）—]+'
 # Base directory for caching downloaded data
 EXTRA_DATA_DIR = Path("./extraData/TW_Analysis")
-
-# define the retry strategy
-retry_strategy = Retry(
-    total=4,  # maximum number of retries
-    backoff_factor=2,
-    status_forcelist=[
-        429,
-        500,
-        502,
-        503,
-        504,
-    ],  # the HTTP status codes to retry on
-)
-
-# create an HTTP adapter with the retry strategy and mount it to the session
-adapter = HTTPAdapter(max_retries=retry_strategy)
-
-# create a new session object
-session = requests.Session()
-session.headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; rv:57.0) " "Gecko/20100101 Firefox/57.0",
-}
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
-# --- Helper Functions ---
-
-
-def sanitize_filename(name: str) -> str:
-    """Sanitizes a string to be used as a valid filename or key."""
-    return re.sub(FILENAME_SANITIZE_PATTERN, "_", name)
-
-
-def _ensure_dir_exists(path: Path):
-    """Ensures that the directory for the given path exists."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-
-def read_xml(url: str, xpath: str) -> pd.DataFrame:
-    r = session.get(url, verify=False)
-    df = pd.read_xml(io.BytesIO(r.content), xpath=xpath)
-
-    return df
-
-
-def read_xml_with_cache(path: Path, url: str, xpath: str) -> pd.DataFrame:
-    _ensure_dir_exists(path)
-
-    if not path.is_file():
-        r = session.get(url, verify=False)
-        with gzip.open(path, "wb") as f:
-            f.write(r.content)
-
-    df = pd.read_xml(path, compression="gzip", xpath=xpath)
-
-    return df
-
-
-def read_csv(url: str, encoding: str = "utf-8") -> pd.DataFrame:
-    r = session.get(url, verify=False)
-    df = pd.read_csv(io.BytesIO(r.content), encoding=encoding)
-
-    return df
-
-
-def read_csv_with_cache(path: Path, url: str, encoding: str = "utf-8") -> pd.DataFrame:
-    _ensure_dir_exists(path)
-
-    if not path.is_file():
-        r = session.get(url, verify=False)
-        with gzip.open(path, "wb") as f:
-            f.write(r.content)
-
-    df = pd.read_csv(path, compression="gzip", encoding=encoding)
-
-    return df
-
-
-def read_json(url: str, encoding: str = "utf-8") -> pd.DataFrame:
-    r = session.get(url, verify=False)
-
-    df = pd.read_json(io.BytesIO(r.content), encoding=encoding)
-
-    return df
-
-
-def read_excel_with_cache(
-    path: Path, url: str, skiprows=None, nrows=None, usecols=None
-) -> pd.DataFrame:
-    _ensure_dir_exists(path)
-
-    if not path.is_file():
-        r = session.get(url, verify=False)
-        with gzip.open(path, "wb") as f:
-            f.write(r.content)
-
-    with gzip.open(path, "rb") as f_gz:
-        # Read the gzipped content into BytesIO for pandas
-        excel_bytes = io.BytesIO(f_gz.read())
-    df = pd.read_excel(
-        excel_bytes, engine="calamine", skiprows=skiprows, nrows=nrows, usecols=usecols
-    )  # Use openpyxl
-
-    return df
 
 
 def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = True) -> Dict:
@@ -385,16 +277,13 @@ def plot_lines_bars(
 def index_原始值_年增率_plot(
     plots: Dict,
     key: str,
-    url: str,
-    xpath: str,
-    item_remove_patt: str,
+    df_get: Callable[[], pd.DataFrame],
     title_suffix: str,
     additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
 
-    df = read_xml(url, xpath)
-    df["Item"] = df["Item"].str.replace(item_remove_patt, "", regex=True)
+    df = df_get()
     date_range = f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
 
     kinds = df["Item"].unique().tolist()
@@ -502,43 +391,33 @@ def index_原始值_年增率_plot(
 def 年_plot(
     plots: Dict,
     key: str,
-    url: str,
-    columns_remove_patt: str,
+    df_get: Callable[[], pd.DataFrame],
     title_suffix: str,
-    index_col: str = "年",
     additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
+    df = df_get()
 
-    df = read_csv(url)
-    df = df.set_index(index_col)
-    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
     plots[key] = plot_line(
-        df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}", additional_layout
+        df, f"{key}{title_suffix} {df.index[0]}~{df.index[-1]}年", additional_layout
     )
 
 
 def 年月混合_plot(
     plots: Dict,
     key: str,
-    url: str,
-    index_col: str,
-    columns_remove_patt: str,
+    df_get: Callable[[], pd.DataFrame],
     title_suffix: str,
-    encoding: str = "utf-8",
     additional_layout: Optional[Dict] = None,
 ):
     key = sanitize_filename(key)
-
-    df = read_csv(url, encoding)
-    df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
-    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
-    df = df.set_index(index_col)
-    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+    df = df_get()
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
     plots[f"{key}_年"] = plot_line(
-        df_year, f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}", additional_layout
+        df_year,
+        f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}",
+        additional_layout,
     )
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
@@ -556,54 +435,39 @@ if __name__ == "__main__":
     index_原始值_年增率_plot(
         plots,
         key="消費者物價基本分類指數",
-        url="https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230555/pr0101a1m.xml",
-        xpath="//Obs",
-        item_remove_patt=r"\(指數基期：民國110年=100\)",
+        df_get=df_消費者物價基本分類指數,
         title_suffix="(指數基期：民國110年=100)",
     )
 
     # https://data.gov.tw/dataset/148439
     index_原始值_年增率_plot(
         plots,
-        "生產者物價基本分類指數",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230534/pr0701a1m.xml",
-        "//Obs",
-        r"\(指數基期：民國110年=100\)",
-        "(指數基期：民國110年=100)",
+        key="生產者物價基本分類指數",
+        df_get=df_生產者物價基本分類指數,
+        title_suffix="(指數基期：民國110年=100)",
     )
 
     # https://data.gov.tw/dataset/8239
     index_原始值_年增率_plot(
         plots,
-        "躉售物價基本分類指數",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230546/pr0202a1m.xml",
-        "//Obs",
-        r"\(民國105年=100\)",
-        "(指數基期：民國105年=100)",
+        key="躉售物價基本分類指數",
+        df_get=df_躉售物價基本分類指數,
+        title_suffix="(指數基期：民國105年=100)",
     )
 
     # https://data.gov.tw/dataset/6637
     key = "人力資源調查失業率"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230038/mp0101a07.xml"
-    xpath = "//失業率"
     key = sanitize_filename(key)
-
-    df = read_xml(url, xpath)
-    df = df.set_index("年月別_Year_and_month")
-    df.columns = df.columns.str.replace(r"_?[a-zA-Z_]*_百分比$", r"", regex=True).str.replace(
-        r"_[a-zA-Z_]+$", r"", regex=True
-    )
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
+    df = df_人力資源調查失業率()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index").dropna(axis="index", how="all")
     if df_year.index[-1] != datetime.today().year:
         last_year = df.filter(regex=rf"^{datetime.today().year}M", axis="index")
-        df_year = pd.concat([df_year, last_year], ignore_index=True)
+        df_year = pd.concat([df_year, last_year])
 
     plots[f"{key}_年"] = plot_line(
         df_year,
-        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}",
+        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
@@ -616,20 +480,16 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/6640
     key = "人力資源調查縣市別失業率"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230038/mp0101a10.xml"
-    xpath = "//縣市別失業率"
     key = sanitize_filename(key)
-
-    df = read_xml(url, xpath)
-    df = df.set_index("年月別_Year_and_month")
-    df.columns = df.columns.str.replace(r"_[a-zA-Z_]+_百分比$", r"", regex=True)
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
+    df = df_人力資源調查縣市別失業率()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
+    if df_year.index[-1] != datetime.today().year:
+        last_year = df.filter(regex=rf"^{datetime.today().year}[a-zA-Z]", axis="index")
+        df_year = pd.concat([df_year, last_year])
     plots[f"{key}_年"] = plot_line(
         df_year,
-        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}",
+        f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
@@ -642,76 +502,22 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/31055
     key = "歷年人力資源調查重要指標"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04014.xml"
-    xpath = "//歷年人力資源調查重要指標"
     key = sanitize_filename(key)
+    df = df_歷年人力資源調查重要指標()
 
-    df = read_xml(url, xpath)
-    df = df.set_index("年月別_Year_and_month")
-    df = df.filter(regex=r"\d{4}$", axis="index")
-    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
-    df.columns = df.columns.str.replace(r"_[0-9a-zA-Z_]+_百分比$", r"", regex=True).str.replace(
-        r"_[a-zA-Z_]+$", r"", regex=True
-    )
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
     plots[f"{key}"] = plot_line(
         df,
-        f"{key} {df.index[0]}~{df.index[-1]}",
+        f"{key} {df.index[0]}~{df.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
     # https://data.gov.tw/dataset/33442
     key = "人力資源調查重要指標"
-    urls = {
-        104: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037.xml",
-        105: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A105.xml",
-        106: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A106.xml",
-        107: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A107.xml",
-        108: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A108.xml",
-        109: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A109.xml",
-        110: "https://www.dgbas.gov.tw/public/data/open/Cen/Mp04037A110.xml",
-        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231127/mp04037a111.xml",
-        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04037a112.xml",
-        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04037a113.xml",
-    }
-    xpath = "//人力資源調查重要指標"
     key = sanitize_filename(key)
-
-    df = []
-    for year, url in urls.items():
-        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
-        data = data.rename(
-            columns={
-                "地區別_District_or_region": "按地區別分_District_or_region",
-                "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population_百分比": "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population",
-                "勞動力_占總人口之比率_Labor_force_Proportion_of_labor_force_to_total_population_百分比": "勞動力_占總人口之比率_Labor_force_Proportion_of_labor_force_to_total_population",
-                "勞動力_占15歲以上民間人口之比率_勞動力參與率_總計_Labor_force_Labor_force_participation_rate_Total_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_總計_Labor_force_Labor_force_participation_rate_Total",
-                "勞動力_占15歲以上民間人口之比率_勞動力參與率_男_Labor_force_Labor_force_participation_rate_Male_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_男_Labor_force_Labor_force_participation_rate_Male",
-                "勞動力_占15歲以上民間人口之比率_勞動力參與率_女_Labor_force_Labor_force_participation_rate_Female_百分比": "勞動力_占15歲以上民間人口之比率_勞動力參與率_女_Labor_force_Labor_force_participation_rate_Female",
-                "就業者_占總人口之比率_Employed_Proportion_of_employed_persons_to_total_population_百分比": "就業者_占總人口之比率_Employed_Proportion_of_employed_persons_to_total_population",
-                "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over_百分比": "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over",
-                "就業者_占勞動力之比率_Employed_Proportion_of_employed_persons_to_labor_force_百分比": "就業者_占勞動力之比率_Employed_Proportion_of_employed_persons_to_labor_force",
-                "失業率_總計_Unemployment_rate_Total_百分比": "失業率_總計_Unemployment_rate_Total",
-                "失業率_男_Unemployment_rate_Male_百分比": "失業率_男_Unemployment_rate_Male",
-                "失業率_女_Unemployment_rate_Female_百分比": "失業率_女_Unemployment_rate_Female",
-                "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_age_15_and_above_to_total_population_百分比": "年齡15歲以上民間人口占總人口之比率_Proportion_of_civilian_population_aged_15_years_and_over_to_total_population",
-                "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_age_15_and_above_百分比": "就業者_占15歲以上民間人口之比率_Employed_Proportion_of_employed_persons_to_civilian_population_aged_15_years_and_over",
-            }
-        )
-        df.append(data)
-    df = pd.concat(df, ignore_index=True)
-
-    df["按地區別分_District_or_region"] = (
-        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
-    )
-
-    df.columns = df.columns.str.replace(r"[_a-zA-Z0-9]+$", "", regex=True)
+    df = df_人力資源調查重要指標()
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     df_類別_地區 = df.pivot_table(
         values=num_columns, index="年度", columns="按地區別分", sort=False
@@ -798,7 +604,7 @@ if __name__ == "__main__":
     df_類別_地區.columns = [f"{region}_{kind}" for kind, region in df_類別_地區.columns]
     plots[f"{key}"] = plot_line(
         df_類別_地區,
-        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}",
+        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}年",
         additional_layout={
             "hovermode": "x",
             "yaxis": {"tickformat": ".2%"},
@@ -808,60 +614,22 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/32741
     key = "歷年教育程度別失業率"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04033.xml"
-    xpath = "//歷年教育程度別失業率"
     key = sanitize_filename(key)
+    df = df_歷年教育程度別失業率()
 
-    df = read_xml(url, xpath)
-    df = df.set_index("年月別_Year_and_month")
-    df = df.filter(regex=r"\d{4}$", axis="index")
-    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
-    df.columns = df.columns.str.replace(r"_[_a-zA-Z]+_百分比", "", regex=True)
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
     plots[f"{key}"] = plot_line(
         df,
-        f"{key} {df.index[0]}~{df.index[-1]}",
+        f"{key} {df.index[0]}~{df.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
     # https://data.gov.tw/dataset/34118
     key = "教育程度別失業率"
-    urls = {
-        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049.xml",
-        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A105.xml",
-        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A106.xml",
-        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A107.xml",
-        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A108.xml",
-        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A109.xml",
-        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04049A110.xml",
-        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04049a111.xml",
-        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04049a112.xml",
-        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04049a113.xml",
-    }
-    xpath = "//教育程度別失業率"
     key = sanitize_filename(key)
-
-    df = []
-    for year, url in urls.items():
-        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
-        data = data.rename(
-            columns={
-                "地區別_District_or_region": "按地區別分_District_or_region",
-                "高級中等_高中_高職_女_Senior_high_school_regular_and_vocational_Senior_high_and_vocational_Female_百分比": "高級中等_高中_高職_女_Senior_high_school_regular_and_vocational_Female_百分比",
-            }
-        )
-        df.append(data)
-    df = pd.concat(df, ignore_index=True)
-    df["按地區別分_District_or_region"] = (
-        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
-    )
-    df.columns = df.columns.str.replace(r"_[_a-zA-Z]+_百分比", "", regex=True)
+    df = df_教育程度別失業率()
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     df_類別_地區 = df.pivot_table(
         values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
@@ -950,7 +718,7 @@ if __name__ == "__main__":
     df_類別_地區.columns = [f"{region}_{kind}" for kind, region in df_類別_地區.columns]
     plots[f"{key}"] = plot_line(
         df_類別_地區,
-        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}",
+        f"{key} {df_類別_地區.index[0]}~{df_類別_地區.index[-1]}年",
         additional_layout={
             "hovermode": "x",
             "yaxis": {"tickformat": ".2%"},
@@ -960,67 +728,22 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/32743
     key = "歷年年齡組別失業率"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04031.xml"
-    xpath = "//歷年年齡組別失業率"
     key = sanitize_filename(key)
+    df = df_歷年年齡組別失業率()
 
-    df = read_xml(url, xpath)
-    df = df.set_index("年月別_Year_and_month")
-    df = df.filter(regex=r"\d{4}$", axis="index")
-    df.index = df.index.str.replace(r".*(\d{4})$", r"\1", regex=True)
-    df.columns = df.columns.str.replace(
-        r"_(合計|小計|男|女).*_百分比$", r"_\1", regex=True
-    ).str.replace(r"_[a-zA-Z]+_百分比$", "", regex=True)
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
     plots[f"{key}"] = plot_line(
         df,
-        f"{key} {df.index[0]}~{df.index[-1]}",
+        f"{key} {df.index[0]}~{df.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
     # https://data.gov.tw/dataset/34117
     key = "年齡組別失業率"
-    urls = {
-        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048.xml",
-        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A105.xml",
-        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A106.xml",
-        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A107.xml",
-        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A108.xml",
-        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A109.xml",
-        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/Mp04048A110.xml",
-        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04048a111.xml",
-        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04048a112.xml",
-        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04048a113.xml",
-    }
-    xpath = "//年齡組別失業率"
     key = sanitize_filename(key)
-
-    df = []
-    for year, url in urls.items():
-        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
-        data = data.rename(
-            columns={
-                "地區別_District_or_region": "按地區別分_District_or_region",
-                "年齡65歲以上_男_65_years_and_above_Male_百分比": "年齡65歲以上_男_65_years_and_over_Male_百分比",
-                "年齡65歲以上_女_65_years_and_above_Female_百分比": "年齡65歲以上_女_65_years_and_over_Female_百分比",
-                "年齡65歲以上_合計_65_years_and_above_Total_百分比": "年齡65歲以上_合計_65_years_and_over_Total_百分比",
-            }
-        )
-        df.append(data)
-    df = pd.concat(df, ignore_index=True)
-    df["按地區別分_District_or_region"] = (
-        df["按地區別分_District_or_region"].str.strip().str.replace(r"[a-zA-Z ]+", "", regex=True)
-    )
-    df.columns = df.columns.str.replace(
-        r"_(合計|小計|男|女).*_百分比$", r"_\1", regex=True
-    ).str.replace(r"_[a-zA-Z]+_百分比$", "", regex=True)
-
+    df = df_年齡組別失業率()
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     df_年齡_地區 = df.pivot_table(
         values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
@@ -1109,7 +832,7 @@ if __name__ == "__main__":
     df_年齡_地區.columns = [f"{region}_{age}" for age, region in df_年齡_地區.columns]
     plots[f"{key}"] = plot_line(
         df_年齡_地區,
-        f"{key} {df_年齡_地區.index[0]}~{df_年齡_地區.index[-1]}",
+        f"{key} {df_年齡_地區.index[0]}~{df_年齡_地區.index[-1]}年",
         additional_layout={
             "hovermode": "x",
             "yaxis": {"tickformat": ".2%"},
@@ -1119,49 +842,11 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/37971
     key = "教育程度別失業率—按年齡分"
-    urls = {
-        104: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068.xml",
-        105: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A105.xml",
-        106: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A106.xml",
-        107: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A107.xml",
-        108: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A108.xml",
-        109: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A109.xml",
-        110: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/Mp04068A110.xml",
-        111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/mp04068a111.xml",
-        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04068a112.xml",
-        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04068a113.xml",
-    }
-    xpath = "//教育程度別失業率_按年齡分"
     key = sanitize_filename(key)
-
-    df = []
-    for year, url in urls.items():
-        data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
-        data = data[~data["項目別_Item"].str.contains("按")]
-        df.append(data)
-    df = pd.concat(df, ignore_index=True)
-
-    df["項目別_Item"] = (
-        df["項目別_Item"]
-        .str.strip()
-        .str.replace(r"[a-zA-Z ]+", "", regex=True)
-        .str.replace("～", "~")
-        .str.replace("０", "0")
-        .str.replace("１", "1")
-        .str.replace("２", "2")
-        .str.replace("３", "3")
-        .str.replace("４", "4")
-        .str.replace("５", "5")
-        .str.replace("６", "6")
-        .str.replace("９", "9")
-    )
-    df.columns = df.columns.str.replace(r"_[a-zA-Z_]+_百分比$", "", regex=True)
-
+    df = df_教育程度別失業率_按年齡分()
     num_columns = [
         column for column in df.columns if "年度" not in column and "項目別" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     df_年齡_教育 = df.pivot_table(
         values=num_columns, index="年度", columns="項目別_Item", sort=False
@@ -1250,7 +935,7 @@ if __name__ == "__main__":
     df_年齡_教育.columns = [f"{edu}_{age}" for age, edu in df_年齡_教育.columns]
     plots[f"{key}"] = plot_line(
         df_年齡_教育,
-        f"{key} {df_年齡_教育.index[0]}~{df_年齡_教育.index[-1]}",
+        f"{key} {df_年齡_教育.index[0]}~{df_年齡_教育.index[-1]}年",
         additional_layout={
             "hovermode": "x",
             "yaxis": {"tickformat": ".2%"},
@@ -1260,20 +945,12 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/151323
     key = "就業率"
-    url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=$mQvpHYEayTTt8pmhMjRvA@@"
-    xpath = "//DataTable"
     key = sanitize_filename(key)
+    df = df_就業率()
 
-    df = read_xml(url, xpath)
-    df["Period"] /= 100
-    df["Period"] = df["Period"].astype(int)
-    df = df.pivot_table(values="Val", columns=["Category1Title", "Category2Title"], index="Period")
-    df.columns = [f"{kind}_{edu}" for kind, edu in df.columns]
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
     plots[f"{key}_教育程度別"] = plot_line(
         df,
-        f"{key}_教育程度別 {df.index[0]}~{df.index[-1]}",
+        f"{key}_教育程度別 {df.index[0]}~{df.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
@@ -1290,7 +967,7 @@ if __name__ == "__main__":
     df = df.astype(float) / 100
     plots[f"{key}_年齡別"] = plot_line(
         df,
-        f"{key}_年齡別 {df.index[0]}~{df.index[-1]}",
+        f"{key}_年齡別 {df.index[0]}~{df.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
@@ -1298,13 +975,8 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/44232
     key = "國民所得統計-國民所得、儲蓄與投資-季"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8201a1q.xml"
-    xpath = "//Obs"
-
     key = sanitize_filename(key)
-
-    df = read_xml(url, xpath)
-    df = df.fillna(0)
+    df = df_國民所得統計_國民所得_儲蓄與投資_季()
 
     pivot_df = df[df["TYPE"] == "原始值"].pivot_table(
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
@@ -1370,12 +1042,8 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/6799
     key = "國民所得統計-常用資料-季"
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8101a1q.xml"
-    xpath = "//Obs"
-
     key = sanitize_filename(key)
-
-    df = read_xml(url, xpath)
+    df = df_國民所得統計_常用資料_季()
 
     df_value = df.drop(df[df["TYPE"] == "年增率(%)"].index)
     pivot_df = df_value.pivot_table(
@@ -1402,91 +1070,81 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/93951
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶所得總額",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/067-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv",
-        "可支配所得按戶數五等分位組之平均每戶所得總額-|-元",
-        "-元",
+        key="家庭收支調查-戶數五等分位之平均每戶所得總額",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶所得總額,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/94752
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶所得收入總計",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/068-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
-        "可支配所得按戶數五等分位組之平均每戶所得收入總計-|-元",
-        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+        key="家庭收支調查-戶數五等分位之平均每戶所得收入總計",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶所得收入總計,
+        title_suffix="-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
     )
 
     # https://data.gov.tw/dataset/98835
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶非消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/071-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E9%9D%9E%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "可支配所得按戶數五等分位組之平均每戶非消費支出-|-元",
-        "-元",
+        key="家庭收支調查-戶數五等分位之平均每戶非消費支出",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶非消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/91925
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶可支配所得",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/065-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
-        "可支配所得按戶數五等分位組-|-元",
-        "-元 可支配所得=所得收入-非消費支出",
+        key="家庭收支調查-戶數五等分位之平均每戶可支配所得",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/98834
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/070-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "可支配所得按戶數五等分位組之平均每戶消費支出-|-元",
-        "-元",
+        key="家庭收支調查-戶數五等分位之平均每戶消費支出",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/101338
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶經常性支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/072-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E7%B6%93%E5%B8%B8%E6%80%A7%E6%94%AF%E5%87%BA.csv",
-        "可支配所得按戶數五等分位組之平均每戶經常性支出-|-元",
-        "-元 經常性支出=消費支出+非消費支出",
+        key="家庭收支調查-戶數五等分位之平均每戶經常性支出",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶經常性支出,
+        title_suffix="-元 經常性支出=消費支出+非消費支出",
     )
 
     # https://data.gov.tw/dataset/93950
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位之平均每戶儲蓄",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/066-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
-        "可支配所得按戶數五等分位組之平均每戶儲蓄-|-元",
-        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+        key="家庭收支調查-戶數五等分位之平均每戶儲蓄",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶儲蓄,
+        title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # https://data.gov.tw/dataset/9424
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位組之平均每戶人口數",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/019-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E4%BA%BA%E5%8F%A3%E6%95%B8.csv",
-        "-人",
-        "-人",
+        key="家庭收支調查-戶數五等分位組之平均每戶人口數",
+        df_get=df_家庭收支調查_戶數五等分位組之平均每戶人口數,
+        title_suffix="-人",
     )
 
     # https://data.gov.tw/dataset/9425
     年_plot(
         plots,
-        "家庭收支調查-戶數五等分位組之平均每戶就業人數",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/020-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%B0%B1%E6%A5%AD%E4%BA%BA%E6%95%B8.csv",
-        "-人",
-        "-人",
+        key="家庭收支調查-戶數五等分位組之平均每戶就業人數",
+        df_get=df_家庭收支調查_戶數五等分位組之平均每戶就業人數,
+        title_suffix="-人",
     )
 
     # https://data.gov.tw/dataset/132285
     年_plot(
         plots,
-        "家庭收支調查-所得收入者五等分位平均每人可支配所得",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/089-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
-        "可支配所得按所得收入者人數五等分位組之平均每人可支配所得-",
-        "平均每人可支配所得=平均每位所得收入者可支配所得",
+        key="家庭收支調查-所得收入者五等分位平均每人可支配所得",
+        df_get=df_家庭收支調查_所得收入者五等分位平均每人可支配所得,
+        title_suffix="平均每人可支配所得=平均每位所得收入者可支配所得",
     )
 
     # =================================================
@@ -1494,73 +1152,65 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/54825
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶所得總額",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/058-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-家庭組織型態別平均每戶所得總額",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶所得總額,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/56525
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶所得收入總計",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/059-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
-        "-元",
-        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+        key="家庭收支調查-家庭組織型態別平均每戶所得收入總計",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶所得收入總計,
+        title_suffix="-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
     )
 
     # https://data.gov.tw/dataset/79207
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶非消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/062-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E9%9D%9E%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-家庭組織型態別平均每戶非消費支出",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶非消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/45126
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶可支配所得",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/056-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
-        "-元",
-        "-元 可支配所得=所得收入-非消費支出",
+        key="家庭收支調查-家庭組織型態別平均每戶可支配所得",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/76265
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/061-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-家庭組織型態別平均每戶消費支出",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/79208
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶經常性支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/063-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E7%B6%93%E5%B8%B8%E6%80%A7%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元 經常性支出=消費支出+非消費支出",
+        key="家庭收支調查-家庭組織型態別平均每戶經常性支出",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶經常性支出,
+        title_suffix="-元 經常性支出=消費支出+非消費支出",
     )
 
     # https://data.gov.tw/dataset/54823
     年_plot(
         plots,
-        "家庭收支調查-家庭組織型態別平均每戶儲蓄",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/057-%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
-        "-元",
-        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+        key="家庭收支調查-家庭組織型態別平均每戶儲蓄",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶儲蓄,
+        title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # https://data.gov.tw/dataset/27963
     年_plot(
         plots,
-        "家庭收支調查-性別統計指標-家戶狀況按家庭組織型態分",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/046-%E6%80%A7%E5%88%A5%E7%B5%B1%E8%A8%88%E6%8C%87%E6%A8%99-%E5%AE%B6%E6%88%B6%E7%8B%80%E6%B3%81%E6%8C%89%E5%AE%B6%E5%BA%AD%E7%B5%84%E7%B9%94%E5%9E%8B%E6%85%8B%E5%88%86.csv",
-        "戶數",
-        "戶數",
+        key="家庭收支調查-性別統計指標-家戶狀況按家庭組織型態分",
+        df_get=df_家庭收支調查_性別統計指標_家戶狀況按家庭組織型態分,
+        title_suffix="戶數",
     )
 
     # =====================================================
@@ -1568,64 +1218,57 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/9417
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶所得總額",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/008-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-各縣市別平均每戶所得總額",
+        df_get=df_家庭收支調查_各縣市別平均每戶所得總額,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/9418
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶所得收入總計",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/009-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
-        "-元",
-        "-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+        key="家庭收支調查-各縣市別平均每戶所得收入總計",
+        df_get=df_家庭收支調查_各縣市別平均每戶所得收入總計,
+        title_suffix="-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
     )
 
     # https://data.gov.tw/dataset/9804
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶非消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/021-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E9%9D%9E%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-各縣市別平均每戶非消費支出",
+        df_get=df_家庭收支調查_各縣市別平均每戶非消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/9415
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶可支配所得",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/006-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
-        "-元",
-        "-元 可支配所得=所得收入-非消費支出",
+        key="家庭收支調查-各縣市別平均每戶可支配所得",
+        df_get=df_家庭收支調查_各縣市別平均每戶可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
     )
 
     # https://data.gov.tw/dataset/9420
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/011-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-各縣市別平均每戶消費支出",
+        df_get=df_家庭收支調查_各縣市別平均每戶消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/9805
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶經常性支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/022-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E7%B6%93%E5%B8%B8%E6%80%A7%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元 經常性支出=消費支出+非消費支出",
+        key="家庭收支調查-各縣市別平均每戶經常性支出",
+        df_get=df_家庭收支調查_各縣市別平均每戶經常性支出,
+        title_suffix="-元 經常性支出=消費支出+非消費支出",
     )
 
     # https://data.gov.tw/dataset/9416
     年_plot(
         plots,
-        "家庭收支調查-各縣市別平均每戶儲蓄",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/007-%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv",
-        "-元",
-        "-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+        key="家庭收支調查-各縣市別平均每戶儲蓄",
+        df_get=df_家庭收支調查_各縣市別平均每戶儲蓄,
+        title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
     # ===================================================================
@@ -1633,44 +1276,34 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/117930
     年_plot(
         plots,
-        "家庭收支調查-所得收入者各縣市別平均每人所得收入總計",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/081-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-所得收入者各縣市別平均每人所得收入總計",
+        df_get=df_家庭收支調查_所得收入者各縣市別平均每人所得收入總計,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/119937
     年_plot(
         plots,
-        "家庭收支調查-所得收入者各縣市別平均每人非消費支出",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/083-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E9%9D%9E%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv",
-        "-元",
-        "-元",
+        key="家庭收支調查-所得收入者各縣市別平均每人非消費支出",
+        df_get=df_家庭收支調查_所得收入者各縣市別平均每人非消費支出,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/117929
     年_plot(
         plots,
-        "家庭收支調查-所得收入者各縣市別平均每人可支配所得",
-        "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/080-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv",
-        "-元",
-        "-元 可支配所得=所得收入-非消費支出, 平均每人可支配所得=平均每位所得收入者可支配所得",
+        key="家庭收支調查-所得收入者各縣市別平均每人可支配所得",
+        df_get=df_家庭收支調查_所得收入者各縣市別平均每人可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出, 平均每人可支配所得=平均每位所得收入者可支配所得",
     )
 
     # https://www.stat.gov.tw/cp.aspx?n=2773
     key = "家庭部門平均每戶資產負債"
-    url = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2515/112%E8%A1%A87.xlsx"
+    key = sanitize_filename(key)
+    df = df_家庭部門平均每戶資產負債()
 
-    df = read_excel_with_cache(
-        EXTRA_DATA_DIR / f"{key}.xlsx.gz", url, skiprows=2, nrows=19, usecols=range(0, 6)
-    )
-    df.columns = ["種類", "2019", "2020", "2021", "2022", "2023"]
-    df["種類"] = df["種類"].str.replace(r"[\n \r]", "", regex=True)
-    df = df.dropna().set_index("種類")
-    # 負債轉為負值
-    df.iloc[13:16] = -df.iloc[13:16]
-    title = f"{key} {df.columns[0]}~{df.columns[-1]} （土地按市價重評價）（新臺幣萬元）"
     df = df.T
+    title = f"{key} {df.index[0]}~{df.index[-1]}年 （土地按市價重評價）（新臺幣萬元）"
 
     dataList = []
     for name in df.columns[::-1]:
@@ -1715,96 +1348,7 @@ if __name__ == "__main__":
     # https://mopsov.twse.com.tw/mops/web/t100sb14
     key = "公開資訊觀測站_財務報告附註揭露之員工福利(薪資)資訊"
     key = sanitize_filename(key)
-    url = "https://mopsov.twse.com.tw/mops/web/ajax_t100sb14"
-    last_year = 113
-
-    def get_df(path, url, data):
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            r = session.post(url, data)
-            pd.read_html(io.BytesIO(r.content), encoding="utf8")[0]
-            with gzip.open(path, "wb") as f:
-                f.write(r.content)
-
-        return pd.read_html(path, encoding="utf8")[0]
-
-    for year in range(113, 114):  # datetime.today().year - 1911 + 1):
-        data_上市 = {
-            "encodeURIComponent": 1,
-            "step": 1,
-            "firstin": 1,
-            "TYPEK": "sii",
-            "RYEAR": year,
-            "code": "",
-        }
-        data_上櫃 = {
-            "encodeURIComponent": 1,
-            "step": 1,
-            "firstin": 1,
-            "TYPEK": "otc",
-            "RYEAR": year,
-            "code": "",
-        }
-
-        try:
-            df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
-            df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
-            last_year = year
-        except:
-            break
-
-    def clear_data(df: pd.DataFrame) -> pd.DataFrame:
-        df = df[df.columns[:-4]]
-
-        df.columns = [
-            "產業類別",
-            "公司代號",
-            "公司名稱",
-            "公司類別",
-            "員工福利費用(仟元)",
-            "員工薪資費用(仟元)",
-            "員工人數(人)",
-            "平均員工福利費用(仟元/人)",
-            f"平均員工薪資費用{last_year}年度(仟元/人)",
-            f"平均員工薪資費用{last_year-1}年度(仟元/人)",
-            "平均員工薪資費用調整變動情形(%)",
-            "每股盈餘(元/股)",
-        ]
-
-        df.loc[:, ["員工福利費用"]] = (
-            df["員工福利費用(仟元)"].replace("-", np.nan).astype(float) * 1000
-        )
-        df.loc[:, ["員工薪資費用"]] = (
-            df["員工薪資費用(仟元)"].replace("-", np.nan).astype(float) * 1000
-        )
-        df.loc[:, ["平均員工福利費用(人)"]] = (
-            df["平均員工福利費用(仟元/人)"].replace("-", np.nan).astype(float) * 1000
-        )
-        df.loc[:, [f"平均員工薪資費用{last_year}年度(人)"]] = (
-            df[f"平均員工薪資費用{last_year}年度(仟元/人)"].replace("-", np.nan).astype(float)
-            * 1000
-        )
-        df.loc[:, [f"平均員工薪資費用{last_year-1}年度(人)"]] = (
-            df[f"平均員工薪資費用{last_year-1}年度(仟元/人)"].replace("-", np.nan).astype(float)
-            * 1000
-        )
-
-        df.loc[:, ["平均員工薪資費用調整變動情形"]] = (
-            df["平均員工薪資費用調整變動情形(%)"]
-            .str.replace("%", "")
-            .replace("-", np.nan)
-            .astype(float)
-            / 100
-        )
-
-        return df
-
-    df_上市 = clear_data(df_上市)
-    df_上櫃 = clear_data(df_上櫃)
-
-    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
-    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+    df, last_year = df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊()
 
     df_薪資 = df.sort_values("公司代號").set_index("公司")
     df_薪資 = df_薪資[
@@ -2000,58 +1544,10 @@ if __name__ == "__main__":
     # https://mopsov.twse.com.tw/mops/web/t100sb14
     key = "企業ESG資訊揭露彙總資料-人力發展 vs 公司合併報表董事酬金相關資訊"
     key = sanitize_filename(key)
-    url_上市_ESG = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
-    url_上櫃_ESG = "https://mopsfin.twse.com.tw/opendata/t187ap46_O_5.csv"
-    url_上市_董事酬金 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_L.csv"
-    url_上櫃_董事酬金 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_O.csv"
+    df_ESG = df_企業ESG資訊揭露彙總資料_人力發展()
+    df_董事酬金 = df_公司合併報表董事酬金相關資訊()
 
-    df_上市_ESG = read_csv(url_上市_ESG)
-    df_上櫃_ESG = read_csv(url_上櫃_ESG)
-    df_上市_董事酬金 = read_csv(url_上市_董事酬金)
-    df_上櫃_董事酬金 = read_csv(url_上櫃_董事酬金)
-
-    df_ESG = pd.concat([df_上市_ESG, df_上櫃_ESG], ignore_index=True)
-    df_ESG[
-        [
-            "員工福利平均數",
-            "員工薪資平均數",
-            "非擔任主管職務之全時員工薪資平均數",
-            "非擔任主管之全時員工薪資中位數",
-        ]
-    ] = (
-        df_ESG[
-            [
-                "員工福利平均數(仟元/人)",
-                "員工薪資平均數(仟元/人)",
-                "非擔任主管職務之全時員工薪資平均數(仟元/人)",
-                "非擔任主管之全時員工薪資中位數(仟元/人)",
-            ]
-        ]
-        * 1000
-    )
     year_ESG = df_ESG.iloc[0]["報告年度"]
-
-    df_董事酬金 = pd.concat([df_上市_董事酬金, df_上櫃_董事酬金], ignore_index=True)
-    num_index = [
-        "董事酬金-去年支付",
-        "董事酬金-今年支付",
-        "董事酬金-合計",
-        "董事酬金加計兼任員工酬金-去年支付",
-        "董事酬金加計兼任員工酬金-今年支付",
-        "加計兼任員工酬金-合計",
-        "酬金總額占稅後損益百分比(%)-董事酬金",
-        "酬金總額占稅後損益百分比(%)-加計兼任員工酬金",
-        "平均每位董事酬金-董事酬金",
-        "平均每位董事酬金-加計兼任員工酬金",
-        "領取來自子公司以外轉投資事業或母公司酬金",
-        "稅後純益",
-        "每股盈餘",
-        "股東權益報酬率(%)",
-        "實收資本額(千元)",
-    ]
-    df_董事酬金[num_index] = df_董事酬金[num_index].replace(",", "", regex=True)
-    df_董事酬金[num_index] = df_董事酬金[num_index].astype(float)
-    df_董事酬金.loc[:, "稅後純益"] = df_董事酬金.loc[:, "稅後純益"] * 1000
     year_董事酬金 = df_董事酬金.iloc[0]["出表日期"]
 
     df = pd.merge(
@@ -2078,7 +1574,7 @@ if __name__ == "__main__":
     df_公司 = df.set_index("公司")
     plots[f"{key}"] = plot_lines_bars(
         df_公司,
-        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}年",
         lines_left_axis=[
             "董事總酬金平均/非主管員工薪資中位數",
             "董事總酬金平均/非主管員工薪資平均",
@@ -2108,7 +1604,7 @@ if __name__ == "__main__":
             ],
             ascending=False,
         ),
-        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}年",
         lines_left_axis=[
             "董事總酬金平均/非主管員工薪資中位數",
             "董事總酬金平均/非主管員工薪資平均",
@@ -2147,7 +1643,7 @@ if __name__ == "__main__":
     )
     plots[f"{key}_產業"] = plot_lines_bars(
         df_產業,
-        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        title=f"{key} 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}年",
         lines_left_axis=[
             "董事總酬金平均/非主管員工薪資中位數",
             "董事總酬金平均/非主管員工薪資平均",
@@ -2177,7 +1673,7 @@ if __name__ == "__main__":
             ],
             ascending=False,
         ),
-        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}",
+        title=f"{key}_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}年",
         lines_left_axis=[
             "董事總酬金平均/非主管員工薪資中位數",
             "董事總酬金平均/非主管員工薪資平均",
@@ -2347,7 +1843,7 @@ if __name__ == "__main__":
 
     layout = {
         "title": {
-            "text": f"{key}_公司_產業_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}"
+            "text": f"{key}_公司_產業_排序 董事酬金出表日期:{year_董事酬金} ESG報告年度:{year_ESG}年"
         },
         "hovermode": "x",
         "xaxis": {"type": "category"},
@@ -2368,15 +1864,9 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/156379
     key = "企業ESG資訊揭露彙總資料-人力發展"
     key = sanitize_filename(key)
-    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap46_L_5.csv"
-    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap46_O_5.csv"
+    df = df_企業ESG資訊揭露彙總資料_人力發展()
 
-    df_上市 = read_csv(url_上市)
-    df_上櫃 = read_csv(url_上櫃)
-
-    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
     year = df.iloc[0]["報告年度"]
-    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"]
     df = df.set_index("公司")
     df_薪資 = df[
         [
@@ -2445,16 +1935,10 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/9634
     key = "歷年受僱員工每人每月總薪資"
     key = sanitize_filename(key)
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05001.xml"
-
-    df = read_xml(url, "//每人每月總薪資")
-    df["年月別_Year_and_month"] = df["年月別_Year_and_month"].str.replace("[^0-9]", "", regex=True)
-    df = df.set_index("年月別_Year_and_month")
-    splits = df.columns.str.split("_", n=1, expand=True)
-    df.columns = [split[0] for split in splits]
+    df = df_歷年受僱員工每人每月總薪資()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
-    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}")
+    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年")
     df_month = df.filter(regex=r"^\d{6}$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
@@ -2464,16 +1948,10 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/9663
     key = "歷年受僱員工每人每月經常性薪資"
     key = sanitize_filename(key)
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05002.xml"
-
-    df = read_xml(url, "//每人每月經常性薪資")
-    df["年月別_Year_and_month"] = df["年月別_Year_and_month"].str.replace("[^0-9]", "", regex=True)
-    df = df.set_index("年月別_Year_and_month")
-    splits = df.columns.str.split("_", n=1, expand=True)
-    df.columns = [split[0] for split in splits]
+    df = df_歷年受僱員工每人每月經常性薪資()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
-    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}")
+    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年")
     df_month = df.filter(regex=r"^\d{6}$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
@@ -2483,17 +1961,8 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/34125
     key = "各業廠商僱用職缺按月計薪者每人每月平均最低薪資－按職類及員工規模分"
     key = sanitize_filename(key)
-    url = {113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234463/mp05044a113.xml"}
-    lastyear = 113
+    df, lastyear = df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分()
 
-    df = read_xml_with_cache(
-        EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
-        url[lastyear],
-        "//各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分",
-    )
-    df = df.set_index("項目別")
-    df.columns = df.columns.str.removesuffix("_新臺幣元").str.removesuffix("_金額")
-    df = df.replace("-", np.nan).astype(float)
     plots[f"{key}"] = plot_bar_group(
         df.T,
         f"{key} {lastyear}年",
@@ -2502,15 +1971,7 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/32751
     key = "各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分"
     key = sanitize_filename(key)
-    url = {112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05025a112.xml"}
-    lastyear = 112
-    df = read_xml_with_cache(
-        EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
-        url[lastyear],
-        "//各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分",
-    )
-    df = df.set_index("項目別")
-    df = df.replace("-", np.nan).astype(float) / 100
+    df, lastyear = df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分()
 
     first_columns = [
         column for column in df.columns if "視為第一重要因素之廠商比率_百分比" in column
@@ -2535,65 +1996,7 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/32749
     key = "各業廠商調升員工經常性薪資之廠商與員工人數比率－按行業分"
     key = sanitize_filename(key)
-    url = {
-        103: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/Mp05023.xml",
-            "各業廠商調整員工經常性薪資之廠商與員工人數比率_百分比",
-        ],
-        104: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/Mp05023A104.xml",
-            "各業廠商調整員工經常性薪資之廠商與員工人數比率_百分比",
-        ],
-        105: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A105.xml",
-            "各業廠商調整員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
-        ],
-        106: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A106.xml",
-            "各業廠商調整員工經常性薪資之廠商與員工人數比率-按行業分_百分比",
-        ],
-        107: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A107.xml",
-            "各業廠商調整員工經常性薪資之廠商與員工人數比率-按行業分_百分比",
-        ],
-        108: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A108.xml",
-            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
-        ],
-        109: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A109.xml",
-            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
-        ],
-        110: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231704/MP05023A110.xml",
-            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分_百分比",
-        ],
-        111: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232494/mp05023a111.xml",
-            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
-        ],
-        112: [
-            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05023a112.xml",
-            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
-        ],
-    }
-    lastyear = 112
-    df = []
-    for year in range(106, lastyear + 1):
-        data = read_xml_with_cache(
-            EXTRA_DATA_DIR / key / f"{year}.xml.gz",
-            url[year][0],
-            url[year][1],
-        )
-        data[data.columns[1:]] = data[data.columns[1:]].replace("-", np.nan).astype(float) / 100
-        data["年度"] = year
-        data = data.rename(
-            columns={
-                "項目別_百分比": "項目別",
-            }
-        )
-        df.append(data)
-    df = pd.concat(df, ignore_index=True)
+    df, lastyear = df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分()
 
     df_lastyear = df[df["年度"] == lastyear].set_index("項目別")
 
@@ -2671,7 +2074,7 @@ if __name__ == "__main__":
     ]:
         plots[f"{key}_調薪_歷史_{s}"] = plot_line(
             df_調薪_歷史.loc[:, (s,)],
-            f"{key}_調薪_歷史_{s} {df_調薪_歷史.index[0]}~{df_調薪_歷史.index[-1]}",
+            f"{key}_調薪_歷史_{s} {df_調薪_歷史.index[0]}~{df_調薪_歷史.index[-1]}年",
             additional_layout={"yaxis": {"tickformat": ".2%"}},
         )
 
@@ -2679,35 +2082,10 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/24278
     key = "公司合併報表董事酬金相關資訊"
     key = sanitize_filename(key)
-    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_L.csv"
-    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap29_C_O.csv"
+    df = df_公司合併報表董事酬金相關資訊()
 
-    df_上市 = read_csv(url_上市)
-    df_上櫃 = read_csv(url_上櫃)
-
-    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
-    num_index = [
-        "董事酬金-去年支付",
-        "董事酬金-今年支付",
-        "董事酬金-合計",
-        "董事酬金加計兼任員工酬金-去年支付",
-        "董事酬金加計兼任員工酬金-今年支付",
-        "加計兼任員工酬金-合計",
-        "酬金總額占稅後損益百分比(%)-董事酬金",
-        "酬金總額占稅後損益百分比(%)-加計兼任員工酬金",
-        "平均每位董事酬金-董事酬金",
-        "平均每位董事酬金-加計兼任員工酬金",
-        "領取來自子公司以外轉投資事業或母公司酬金",
-        "稅後純益",
-        "每股盈餘",
-        "股東權益報酬率(%)",
-        "實收資本額(千元)",
-    ]
-    df[num_index] = df[num_index].replace(",", "", regex=True)
-    df[num_index] = df[num_index].astype(float)
-    df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
     date_pub = df.iloc[0]["出表日期"]
-    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+
     df_董事酬金 = df.sort_values("公司代號").set_index("公司")
     df_董事酬金 = df_董事酬金[
         [
@@ -2806,30 +2184,10 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/24279
     key = "公司合併報表監察人酬金相關資訊"
     key = sanitize_filename(key)
-    url_上市 = "https://mopsfin.twse.com.tw/opendata/t187ap29_D_L.csv"
-    url_上櫃 = "https://mopsfin.twse.com.tw/opendata/t187ap29_D_O.csv"
+    df = df_公司合併報表監察人酬金相關資訊()
 
-    df_上市 = read_csv(url_上市)
-    df_上櫃 = read_csv(url_上櫃)
-
-    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
-    num_index = [
-        "監察人酬金-去年支付",
-        "監察人酬金-今年支付",
-        "監察人酬金-合計",
-        "酬金總額占稅後損益百分比(%)",
-        "平均每位監察人酬金",
-        "領取來自子公司以外轉投資事業或母公司酬金",
-        "稅後純益",
-        "每股盈餘",
-        "股東權益報酬率(%)",
-        "實收資本額(千元)",
-    ]
-    df[num_index] = df[num_index].replace(",", "", regex=True)
-    df[num_index] = df[num_index].astype(float)
-    df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
     date_pub = df.iloc[0]["出表日期"]
-    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+
     df_監察人酬金 = df.sort_values("公司代號").set_index("公司")
     df_監察人酬金 = df_監察人酬金[
         [
@@ -2915,29 +2273,12 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/17963
     key = "綜稅總所得各縣市申報統計分析表"
     key = sanitize_filename(key)
-    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_8-1.csv"
+    df, lastyear = df_綜稅總所得各縣市申報統計分析表()
 
-    df = []
-    lastyear = 110
-    for year in range(101, lastyear + 1):
-        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
-        data = read_csv_with_cache(path, url.format(year=year))
-        data["年度"] = year
-        data = data.rename(
-            columns={
-                "鄉鎮市區": "縣市別",
-                "\ufeff縣市別": "縣市別",
-                "\ufeff鄉鎮市區": "縣市別",
-                "總所得": "綜合所得總額",
-            }
-        )
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True, axis="index")
-    df["納稅單位(戶)"] = df["納稅單位(戶)"].astype(int)
-
-    sorted = "中位數"
-    df_縣市別 = df[df["年度"] == lastyear].set_index("縣市別").sort_values(sorted, ascending=False)
+    sorted_column = "中位數"
+    df_縣市別 = (
+        df[df["年度"] == lastyear].set_index("縣市別").sort_values(sorted_column, ascending=False)
+    )
     data_list = []
     for name in df_縣市別.index:
         data = {
@@ -2955,7 +2296,7 @@ if __name__ == "__main__":
         data_list.append(data)
 
     layout = {
-        "title": {"text": f"{key} {sorted}排序 {lastyear}年"},
+        "title": {"text": f"{key} {sorted_column}排序 {lastyear}年"},
         "hovermode": "x",
     }
     graph = {"data": data_list, "layout": layout}
@@ -2966,28 +2307,13 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/103066
     key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
     key = sanitize_filename(key)
-    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
+    df, lastyear = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
 
-    df = []
-    lastyear = 110
-    for year in range(101, lastyear + 1):
-        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
-        data = read_csv_with_cache(path, url.format(year=year))
-        data["年度"] = year
-        data = data.rename(
-            columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
-        )
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True, axis="index")
-    df["縣市別村里"] = df["縣市別"] + df["村里"]
-    split = df["縣市別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
-
-    sorted = "中位數"
+    sorted_column = "中位數"
     df_縣市別 = (
-        df[df["年度"] == lastyear].set_index("縣市別村里").sort_values(sorted, ascending=False)
+        df[df["年度"] == lastyear]
+        .set_index("縣市別村里")
+        .sort_values(sorted_column, ascending=False)
     )
     data_list = []
     for name in df_縣市別.index:
@@ -3101,7 +2427,7 @@ if __name__ == "__main__":
     ]
 
     layout = {
-        "title": {"text": f"{key} {sorted}排序 {lastyear}年"},
+        "title": {"text": f"{key} {sorted_column}排序 {lastyear}年"},
         "hovermode": "x",
         "updatemenus": updatemenus,
     }
@@ -3114,17 +2440,8 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/6742
     key = "全國賦稅收入實徵淨額日曆年別-按稅目別與地區別分"
-    url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=5&funid=i0424&cycle=41&outmode=12&compmode=00&outkind=2&fldspc=0,30,&codspc0=0,39,40,3,&utf=1"
-
     key = sanitize_filename(key)
-
-    df = read_csv(url)
-    df = df.replace("－", 0.0)
-    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
-
-    split = df["地區別"].str.split("/", expand=True)
-    df["時間"] = split[0].str.strip()
-    df["地區"] = split[1].str.strip()
+    df = df_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分()
 
     df_all = df.drop(["地區別"], axis=1).pivot_table(
         index="時間", columns="地區", sort=False, aggfunc="sum", fill_value=0
@@ -3233,16 +2550,8 @@ if __name__ == "__main__":
 
     # https://data.gov.tw/dataset/16910
     key = "全國賦稅收入實徵淨額與預算數之比較"
-    url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=3&funid=i3451&cycle=4&outmode=12&compmode=00&outkind=3&fldlst=111&codspc0=0,34,&utf=1"
-
     key = sanitize_filename(key)
-
-    df = read_csv(url)
-    df = df.replace("－", 0.0)
-    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
-    split = df["項目別"].str.split("/", expand=True)
-    df["時間"] = split[0].str.strip()
-    df["類別"] = split[1].str.strip()
+    df = df_全國賦稅收入實徵淨額與預算數之比較()
 
     columns = df.drop(["項目別", "時間", "類別"], axis=1).columns
     columns_revise = columns.map(sanitize_filename)
@@ -3261,56 +2570,40 @@ if __name__ == "__main__":
     # https://www.stat.gov.tw/cp.aspx?n=3914
     key = "主計總處統計專區 家庭收支調查 統計表 常用資料"
     key = sanitize_filename(key)
-    url_平均每人月消費 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/4.xls"
-    url_可支配所得平均數 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/mean.xls"
-    url_可支配所得中位數 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/1259/med.xls"
+    (
+        df_平均每人月消費,
+        df_平均每戶可支配所得,
+        df_平均每人可支配所得,
+        df_每戶可支配所得中位數,
+        df_每人可支配所得中位數,
+    ) = df_主計總處統計專區_家庭收支調查_統計表_常用資料()
 
-    def get_data(content: bytes, sheets_num: list[int], skiprows: int) -> pd.DataFrame:
-
-        dfs = []
-        for i in sheets_num:
-            df = pd.read_excel(
-                io.BytesIO(content), engine="calamine", sheet_name=i, skiprows=skiprows
-            ).dropna()
-            dfs.append(df)
-        dfs = pd.concat(dfs, ignore_index=True)
-
-        return dfs
-
-    r = session.get(url_平均每人月消費, verify=False)
-    df_平均每人月消費 = get_data(r.content, [0, 1], 1)
     df_平均每人月消費 = df_平均每人月消費.set_index("年別")
     plots[f"{key}_平均每人月消費"] = plot_line(
         df_平均每人月消費,
-        f"{key}_平均每人月消費 {df_平均每人月消費.index[0]}~{df_平均每人月消費.index[-1]}",
+        f"{key}_平均每人月消費 {df_平均每人月消費.index[0]}~{df_平均每人月消費.index[-1]}年",
     )
 
-    r = session.get(url_可支配所得平均數, verify=False)
-    df_平均每戶可支配所得 = get_data(r.content, [0, 2], 2)
-    df_平均每人可支配所得 = get_data(r.content, [1, 3], 2)
     df_平均每戶可支配所得 = df_平均每戶可支配所得.set_index("年別")
     plots[f"{key}_平均每戶可支配所得"] = plot_line(
         df_平均每戶可支配所得,
-        f"{key}_平均每戶可支配所得 {df_平均每戶可支配所得.index[0]}~{df_平均每戶可支配所得.index[-1]}",
+        f"{key}_平均每戶可支配所得 {df_平均每戶可支配所得.index[0]}~{df_平均每戶可支配所得.index[-1]}年",
     )
     df_平均每人可支配所得 = df_平均每人可支配所得.set_index("年別")
     plots[f"{key}_平均每人可支配所得"] = plot_line(
         df_平均每人可支配所得,
-        f"{key}_平均每人可支配所得_每人可支配所得=每戶可支配所得/每戶人數 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}",
+        f"{key}_平均每人可支配所得_每人可支配所得=每戶可支配所得/每戶人數 {df_平均每人可支配所得.index[0]}~{df_平均每人可支配所得.index[-1]}年",
     )
 
-    r = session.get(url_可支配所得中位數, verify=False)
-    df_每戶可支配所得中位數 = get_data(r.content, [0, 2], 2)
-    df_每人可支配所得中位數 = get_data(r.content, [1, 3], 2)
     df_每戶可支配所得中位數 = df_每戶可支配所得中位數.set_index("年別")
     plots[f"{key}_每戶可支配所得中位數"] = plot_line(
         df_每戶可支配所得中位數,
-        f"{key}_每戶可支配所得中位數 {df_每戶可支配所得中位數.index[0]}~{df_每戶可支配所得中位數.index[-1]}",
+        f"{key}_每戶可支配所得中位數 {df_每戶可支配所得中位數.index[0]}~{df_每戶可支配所得中位數.index[-1]}年",
     )
     df_每人可支配所得中位數 = df_每人可支配所得中位數.set_index("年別")
     plots[f"{key}_每人可支配所得中位數"] = plot_line(
         df_每人可支配所得中位數,
-        f"{key}_每人可支配所得中位數_每人可支配所得=每戶可支配所得/每戶人數 {df_每人可支配所得中位數.index[0]}~{df_每人可支配所得中位數.index[-1]}",
+        f"{key}_每人可支配所得中位數_每人可支配所得=每戶可支配所得/每戶人數 {df_每人可支配所得中位數.index[0]}~{df_每人可支配所得中位數.index[-1]}年",
     )
 
     # ============================================================
@@ -3318,34 +2611,22 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/15392
     年月混合_plot(
         plots,
-        "進口貿易值_按洲別 ∕ 國別分(CY2001~)",
-        "https://service.mof.gov.tw/public/data/statistic/trade/u2010im.csv",
-        "Imports from Country (Unit : US$ Thousand)",
-        r"\(千元\)",
-        "(千元 Unit: US$ Thousand)",
-        encoding="big5",
+        key="進口貿易值_按洲別 ∕ 國別分(CY2001~)",
+        df_get=df_進口貿易值_按洲別_國別分,
+        title_suffix="(千元 Unit: US$ Thousand)",
     )
     年月混合_plot(
         plots,
-        "出口貿易值_按洲別 ∕ 國別分(CY2001~)",
-        "https://service.mof.gov.tw/public/data/statistic/trade/u2010ex.csv",
-        "Exports to Country (Unit: US$ Thousand)",
-        r"\(千元\)",
-        "(千元 Unit: US$ Thousand)",
-        encoding="big5",
+        key="出口貿易值_按洲別 ∕ 國別分(CY2001~)",
+        df_get=df_出口貿易值_按洲別_國別分,
+        title_suffix="(千元 Unit: US$ Thousand)",
     )
 
     # https://data.gov.tw/dataset/28573
     key = "進出口貿易值_按國際商品統一分類制度(HS)及主要國別分"
-    url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1"
-
     key = sanitize_filename(key)
+    df = df_進出口貿易值_按國際商品統一分類制度_HS_及主要國別分()
 
-    df = read_csv(url)
-    df = df.set_index("國家別")
-    df.columns = pd.MultiIndex.from_tuples(
-        [[s.strip() for s in col.split("/")] for col in df.columns.str.replace("(千美元)", "")]
-    )
     num_traces = len(df.columns)  # 總線條數
 
     countries = df.columns.get_level_values(0).unique().tolist()
@@ -3488,61 +2769,49 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/8381
     年月混合_plot(
         plots,
-        "進口值_按主要貨品分",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i8122&cycle=41&outmode=12&compmode=00&outkind=1&fld0=1&codlst0=11100011010101000111111101001000001101&utf=1",
-        "幣別",
-        r"按美元計算\(百萬美元\)\/ ",
-        "按美元計算(百萬美元)",
+        key="進口值_按主要貨品分",
+        df_get=df_進口值_按主要貨品分,
+        title_suffix="按美元計算(百萬美元)",
     )
 
     # https://data.gov.tw/dataset/8380
     年月混合_plot(
         plots,
-        "出口值_按主要貨品分",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i8121&cycle=41&outmode=12&compmode=00&outkind=1&fld0=1&codlst0=1101111010100011110111100111110110100&utf=1",
-        "幣別",
-        r"按美元計算\(百萬美元\)\/ ",
-        "按美元計算(百萬美元)",
+        key="出口值_按主要貨品分",
+        df_get=df_出口值_按主要貨品分,
+        title_suffix="按美元計算(百萬美元)",
     )
 
     # https://data.gov.tw/dataset/8388
     年月混合_plot(
         plots,
-        "貿易指數－進口單位價值指數",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9303&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,6,7,1,9,1,11,7,20,1,28,2,&utf=1",
-        "貨品別",
-        r"",
-        "(採連鎖法，參考年為110年)",
+        key="貿易指數－進口單位價值指數",
+        df_get=df_貿易指數_進口單位價值指數,
+        title_suffix="(採連鎖法，參考年為110年)",
     )
 
     # https://data.gov.tw/dataset/8386
     年月混合_plot(
         plots,
-        "貿易指數－出口單位價值指數",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9302&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,8,9,7,17,1,25,2,&utf=1",
-        "貨品別",
-        r"",
-        "(採連鎖法，參考年為110年)",
+        key="貿易指數－出口單位價值指數",
+        df_get=df_貿易指數_出口單位價值指數,
+        title_suffix="(採連鎖法，參考年為110年)",
     )
 
     # https://data.gov.tw/dataset/8389
     年月混合_plot(
         plots,
-        "貿易指數－進口數量指數",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9305&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,6,7,1,9,1,11,7,20,1,28,2,&utf=1",
-        "貨品別",
-        r"",
-        "(參考年為110年)",
+        key="貿易指數－進口數量指數",
+        df_get=df_貿易指數_進口數量指數,
+        title_suffix="(參考年為110年)",
     )
 
     # https://data.gov.tw/dataset/8387
     年月混合_plot(
         plots,
-        "貿易指數－出口數量指數",
-        "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=10000&kind=21&type=4&funid=i9304&cycle=41&outmode=12&compmode=00&outkind=11&fldspc=0,8,9,7,17,1,25,2,&utf=1",
-        "貨品別",
-        r"",
-        "(參考年為110年)",
+        key="貿易指數－出口數量指數",
+        df_get=df_貿易指數_出口數量指數,
+        title_suffix="(參考年為110年)",
     )
 
     # ========================================================================
@@ -3553,70 +2822,8 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{yyymm} 請指定年月
     key = "村里戶數、單一年齡人口（新增區域代碼）"
-    url_year_page = (
-        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{year}{month:02d}?page={page}"
-    )
     key = sanitize_filename(key)
-    df = []
-
-    def get_data(year, month, page):
-        path = EXTRA_DATA_DIR / key / f"{year}" / f"{year}_{month:02d}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, month=month, page=page)
-            for _ in range(5):
-                r = session.get(url, verify=False)
-                try:
-                    json_data = json.loads(r.content)
-                    if "responseData" in json_data:
-                        with gzip.open(path, "wb") as f:
-                            f.write(r.content)
-                        break
-                    else:
-                        return {}
-                except:
-                    print("no data", url)
-                    continue
-            else:
-                return {}
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    year = datetime.today().year - 1911
-    month = datetime.today().month
-    while True:
-        page = 1
-        json_data = get_data(year, month, page)
-        if "responseData" not in json_data:
-            if month == 1:
-                year -= 1
-                month = 12
-            else:
-                month -= 1
-
-            if year * 100 + month < 11404:
-                raise f"無法獲取資料 {key}"
-            continue
-
-        data = pd.json_normalize(json_data["responseData"])
-        df.append(data)
-
-        pages = int(json_data["totalPage"])
-        for page in range(2, pages + 1):
-            json_data = get_data(year, month, page)
-            data = pd.json_normalize(json_data["responseData"])
-            df.append(data)
-        break
-
-    df = pd.concat(df, ignore_index=True)
-    df[df.columns[4:]] = df[df.columns[4:]].astype(int)
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
+    df, year, month = df_村里戶數_單一年齡人口()
 
     df_男_年齡_縣市 = df.pivot_table(
         values=df.columns[8 : 202 + 8 : 2],
@@ -3634,9 +2841,7 @@ if __name__ == "__main__":
     )
     df_女_年齡_縣市.index = df_女_年齡_縣市.index.str.removesuffix("-女")
 
-    df_男女_年齡_縣市 = pd.concat(
-        [df_男_年齡_縣市, df_女_年齡_縣市], keys=["男", "女"], ignore_index=True
-    ).swaplevel()
+    df_男女_年齡_縣市 = pd.concat([df_男_年齡_縣市, df_女_年齡_縣市], keys=["男", "女"]).swaplevel()
     plots[f"{key}_年齡_縣市"] = plot_bar_stack_multi_index(
         df_男女_年齡_縣市, f"{key}_年齡_縣市 {year}年{month}月", {"bargap": 0}
     )
@@ -3647,64 +2852,8 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP052/{yyy} 請指定年
     key = "現住人口性別、年齡、婚姻狀況(含同婚)"
-    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP052/{year}?page={page}"
     key = sanitize_filename(key)
-    df = []
-
-    def get_data(year, page):
-        path = EXTRA_DATA_DIR / key / f"{year}" / f"{year}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, page=page)
-            for _ in range(5):
-                r = session.get(url, verify=False)
-                try:
-                    json_data = json.loads(r.content)
-                    if "responseData" in json_data:
-                        with gzip.open(path, "wb") as f:
-                            f.write(r.content)
-                        break
-                    else:
-                        return {}
-                except:
-                    print("no data", url)
-                    continue
-            else:
-                return {}
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    year = datetime.today().year - 1911
-    while True:
-        page = 1
-        json_data = get_data(year, page)
-        if "responseData" not in json_data:
-            year -= 1
-            if year < 113:
-                raise f"無法獲取資料 {key}"
-            continue
-
-        data = pd.json_normalize(json_data["responseData"])
-        df.append(data)
-
-        pages = int(json_data["totalPage"])
-        for page in range(2, pages + 1):
-            json_data = get_data(year, page)
-            data = pd.json_normalize(json_data["responseData"])
-            df.append(data)
-        break
-
-    df = pd.concat(df, ignore_index=True)
-    df["population"] = df["population"].astype(int)
-    split = (
-        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
+    df, year = df_現住人口性別_年齡_婚姻狀況()
 
     df_男_年齡_婚姻_縣市 = df[df["sex"] == "男"].pivot_table(
         values="population",
@@ -3754,7 +2903,6 @@ if __name__ == "__main__":
         [df_男女_年齡_婚姻[("男", "未婚")], df_男女_年齡_婚姻[("女", "未婚")]],
         axis="columns",
         keys=["男", "女"],
-        ignore_index=True,
     )
     df_男女_年齡_未婚["女男比"] = df_男女_年齡_未婚["女"] / df_男女_年齡_未婚["男"]
     plots[f"{key}_男女_年齡_未婚"] = plot_lines_bars(
@@ -3770,7 +2918,6 @@ if __name__ == "__main__":
         [df_男女_年齡_婚姻[("男", "單身")], df_男女_年齡_婚姻[("女", "單身")]],
         axis="columns",
         keys=["男", "女"],
-        ignore_index=True,
     )
     df_男女_年齡_單身["女男比"] = df_男女_年齡_單身["女"] / df_男女_年齡_單身["男"]
     plots[f"{key}_男女_年齡_單身"] = plot_lines_bars(
@@ -3819,7 +2966,6 @@ if __name__ == "__main__":
         ),
         axis="columns",
         keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
-        ignore_index=True,
     )
     for region in regions:
         df_男女_年齡_未婚_縣市[f"女男比_{region}"] = (
@@ -3849,7 +2995,6 @@ if __name__ == "__main__":
         ),
         axis="columns",
         keys=sum([[f"男_{region}", f"女_{region}"] for region in regions], []),
-        ignore_index=True,
     )
     for region in regions:
         df_男女_年齡_單身_縣市[f"女男比_{region}"] = (
@@ -3876,154 +3021,9 @@ if __name__ == "__main__":
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP012/{yyymm} 請指定年月
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/{yyymm} 請指定年月
     key = "動態資料統計表（含同婚）"
-    url_year_page_10601_10612 = (
-        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP003/{year}{month:02d}?page={page}"
-    )
-    url_year_page_10701_10908 = (
-        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP012/{year}{month:02d}?page={page}"
-    )
-    url_year_page = (
-        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/{year}{month:02d}?page={page}"
-    )
     key = sanitize_filename(key)
-    df = []
+    df = df_動態資料統計表()
 
-    def get_data(year, month, page):
-        path = EXTRA_DATA_DIR / key / f"{year}_{month:02d}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            yearmonth = year * 100 + month
-            if 10601 <= yearmonth and yearmonth <= 10612:
-                url = url_year_page_10601_10612.format(year=year, month=month, page=page)
-            elif 10701 <= yearmonth and yearmonth <= 10908:
-                url = url_year_page_10701_10908.format(year=year, month=month, page=page)
-            else:
-                url = url_year_page.format(year=year, month=month, page=page)
-
-            for _ in range(5):
-                r = session.get(url, verify=False)
-                try:
-                    json_data = json.loads(r.content)
-                    if "responseData" in json_data:
-                        with gzip.open(path, "wb") as f:
-                            f.write(r.content)
-                        break
-                    else:
-                        return {}
-                except:
-                    print("no data", url)
-                    continue
-            else:
-                return {}
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    def rename_columns_name(df: pd.DataFrame):
-        columns = {
-            "statistic_yyymm": "統計年月",
-            "district_code": "區域別代碼",
-            "site_id": "區域別",
-            "village": "村里名稱",
-            "neighbor_no2": "鄰數_戶籍登記",
-            "household_no": "戶數",
-            "people_total": "人口數_合計",
-            "people_total_m": "人口數_男",
-            "people_total_f": "人口數_女",
-            "birth_total": "出生數_合計",
-            "birth_total_m": "出生數_合計_男",
-            "birth_total_f": "出生數_合計_女",
-            "birth_legal_m": "出生數_婚生_男",
-            "birth_legal_f": "出生數_婚生_女",
-            "birth_illegal_recognized_m": "出生數_非婚生_已認領_男",
-            "birth_illegal_recognized_f": "出生數_非婚生_已認領_女",
-            "birth_illegal_unrecognized_m": "出生數_非婚生_未認領_男",
-            "birth_illegal_unrecognized_f": "出生數_非婚生_未認領_女",
-            "helpless_child_m": "出生數_無依兒童_男",
-            "helpless_child_f": "出生數_無依兒童_女",
-            "mother_mainland_m": "生母原屬國籍（地區）_大陸港澳地區_男",
-            "mother_mainland_f": "生母原屬國籍（地區）_大陸港澳地區_女",
-            "mother_foreigner_m": "生母原屬國籍（地區）_外國籍_男",
-            "mother_foreigner_f": "生母原屬國籍（地區）_外國籍_女",
-            "father_mainland_m": "生父原屬國籍（地區）_大陸港澳地區_男",
-            "father_mainland_f": "生父原屬國籍（地區）_大陸港澳地區_女",
-            "father_foreigner_m": "生父原屬國籍（地區）_外國籍_男",
-            "father_foreigner_f": "生父原屬國籍（地區）_外國籍_女",
-            "posthumous_child_m": "遺腹子_男",
-            "posthumous_child_f": "遺腹子_女",
-            "twinborn_child_m": "雙胞胎_男",
-            "twinborn_child_f": "雙胞胎_女",
-            "multi_child_m": "三胞胎以上_男",
-            "multi_child_f": "三胞胎以上_女",
-            "death_m": "死亡人數_男",
-            "death_f": "死亡人數_女",
-            "claimed_m": "認領人數_男",
-            "claimed_f": "認領人數_女",
-            "adpot_m": "收養人數_男",
-            "adpot_f": "收養人數_女",
-            "stop_adpot_m": "終止收養人數_男",
-            "stop_adpot_f": "終止收養人數_女",
-            "guardianship_m": "監護人數_男",
-            "guardianship_f": "監護人數_女",
-            "aid_m": "輔助人數_男",
-            "aid_f": "輔助人數_女",
-            "minorchildren_m": "未成年子女權利義務行使負擔人數_男",
-            "minorchildren_f": "未成年子女權利義務行使負擔人數_女",
-            "marry_pair_OppositeSex": "結婚對數_異性",
-            "marry_pair_SameSex": "結婚對數_同性",
-            "marry_pair_SameSex_m": "結婚對數_同性_男",
-            "marry_pair_SameSex_f": "結婚對數_同性_女",
-            "divorce_pair_OppositeSex": "離婚對數_異性",
-            "divorce_pair_SameSex": "離婚對數_同性",
-            "divorce_pair_SameSex_m": "離婚對數_同性_男",
-            "divorce_pair_SameSex_f": "離婚對數_同性_女",
-            "marry_pair": "結婚對數_異性",
-            "divorce_pair": "離婚對數_異性",
-        }
-        df.columns = df.columns.str.replace("\ufeff", "")
-        return df.rename(columns=columns)
-
-    today = datetime.today()
-    for year in range(106, today.year - 1911 + 1):
-        for month in range(1, 13):
-            if year + 1911 > today.year or (year + 1911 == today.year and month > today.month):
-                break
-
-            page = 1
-            json_data = get_data(year, month, page)
-            if "responseData" in json_data:
-                data = pd.json_normalize(json_data["responseData"])
-                data = rename_columns_name(data)
-                df.append(data)
-
-                pages = int(json_data["totalPage"])
-                for page in range(2, pages + 1):
-                    json_data = get_data(year, month, page)
-                    data = pd.json_normalize(json_data["responseData"])
-                    data = rename_columns_name(data)
-                    df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df = df.fillna(0)
-    df[df.columns[4:]] = df[df.columns[4:]].astype(int)
-    split = (
-        df["統計年月"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["年"] = split[0].str.strip()
-    df["月"] = split[1].str.strip()
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
-    df["死亡人數_合計"] = df["死亡人數_男"] + df["死亡人數_女"]
-    df["結婚對數_合計"] = (
-        df["結婚對數_異性"] + df["結婚對數_同性"] + df["結婚對數_同性_男"] + df["結婚對數_同性_女"]
-    )
-    df["離婚對數_合計"] = (
-        df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
-    )
     yearsmonths = df["統計年月"].unique().tolist()
 
     def summary(df, suffix, 合計, 男, 女, index):
@@ -4562,144 +3562,94 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{yyy} 請指定年
     key = "結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
-    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP068/{year}?page={page}"
     key = sanitize_filename(key)
-    df = []
+    df = df_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
 
-    def get_data(year, page):
-        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, page=page)
-            r = session.get(url, verify=False)
-
-            with gzip.open(path, "wb") as f:
-                f.write(r.content)
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    for year in range(109, datetime.today().year - 1911 + 1):
-        page = 1
-        json_data = get_data(year, page)
-        if "responseData" in json_data:
-            data = pd.json_normalize(json_data["responseData"])
-            df.append(data)
-
-            pages = int(json_data["totalPage"])
-            for page in range(2, pages + 1):
-                json_data = get_data(year, page)
-                data = pd.json_normalize(json_data["responseData"])
-                df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["number_of_marry"] = df["number_of_marry"].astype(int)
-    split = (
-        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["year"].unique().tolist()
 
     df_total = df.pivot_table(values="number_of_marry", index="year", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="number_of_marry", index="year", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_婚姻類型 = df.pivot_table(
         values="number_of_marry", index="year", columns="marriage_type", aggfunc="sum", sort=False
     )
     plots[f"{key}_婚姻類型"] = plot_line(
-        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
+        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="number_of_marry", index="year", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_原屬國籍 = df.pivot_table(
         values="number_of_marry", index="year", columns="nation", aggfunc="sum", sort=False
     )
     plots[f"{key}_原屬國籍"] = plot_line(
-        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
     )
 
     df_教育程度 = df.pivot_table(
         values="number_of_marry", index="year", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_教育程度"] = plot_line(
-        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}年"
     )
 
     df_年齡 = df.pivot_table(
         values="number_of_marry", index="year", columns="age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
         values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_女_年齡_縣市"] = plot_line(
-        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
+        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
         values="number_of_marry", index="age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_男_年齡_縣市"] = plot_line(
-        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
+        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
         values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_女_年齡_教育"] = plot_line(
-        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
+        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
         values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_男_年齡_教育"] = plot_line(
-        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
+        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     # https://data.gov.tw/dataset/130547
     key = "結婚對數按婚姻類型、性別及年齡分(按登記)"
     key = sanitize_filename(key)
-    urls = {
-        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=50E1F8E9-3A75-45A7-A50D-306CC625A700",
-        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8BB88A9D-4F47-4798-9557-682D338923B9",
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=4540FE37-A4FC-4832-9028-F7CD3734B160",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=70900CD1-5314-433D-BDE3-1DF5C971ECD1",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=7DECF6DE-7AD6-4EC8-85A9-D2B8B703A014",
-        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=169B54F1-8C46-48FB-8E28-164755BE51F8",
-    }
+    df = df_結婚對數按婚姻類型_性別及年齡分_按登記()
 
-    df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
     years = df["統計年度"].unique().tolist()
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
-
     kinds = df["婚姻類型"].unique().tolist()
+
     items[key] = kinds
     for kind in kinds:
         df_女 = df.pivot_table(
@@ -4711,7 +3661,7 @@ if __name__ == "__main__":
         )
         plots[f"{key}_女_{kind}"] = plot_line(
             df_女,
-            f"{key}_女_{kind} {years[0]}~{years[-1]}",
+            f"{key}_女_{kind} {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
         )
 
@@ -4724,7 +3674,7 @@ if __name__ == "__main__":
         )
         plots[f"{key}_男_{kind}"] = plot_line(
             df_男,
-            f"{key}_男_{kind} {years[0]}~{years[-1]}",
+            f"{key}_男_{kind} {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},
         )
 
@@ -4737,7 +3687,7 @@ if __name__ == "__main__":
     )
     plots[f"{key}_女_縣市"] = plot_line(
         df_女_縣市,
-        f"{key}_女_縣市 {years[0]}~{years[-1]}",
+        f"{key}_女_縣市 {years[0]}~{years[-1]}年",
         {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
     )
 
@@ -4750,7 +3700,7 @@ if __name__ == "__main__":
     )
     plots[f"{key}_男_縣市"] = plot_line(
         df_男_縣市,
-        f"{key}_男_縣市 {years[0]}~{years[-1]}",
+        f"{key}_男_縣市 {years[0]}~{years[-1]}年",
         {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},
     )
 
@@ -4760,83 +3710,31 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{yyy} 請指定年
     key = "嬰兒出生數按性別、生母原屬國籍（地區）、年齡及教育程度分(按登記)"
-    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP028/{year}?page={page}"
     key = sanitize_filename(key)
-    df = []
+    df = df_嬰兒出生數按性別_生母原屬國籍_地區_年齡及教育程度分_按登記()
 
-    def get_data(year, page):
-        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, page=page)
-            r = session.get(url, verify=False)
-
-            with gzip.open(path, "wb") as f:
-                f.write(r.content)
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    def rename_columns_name(df: pd.DataFrame):
-        columns = {
-            "統計年度": "statistic_yyy",
-            "按照別": "according",
-            "區域別": "site_id",
-            "出生者性別": "birth_sex",
-            "生母原屬國籍或地區": "mother_nation",
-            "生母年齡": "mother_age",
-            "生母教育程度": "mother_education",
-            "嬰兒出生數": "birth_count",
-        }
-        df.columns = df.columns.str.replace("\ufeff", "")
-        return df.rename(columns=columns)
-
-    for year in range(106, datetime.today().year - 1911 + 1):
-        page = 1
-        json_data = get_data(year, page)
-        if "responseData" in json_data:
-            data = pd.json_normalize(json_data["responseData"])
-            data = rename_columns_name(data)
-            df.append(data)
-
-            pages = int(json_data["totalPage"])
-            for page in range(2, pages + 1):
-                json_data = get_data(year, page)
-                data = pd.json_normalize(json_data["responseData"])
-                data = rename_columns_name(data)
-                df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["birth_count"] = df["birth_count"].astype(int)
-    split = (
-        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["statistic_yyy"].unique().tolist()
-    df["mother_age"] = df["mother_age"].str.replace("～", "~")
 
     df_total = df.pivot_table(
         values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="birth_sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_原屬國籍 = df.pivot_table(
         values="birth_count",
@@ -4846,7 +3744,7 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_原屬國籍"] = plot_line(
-        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
     )
 
     df_教育程度 = df.pivot_table(
@@ -4857,18 +3755,20 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_教育程度"] = plot_line(
-        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}年"
     )
 
     df_年齡 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_年齡_縣市 = df.pivot_table(
         values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}年")
 
     df_年齡_教育 = df.pivot_table(
         values="birth_count",
@@ -4877,50 +3777,33 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}年")
 
     # https://data.gov.tw/dataset/102764
     key = "嬰兒出生數按性別、生父原屬國籍（地區）、年齡及教育程度分(按登記)"
     key = sanitize_filename(key)
-    urls = {
-        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5BAD1943-66B8-4641-93C2-E782756EBDA1",
-        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=4188B9D4-195C-423B-A936-0A61D9AE5F01",
-        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=58ED2363-BC18-4667-8D00-26C2AF9CB35C",
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=43DBD613-B4E8-4EBB-BD35-5B79E58166F9",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1C52FAFC-FEFC-4B10-8E51-81CD91CCB649",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=F1806618-D721-426B-8A51-95C96AE728CF",
-    }
+    df = df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度分_按登記()
 
-    df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["統計年度"].unique().tolist()
-    df["生父年齡"] = df["生父年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_原屬國籍 = df.pivot_table(
         values="嬰兒出生數",
@@ -4930,7 +3813,7 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_原屬國籍"] = plot_line(
-        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
     )
 
     df_教育程度 = df.pivot_table(
@@ -4941,18 +3824,20 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_教育程度"] = plot_line(
-        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}年"
     )
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生父年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_年齡_縣市 = df.pivot_table(
         values="嬰兒出生數", index="生父年齡", columns="縣市", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}年")
 
     df_年齡_教育 = df.pivot_table(
         values="嬰兒出生數",
@@ -4961,7 +3846,7 @@ if __name__ == "__main__":
         aggfunc="sum",
         sort=False,
     )
-    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_教育"] = plot_line(df_年齡_教育, f"{key}_年齡_教育 {years[0]}~{years[-1]}年")
 
     # https://data.gov.tw/dataset/127527
     # API 說明文件
@@ -4969,84 +3854,31 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{yyy} 請指定年
     key = "嬰兒出生數按嬰兒性別及生父母年齡分(按登記)"
-    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP064/{year}?page={page}"
     key = sanitize_filename(key)
-    df = []
+    df = df_嬰兒出生數按嬰兒性別及生父母年齡分_按登記()
 
-    def get_data(year, page):
-        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, page=page)
-            r = session.get(url, verify=False)
-
-            with gzip.open(path, "wb") as f:
-                f.write(r.content)
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    def rename_columns_name(df: pd.DataFrame):
-        columns = {
-            "統計年度": "statistic_yyy",
-            "按照別": "according",
-            "行政區域代碼": "district_code",
-            "區域別": "site_id",
-            "嬰兒性別": "sex",
-            "生父年齡": "father_age",
-            "生母年齡": "mother_age",
-            "嬰兒出生數": "birth_count",
-        }
-        df.columns = df.columns.str.replace("\ufeff", "")
-        return df.rename(columns=columns)
-
-    for year in range(106, datetime.today().year - 1911 + 1):
-        page = 1
-        json_data = get_data(year, page)
-        if "responseData" in json_data:
-            data = pd.json_normalize(json_data["responseData"])
-            data = rename_columns_name(data)
-            df.append(data)
-
-            pages = int(json_data["totalPage"])
-            for page in range(2, pages + 1):
-                json_data = get_data(year, page)
-                data = pd.json_normalize(json_data["responseData"])
-                data = rename_columns_name(data)
-                df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["birth_count"] = df["birth_count"].astype(int)
-    split = (
-        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["statistic_yyy"].unique().tolist()
-    df["mother_age"] = df["mother_age"].str.replace("～", "~")
-    df["father_age"] = df["father_age"].str.replace("～", "~")
 
     df_total = df.pivot_table(
         values="birth_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_生父年齡 = df.pivot_table(
         values="birth_count",
@@ -5056,28 +3888,28 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_生父年齡"] = plot_line(
-        df_生父年齡, f"{key}_生父年齡 {df_生父年齡.index[0]}~{df_生父年齡.index[-1]}"
+        df_生父年齡, f"{key}_生父年齡 {df_生父年齡.index[0]}~{df_生父年齡.index[-1]}年"
     )
 
     df_生母年齡 = df.pivot_table(
         values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
     )
     plots[f"{key}_生母年齡"] = plot_line(
-        df_生母年齡, f"{key}_生母年齡 {df_生母年齡.index[0]}~{df_生母年齡.index[-1]}"
+        df_生母年齡, f"{key}_生母年齡 {df_生母年齡.index[0]}~{df_生母年齡.index[-1]}年"
     )
 
     df_生母年齡_縣市 = df.pivot_table(
         values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_生母年齡_縣市"] = plot_line(
-        df_生母年齡_縣市, f"{key}_生母年齡_縣市 {years[0]}~{years[-1]}"
+        df_生母年齡_縣市, f"{key}_生母年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_生父年齡_縣市 = df.pivot_table(
         values="birth_count", index="father_age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_生父年齡_縣市"] = plot_line(
-        df_生父年齡_縣市, f"{key}_生父年齡_縣市 {years[0]}~{years[-1]}"
+        df_生父年齡_縣市, f"{key}_生父年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_生母年齡_生父年齡 = df.pivot_table(
@@ -5089,181 +3921,114 @@ if __name__ == "__main__":
     )
     plots[f"{key}_生母年齡_生父年齡"] = plot_line(
         df_生母年齡_生父年齡,
-        f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}",
+        f"{key}_生母年齡_生父年齡 {years[0]}~{years[-1]}年",
         {"xaxis": {"title": {"text": "生母年齡"}}},
     )
 
     # https://data.gov.tw/dataset/102765
     key = "嬰兒出生數按生母年齡及出生身分分(按登記)"
     key = sanitize_filename(key)
-    urls = {
-        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=94BFACA3-69FD-4A0A-BEB9-44D0EC534415",
-        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CCB9654B-B722-44A3-8A95-84D56B048F10",
-        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=0C7B49C4-2B84-434E-86D5-E933F9199B90",
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=401AD23D-9B8C-4180-B559-55D28B7F1FEA",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=FC12D25D-AB81-45D8-8815-0E60181EFE45",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=068CCDD8-DFEE-464A-A55B-90DB70388ECC",
-        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=6AF685B1-DA07-4E8C-AFE0-C59A3FB06021",
-    }
+    df = df_嬰兒出生數按生母年齡及出生身分分_按登記()
 
-    df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["統計年度"].unique().tolist()
-    df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_身分 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生身分", aggfunc="sum", sort=False
     )
-    plots[f"{key}_身分"] = plot_line(df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}")
+    plots[f"{key}_身分"] = plot_line(
+        df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}年"
+    )
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_年齡_身分 = df.pivot_table(
         values="嬰兒出生數", index="生母年齡", columns="出生身分", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_身分"] = plot_line(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_身分"] = plot_line(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}年")
 
     df_身分_縣市 = df.pivot_table(
         values="嬰兒出生數", index="出生身分", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_身分_縣市"] = plot_bar_group(
-        df_身分_縣市, f"{key}_身分_縣市 {years[0]}~{years[-1]}"
+        df_身分_縣市, f"{key}_身分_縣市 {years[0]}~{years[-1]}年"
     )
 
     # https://data.gov.tw/dataset/100324
     key = "嬰兒出生數按性別、胎次及生母年齡分(按登記)"
     key = sanitize_filename(key)
-    urls = {
-        106: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=E2E702A0-EA3B-4689-8CA9-DD9083E15534",
-        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5F11E0E0-8F23-4F95-B187-E15F6EF8AAE6",
-        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=87673B9A-31D7-4900-9D7D-62C715EB54AC",
-        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8B7C2D82-9F36-452C-86F5-2CD370C0CCA4",
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=205DD511-67C3-464C-8B47-A273B1258F61",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=D7B783A1-90C2-4C8B-B143-20DBC826F4C2",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A5E5E762-D38E-463F-9262-0CFFCE2E5AE7",
-        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1858BBBA-82EC-4E00-8C77-0E206E4CCED2",
-    }
+    df = df_嬰兒出生數按性別_胎次及生母年齡分_按登記()
 
-    df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["統計年度"].unique().tolist()
-    df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年度", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_胎次 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="胎次", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎次"] = plot_line(df_胎次, f"{key}_胎次 {df_胎次.index[0]}~{df_胎次.index[-1]}")
+    plots[f"{key}_胎次"] = plot_line(
+        df_胎次, f"{key}_胎次 {df_胎次.index[0]}~{df_胎次.index[-1]}年"
+    )
 
     df_年齡 = df.pivot_table(
         values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_年齡_胎次 = df.pivot_table(
         values="嬰兒出生數", index="生母年齡", columns="胎次", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡_胎次"] = plot_line(df_年齡_胎次, f"{key}_年齡_胎次 {years[0]}~{years[-1]}")
+    plots[f"{key}_年齡_胎次"] = plot_line(df_年齡_胎次, f"{key}_年齡_胎次 {years[0]}~{years[-1]}年")
 
     df_胎次_縣市 = df.pivot_table(
         values="嬰兒出生數", index="胎次", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_胎次_縣市"] = plot_bar_group(
-        df_胎次_縣市, f"{key}_胎次_縣市 {years[0]}~{years[-1]}"
+        df_胎次_縣市, f"{key}_胎次_縣市 {years[0]}~{years[-1]}年"
     )
 
     # =================================================================
-    # https://data.gov.tw/dataset/100324
-    key = "嬰兒出生數按性別、胎次及生母年齡分(按登記)"
+    key = "嬰兒胎次 vs 綜稅綜合所得總額"
     key = sanitize_filename(key)
-    urls = {
-        106: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=E2E702A0-EA3B-4689-8CA9-DD9083E15534",
-        107: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=5F11E0E0-8F23-4F95-B187-E15F6EF8AAE6",
-        108: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=87673B9A-31D7-4900-9D7D-62C715EB54AC",
-        109: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=8B7C2D82-9F36-452C-86F5-2CD370C0CCA4",
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=205DD511-67C3-464C-8B47-A273B1258F61",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=D7B783A1-90C2-4C8B-B143-20DBC826F4C2",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A5E5E762-D38E-463F-9262-0CFFCE2E5AE7",
-        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1858BBBA-82EC-4E00-8C77-0E206E4CCED2",
-    }
 
-    df_胎次 = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df_胎次.append(data)
-
-    df_胎次 = pd.concat(df_胎次, ignore_index=True)
-    df_胎次["嬰兒出生數"] = df_胎次["嬰兒出生數"].astype(int)
-    df_胎次["生母年齡"] = df_胎次["生母年齡"].str.replace("～", "~").str.replace(" ", "")
-
-    # https://data.gov.tw/dataset/103066
-    key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
-    key = sanitize_filename(key)
-    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
-
-    df_所得總額 = []
-    lastyear = 110
-    for year in range(101, lastyear + 1):
-        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
-        data = read_csv_with_cache(path, url.format(year=year))
-        data["統計年度"] = year
-        data = data.rename(
-            columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
-        )
-        df_所得總額.append(data)
-
-    df_所得總額 = pd.concat(df_所得總額, ignore_index=True, axis="index")
-    df_所得總額 = df_所得總額.rename(columns={"縣市別": "區域別"})
+    df_胎次 = df_嬰兒出生數按性別_胎次及生母年齡分_按登記()
+    df_所得總額, _ = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    df_所得總額 = df_所得總額.rename(columns={"縣市別": "區域別", "年度": "統計年度"})
     df_所得總額 = df_所得總額.pivot_table(
         values=["綜合所得總額", "納稅單位(戶)"],
         index=["區域別", "統計年度"],
@@ -5271,10 +4036,6 @@ if __name__ == "__main__":
         sort=False,
     ).reset_index()
     df_所得總額["平均數"] = df_所得總額["綜合所得總額"] / df_所得總額["納稅單位(戶)"]
-
-    # https://data.gov.tw/dataset/100324
-    key = "嬰兒胎次 vs 綜稅綜合所得總額"
-    key = sanitize_filename(key)
 
     df = pd.merge(
         df_胎次,
@@ -5375,53 +4136,41 @@ if __name__ == "__main__":
     # https://data.gov.tw/dataset/152789
     key = "嬰兒出生數按嬰兒性別及出生胎別分(按登記)"
     key = sanitize_filename(key)
-    urls = {
-        110: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C89BA952-9140-47C5-805A-34F3A0773978",
-        111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=CBD76D1D-2609-4553-9B8E-06BA912249B8",
-        112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C7432B38-55F0-4DF1-8C91-33770B7A823C",
-        113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A6B28B8E-F601-452F-925A-75A6320A633F",
-    }
+    df = df_嬰兒出生數按嬰兒性別及出生胎別分_按登記()
 
-    df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
-        data = read_csv_with_cache(path, url)
-        df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["嬰兒出生數"] = df["嬰兒出生數"].astype(int)
-    split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["統計年"].unique().tolist()
 
     df_total = df.pivot_table(values="嬰兒出生數", index="統計年", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="性別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_胎別 = df.pivot_table(
         values="嬰兒出生數", index="統計年", columns="胎別", aggfunc="sum", sort=False
     )
-    plots[f"{key}_胎別"] = plot_line(df_胎別, f"{key}_胎別 {df_胎別.index[0]}~{df_胎別.index[-1]}")
+    plots[f"{key}_胎別"] = plot_line(
+        df_胎別, f"{key}_胎別 {df_胎別.index[0]}~{df_胎別.index[-1]}年"
+    )
 
     df_胎別_縣市 = df.pivot_table(
         values="嬰兒出生數", index="胎別", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_胎別_縣市"] = plot_bar_group(
-        df_胎別_縣市, f"{key}_胎別_縣市 {years[0]}~{years[-1]}"
+        df_胎別_縣市, f"{key}_胎別_縣市 {years[0]}~{years[-1]}年"
     )
 
     # https://data.gov.tw/dataset/139390
@@ -5430,60 +4179,23 @@ if __name__ == "__main__":
     # API 路徑
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{yyy} 請指定年
     key = "離婚/終止結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
-    url_year_page = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP070/{year}?page={page}"
     key = sanitize_filename(key)
-    df = []
+    df = df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
 
-    def get_data(year, page):
-        path = EXTRA_DATA_DIR / key / f"{year}_{page}.json.gz"
-        _ensure_dir_exists(path)
-
-        if not path.is_file():
-            url = url_year_page.format(year=year, page=page)
-            r = session.get(url, verify=False)
-
-            with gzip.open(path, "wb") as f:
-                f.write(r.content)
-
-        with gzip.open(path, "rb") as f:
-            data = json.load(f)
-
-        return data
-
-    for year in range(111, datetime.today().year - 1911 + 1):
-        page = 1
-        json_data = get_data(year, page)
-        if "responseData" in json_data:
-            data = pd.json_normalize(json_data["responseData"])
-            df.append(data)
-
-            pages = int(json_data["totalPage"])
-            for page in range(2, pages + 1):
-                json_data = get_data(year, page)
-                data = pd.json_normalize(json_data["responseData"])
-                df.append(data)
-
-    df = pd.concat(df, ignore_index=True)
-    df["divorce_count"] = df["divorce_count"].astype(int)
-    split = (
-        df["site_id"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
-    )
-    df["縣市"] = split[0].str.strip()
-    df["鄉鎮"] = split[1].str.strip()
     years = df["statistic_yyy"].unique().tolist()
 
     df_total = df.pivot_table(
         values="divorce_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
     plots[f"{key}_總和"] = plot_line(
-        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}"
+        df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
     )
 
     df_區域別 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_區域別"] = plot_line(
-        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}"
+        df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_婚姻類型 = df.pivot_table(
@@ -5494,94 +4206,76 @@ if __name__ == "__main__":
         sort=False,
     )
     plots[f"{key}_婚姻類型"] = plot_line(
-        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}"
+        df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
     )
-    plots[f"{key}_性別"] = plot_line(df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}")
+    plots[f"{key}_性別"] = plot_line(
+        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    )
 
     df_原屬國籍 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="nation", aggfunc="sum", sort=False
     )
     plots[f"{key}_原屬國籍"] = plot_line(
-        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}"
+        df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
     )
 
     df_教育程度 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_教育程度"] = plot_line(
-        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}"
+        df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}年"
     )
 
     df_年齡 = df.pivot_table(
         values="divorce_count", index="statistic_yyy", columns="age", aggfunc="sum", sort=False
     )
-    plots[f"{key}_年齡"] = plot_line(df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}")
+    plots[f"{key}_年齡"] = plot_line(
+        df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
+    )
 
     df_女_年齡_縣市 = df[df["sex"] == "女"].pivot_table(
         values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_女_年齡_縣市"] = plot_line(
-        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}"
+        df_女_年齡_縣市, f"{key}_女_年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_縣市 = df[df["sex"] == "男"].pivot_table(
         values="divorce_count", index="age", columns="縣市", aggfunc="sum", sort=False
     )
     plots[f"{key}_男_年齡_縣市"] = plot_line(
-        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}"
+        df_男_年齡_縣市, f"{key}_男_年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
         values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_女_年齡_教育"] = plot_line(
-        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}"
+        df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
         values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
     )
     plots[f"{key}_男_年齡_教育"] = plot_line(
-        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}"
+        df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     # =======================================================================
 
     # https://data.gov.tw/dataset/41236
     key = "全國公立動物收容所收容處理情形統計表"
-    url = "https://data.moa.gov.tw/Service/OpenData/TransService.aspx?UnitId=DyplMIk3U1hf&IsTransData=1"
     key = sanitize_filename(key)
-    df = read_json(url)
-    df = df.rename(
-        columns={
-            "rpt_year": "年度",
-            "rpt_country_code": "縣市代碼",
-            "rpt_country": "縣市名",
-            "rpt_month": "月份",
-            "accept_num": "收容隻數_隻",
-            "adopt_num": "認領養數_隻",
-            "adopt_rate": "認領養率_%",
-            "adopt_total": "總認養數",
-            "end_num": "人道處理數_隻",
-            "end_rate": "人道處理率_%",
-            "dead_num": "所內死亡數_隻",
-            "dead_rate": "所內死亡率_%",
-        },
-    )
-    df = df.drop(["ID", "縣市代碼"], axis=1)
-    df["認領養率_%"] = df["認領養率_%"].str.rstrip("%").astype("float") / 100.0
-    df["人道處理率_%"] = df["人道處理率_%"].str.rstrip("%").astype("float") / 100.0
-    df["所內死亡率_%"] = df["所內死亡率_%"].str.rstrip("%").astype("float") / 100.0
+    df = df_全國公立動物收容所收容處理情形統計表()
 
     columns = df.drop(["年度", "月份", "縣市名"], axis=1).columns
     columns_revise = columns.map(sanitize_filename)
     items[key] = columns_revise
 
-    data = df
     for values, col in zip(columns, columns_revise):
         df_item = df.pivot_table(
             index="年度",
@@ -5593,7 +4287,7 @@ if __name__ == "__main__":
         )
         df_item = df_item.sort_index()
         plots[f"{key}_{col}"] = plot_line(
-            df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}"
+            df_item, f"{key}_{col} {df_item.index[0]}~{df_item.index[-1]}年"
         )
 
     # ========================================================================

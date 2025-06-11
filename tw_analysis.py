@@ -505,7 +505,7 @@ def 年月混合_plot(
     )
 
 
-if __name__ == "__main__":
+def main():
     plots: Dict[str, str] = {}  # Stores Plotly JSON strings
     items: Dict[str, Any] = {}  # Stores other items like column lists for templates
 
@@ -3057,6 +3057,22 @@ if __name__ == "__main__":
         )
     summary(df_人口_年, "人口數_年", "人口數_合計", "人口數_男", "人口數_女", "年")
     summary(df, "人口數_年月", "人口數_合計", "人口數_男", "人口數_女", "統計年月")
+    summary(
+        df,
+        "人口自然增加數_年",
+        "人口自然增加數_合計",
+        "人口自然增加數_男",
+        "人口自然增加數_女",
+        "年",
+    )
+    summary(
+        df,
+        "人口自然增加數_年月",
+        "人口自然增加數_合計",
+        "人口自然增加數_男",
+        "人口自然增加數_女",
+        "統計年月",
+    )
     summary(df, "出生數_年", "出生數_合計", "出生數_合計_男", "出生數_合計_女", "年")
     summary(df, "出生數_年月", "出生數_合計", "出生數_合計_男", "出生數_合計_女", "統計年月")
     summary(df, "死亡人數_年", "死亡人數_合計", "死亡人數_男", "死亡人數_女", "年")
@@ -3074,6 +3090,9 @@ if __name__ == "__main__":
                 "死亡人數_合計",
                 "死亡人數_男",
                 "死亡人數_女",
+                "人口自然增加數_合計",
+                "人口自然增加數_男",
+                "人口自然增加數_女",
             ],
             index=index,
             aggfunc="sum",
@@ -3094,14 +3113,20 @@ if __name__ == "__main__":
             df_人口_出生_死亡["人口數_男"] = df_人口["人口數_男"]
             df_人口_出生_死亡["人口數_女"] = df_人口["人口數_女"]
 
-        df_人口_出生_死亡["人口自然增加數_合計"] = (
-            df_人口_出生_死亡["出生數_合計"] - df_人口_出生_死亡["死亡人數_合計"]
+        df_人口_出生_死亡["人口社會增加數_合計"] = (
+            df_人口_出生_死亡["人口數_合計"]
+            - df_人口_出生_死亡["人口數_合計"].shift(1, axis="index")
+            - df_人口_出生_死亡["人口自然增加數_合計"]
         )
-        df_人口_出生_死亡["人口自然增加數_男"] = (
-            df_人口_出生_死亡["出生數_合計_男"] - df_人口_出生_死亡["死亡人數_男"]
+        df_人口_出生_死亡["人口社會增加數_男"] = (
+            df_人口_出生_死亡["人口數_男"]
+            - df_人口_出生_死亡["人口數_男"].shift(1, axis="index")
+            - df_人口_出生_死亡["人口自然增加數_男"]
         )
-        df_人口_出生_死亡["人口自然增加數_女"] = (
-            df_人口_出生_死亡["出生數_合計_女"] - df_人口_出生_死亡["死亡人數_女"]
+        df_人口_出生_死亡["人口社會增加數_女"] = (
+            df_人口_出生_死亡["人口數_女"]
+            - df_人口_出生_死亡["人口數_女"].shift(1, axis="index")
+            - df_人口_出生_死亡["人口自然增加數_女"]
         )
         df_人口_出生_死亡["出生率_合計"] = (
             df_人口_出生_死亡["出生數_合計"] / df_人口_出生_死亡["人口數_合計"]
@@ -3121,12 +3146,30 @@ if __name__ == "__main__":
         df_人口_出生_死亡["死亡率_女"] = (
             df_人口_出生_死亡["死亡人數_女"] / df_人口_出生_死亡["人口數_女"]
         )
+        df_人口_出生_死亡["人口自然增加率_合計"] = (
+            df_人口_出生_死亡["人口自然增加數_合計"] / df_人口_出生_死亡["人口數_合計"]
+        )
+        df_人口_出生_死亡["人口自然增加率_男"] = (
+            df_人口_出生_死亡["人口自然增加數_男"] / df_人口_出生_死亡["人口數_男"]
+        )
+        df_人口_出生_死亡["人口自然增加率_女"] = (
+            df_人口_出生_死亡["人口自然增加數_女"] / df_人口_出生_死亡["人口數_女"]
+        )
+        df_人口_出生_死亡["人口社會增加率_合計"] = (
+            df_人口_出生_死亡["人口社會增加數_合計"] / df_人口_出生_死亡["人口數_合計"]
+        )
+        df_人口_出生_死亡["人口社會增加率_男"] = (
+            df_人口_出生_死亡["人口社會增加數_男"] / df_人口_出生_死亡["人口數_男"]
+        )
+        df_人口_出生_死亡["人口社會增加率_女"] = (
+            df_人口_出生_死亡["人口社會增加數_女"] / df_人口_出生_死亡["人口數_女"]
+        )
 
         plots[f"{key}_人口_出生_死亡_{suffix}"] = plot_lines_bars(
             df_人口_出生_死亡,
             lines_left_axis=["出生數_合計", "死亡人數_合計"],
             lines_right_axis=["人口數_合計"],
-            bars_left_axis=["人口自然增加數_合計"],
+            bars_left_axis=["人口自然增加數_合計", "人口社會增加數_合計"],
             title=f"{key}_人口_出生_死亡_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             sort=True,
         )
@@ -3140,11 +3183,26 @@ if __name__ == "__main__":
                 "死亡人數_女",
             ],
             lines_right_axis=["人口數_男", "人口數_女"],
-            bars_left_axis=["人口自然增加數_男", "人口自然增加數_女"],
+            bars_left_axis=[
+                "人口自然增加數_男",
+                "人口自然增加數_女",
+                "人口社會增加數_男",
+                "人口社會增加數_女",
+            ],
             title=f"{key}_人口_出生_死亡_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             sort=True,
         )
 
+        plots[f"{key}_自然增加率_{suffix}"] = plot_line(
+            df_人口_出生_死亡[["人口自然增加率_合計", "人口自然增加率_男", "人口自然增加率_女"]],
+            title=f"{key}_自然增加率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
+        plots[f"{key}_社會增加率_{suffix}"] = plot_line(
+            df_人口_出生_死亡[["人口社會增加率_合計", "人口社會增加率_男", "人口社會增加率_女"]],
+            title=f"{key}_社會增加率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
+        )
         plots[f"{key}_出生率_{suffix}"] = plot_line(
             df_人口_出生_死亡[["出生率_合計", "出生率_男", "出生率_女"]],
             title=f"{key}_出生率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
@@ -3167,6 +3225,9 @@ if __name__ == "__main__":
                 "死亡人數_合計",
                 "死亡人數_男",
                 "死亡人數_女",
+                "人口自然增加數_合計",
+                "人口自然增加數_男",
+                "人口自然增加數_女",
             ],
             columns="縣市",
             index=index,
@@ -3192,17 +3253,20 @@ if __name__ == "__main__":
         regions = df["縣市"].unique().tolist()
         for region in regions:
             df_人口_出生_死亡_縣市 = df_人口_出生_死亡_縣市.copy()
-            df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)] = (
-                df_人口_出生_死亡_縣市[("出生數_合計", region)]
-                - df_人口_出生_死亡_縣市[("死亡人數_合計", region)]
+            df_人口_出生_死亡_縣市[("人口社會增加數_合計", region)] = (
+                df_人口_出生_死亡_縣市[("人口數_合計", region)]
+                - df_人口_出生_死亡_縣市[("人口數_合計", region)].shift(1, axis="index")
+                - df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)]
             )
-            df_人口_出生_死亡_縣市[("人口自然增加數_男", region)] = (
-                df_人口_出生_死亡_縣市[("出生數_合計_男", region)]
-                - df_人口_出生_死亡_縣市[("死亡人數_男", region)]
+            df_人口_出生_死亡_縣市[("人口社會增加數_男", region)] = (
+                df_人口_出生_死亡_縣市[("人口數_男", region)]
+                - df_人口_出生_死亡_縣市[("人口數_男", region)].shift(1, axis="index")
+                - df_人口_出生_死亡_縣市[("人口自然增加數_男", region)]
             )
-            df_人口_出生_死亡_縣市[("人口自然增加數_女", region)] = (
-                df_人口_出生_死亡_縣市[("出生數_合計_女", region)]
-                - df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+            df_人口_出生_死亡_縣市[("人口社會增加數_女", region)] = (
+                df_人口_出生_死亡_縣市[("人口數_女", region)]
+                - df_人口_出生_死亡_縣市[("人口數_女", region)].shift(1, axis="index")
+                - df_人口_出生_死亡_縣市[("人口自然增加數_女", region)]
             )
             df_人口_出生_死亡_縣市[("出生率_合計", region)] = (
                 df_人口_出生_死亡_縣市[("出生數_合計", region)]
@@ -3226,6 +3290,30 @@ if __name__ == "__main__":
             )
             df_人口_出生_死亡_縣市[("死亡率_女", region)] = (
                 df_人口_出生_死亡_縣市[("死亡人數_女", region)]
+                / df_人口_出生_死亡_縣市[("人口數_女", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口自然增加率_合計", region)] = (
+                df_人口_出生_死亡_縣市[("人口自然增加數_合計", region)]
+                / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口自然增加率_男", region)] = (
+                df_人口_出生_死亡_縣市[("人口自然增加數_男", region)]
+                / df_人口_出生_死亡_縣市[("人口數_男", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口自然增加率_女", region)] = (
+                df_人口_出生_死亡_縣市[("人口自然增加數_女", region)]
+                / df_人口_出生_死亡_縣市[("人口數_女", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口社會增加率_合計", region)] = (
+                df_人口_出生_死亡_縣市[("人口社會增加數_合計", region)]
+                / df_人口_出生_死亡_縣市[("人口數_合計", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口社會增加率_男", region)] = (
+                df_人口_出生_死亡_縣市[("人口社會增加數_男", region)]
+                / df_人口_出生_死亡_縣市[("人口數_男", region)]
+            )
+            df_人口_出生_死亡_縣市[("人口社會增加率_女", region)] = (
+                df_人口_出生_死亡_縣市[("人口社會增加數_女", region)]
                 / df_人口_出生_死亡_縣市[("人口數_女", region)]
             )
 
@@ -3258,6 +3346,7 @@ if __name__ == "__main__":
                 [
                     [
                         f"人口自然增加數_合計_{region}",
+                        f"人口社會增加數_合計_{region}",
                     ]
                     for region in regions
                 ],
@@ -3297,12 +3386,60 @@ if __name__ == "__main__":
                     [
                         f"人口自然增加數_男_{region}",
                         f"人口自然增加數_女_{region}",
+                        f"人口社會增加數_男_{region}",
+                        f"人口社會增加數_女_{region}",
                     ]
                     for region in regions
                 ],
                 [],
             ),
             title=f"{key}_人口_出生_死亡_縣市_男女_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            legendgroup=True,
+            sort=True,
+        )
+        plots[f"{key}_自然增加率_縣市_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"人口自然增加率_合計_{region}",
+                        f"人口自然增加率_男_{region}",
+                        f"人口自然增加率_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars_left_axis=[],
+            title=f"{key}_自然增加率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+            sort=True,
+        )
+        plots[f"{key}_社會增加率_縣市_{suffix}"] = plot_lines_bars(
+            df_人口_出生_死亡_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"人口社會增加率_合計_{region}",
+                        f"人口社會增加率_男_{region}",
+                        f"人口社會增加率_女_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars_left_axis=[],
+            title=f"{key}_社會增加率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
             legendgroup=True,
             sort=True,
         )
@@ -3378,6 +3515,9 @@ if __name__ == "__main__":
         df_出生_結婚_離婚["婚姻自然增加數_合計"] = (
             df_出生_結婚_離婚["結婚對數_合計"] - df_出生_結婚_離婚["離婚對數_合計"]
         )
+        df_出生_結婚_離婚["婚姻自然增加率_合計"] = (
+            df_出生_結婚_離婚["婚姻自然增加數_合計"] / df_出生_結婚_離婚["人口數_合計"]
+        )
         df_出生_結婚_離婚["結婚率_合計"] = (
             df_出生_結婚_離婚["結婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
         )
@@ -3392,6 +3532,11 @@ if __name__ == "__main__":
             bars_left_axis=["婚姻自然增加數_合計"],
             title=f"{key}_出生_結婚_離婚_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             sort=True,
+        )
+        plots[f"{key}_婚姻自然增加率_{suffix}"] = plot_line(
+            df_出生_結婚_離婚[["婚姻自然增加率_合計"]],
+            title=f"{key}_婚姻自然增加率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={"yaxis": {"tickformat": ".2%"}},
         )
         plots[f"{key}_結婚率_{suffix}"] = plot_line(
             df_出生_結婚_離婚[["結婚率_合計"]],
@@ -3430,9 +3575,14 @@ if __name__ == "__main__":
 
         regions = df["縣市"].unique().tolist()
         for region in regions:
+            df_出生_結婚_離婚_縣市 = df_出生_結婚_離婚_縣市.copy()
             df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)] = (
                 df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
                 - df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("婚姻自然增加率_合計", region)] = (
+                df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
             )
             df_出生_結婚_離婚_縣市[("結婚率_合計", region)] = (
                 df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
@@ -3481,6 +3631,27 @@ if __name__ == "__main__":
             legendgroup=True,
             sort=True,
         )
+        plots[f"{key}_婚姻自然增加率_縣市_{suffix}"] = plot_lines_bars(
+            df_出生_結婚_離婚_縣市,
+            lines_left_axis=sum(
+                [
+                    [
+                        f"婚姻自然增加率_合計_{region}",
+                    ]
+                    for region in regions
+                ],
+                [],
+            ),
+            lines_right_axis=[],
+            bars_left_axis=[],
+            title=f"{key}_婚姻自然增加率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "hovermode": "x",
+            },
+            legendgroup=True,
+            sort=True,
+        )
         plots[f"{key}_結婚率_縣市_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚_縣市,
             lines_left_axis=sum(
@@ -3522,6 +3693,19 @@ if __name__ == "__main__":
             },
             legendgroup=True,
             sort=True,
+        )
+
+        df_total = df.pivot_table(
+            values="婚姻自然增加數_合計", index=index, aggfunc="sum", sort=False
+        )
+        plots[f"{key}_總和_婚姻自然增加數_{suffix}"] = plot_line(
+            df_total, f"{key}_總和_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+        )
+        df_區域別 = df.pivot_table(
+            values="婚姻自然增加數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+        )
+        plots[f"{key}_區域別_婚姻自然增加數_{suffix}"] = plot_line(
+            df_區域別, f"{key}_區域別_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
 
         df_total = df.pivot_table(values="結婚對數_合計", index=index, aggfunc="sum", sort=False)
@@ -4302,3 +4486,7 @@ if __name__ == "__main__":
         )
         with open(report_dir / f"{prefix}_Report.html", "w", encoding="UTF-8") as f:
             f.write(html)
+
+
+if __name__ == "__main__":
+    main()

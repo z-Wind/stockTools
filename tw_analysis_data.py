@@ -897,7 +897,8 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
             df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
             df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
             last_year = year
-        except:
+        except Exception as e:
+            print(e)
             break
 
     def clear_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -1473,8 +1474,8 @@ def df_村里戶數_單一年齡人口():
                         break
                     else:
                         return {}
-                except:
-                    print("no data", url)
+                except Exception as e:
+                    print("no data", url, e)
                     continue
             else:
                 return {}
@@ -1547,8 +1548,8 @@ def df_現住人口性別_年齡_婚姻狀況():
                         break
                     else:
                         return {}
-                except:
-                    print("no data", url)
+                except Exception as e:
+                    print("no data", url, e)
                     continue
             else:
                 return {}
@@ -1635,8 +1636,8 @@ def df_動態資料統計表():
                         break
                     else:
                         return {}
-                except:
-                    print("no data", url)
+                except Exception as e:
+                    print("no data", url, e)
                     continue
             else:
                 return {}
@@ -1748,6 +1749,10 @@ def df_動態資料統計表():
     df["離婚對數_合計"] = (
         df["離婚對數_異性"] + df["離婚對數_同性"] + df["離婚對數_同性_男"] + df["離婚對數_同性_女"]
     )
+    df["人口自然增加數_合計"] = df["出生數_合計"] - df["死亡人數_合計"]
+    df["人口自然增加數_男"] = df["出生數_合計_男"] - df["死亡人數_男"]
+    df["人口自然增加數_女"] = df["出生數_合計_女"] - df["死亡人數_女"]
+    df["婚姻自然增加數_合計"] = df["結婚對數_合計"] - df["離婚對數_合計"]
 
     return df
 
@@ -2160,3 +2165,34 @@ def df_全國公立動物收容所收容處理情形統計表():
     df["所內死亡率_%"] = df["所內死亡率_%"].str.rstrip("%").astype("float") / 100.0
 
     return df
+
+
+def update():
+    df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊()
+    df_村里戶數_單一年齡人口()
+    df_現住人口性別_年齡_婚姻狀況()
+    df_動態資料統計表()
+    df_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
+    df_嬰兒出生數按性別_生母原屬國籍_地區_年齡及教育程度分_按登記()
+    df_嬰兒出生數按嬰兒性別及生父母年齡分_按登記()
+    df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
+
+    df_人力資源調查重要指標()
+    df_教育程度別失業率()
+    df_年齡組別失業率()
+    df_教育程度別失業率_按年齡分()
+    df_家庭部門平均每戶資產負債()
+    df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分()
+    df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分()
+    df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分()
+    df_綜稅總所得各縣市申報統計分析表()
+    df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    df_結婚對數按婚姻類型_性別及年齡分_按登記()
+    df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度分_按登記()
+    df_嬰兒出生數按生母年齡及出生身分分_按登記()
+    df_嬰兒出生數按性別_胎次及生母年齡分_按登記()
+    df_嬰兒出生數按嬰兒性別及出生胎別分_按登記()
+
+
+if __name__ == "__main__":
+    update()

@@ -1211,6 +1211,7 @@ def df_綜稅總所得各縣市申報統計分析表():
     return df, lastyear
 
 
+# https://www.fia.gov.tw/WEB/fia/ias/ISA-index.html 綜合所得稅申報核定統計專冊
 # https://data.gov.tw/dataset/103066 綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表
 def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"

@@ -1238,6 +1238,248 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     return df, lastyear
 
 
+# https://data.gov.tw/dataset/102667 勞工退休金提繳統計年報-按地區、行業及規模別
+def df_勞工退休金提繳統計年報_按地區_行業及規模別():
+    url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-030214-cOJ"
+
+    r = session.get(url, verify=False)
+    json_data = json.loads(r.content)
+
+    df = pd.json_normalize(json_data["result"]["records"])
+
+    df[["月底單位數量", "月底人數", "應計提繳金額", "平均提繳工資金額"]] = df[
+        ["月底單位數量", "月底人數", "應計提繳金額", "平均提繳工資金額"]
+    ].astype(int)
+
+    df["總提繳工資金額"] = df["平均提繳工資金額"] * df["月底人數"]
+
+    return df
+
+
+# https://data.gov.tw/dataset/102667 統計年報 -> 113年 -> 勞工退休金 -> 提繳統計 -> 勞工退休金提繳單位、人數及平均提繳工資－按行業及地區分
+def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
+    key = "歷史_勞工退休金提繳統計年報_按地區_行業及規模別"
+    key = sanitize_filename(key)
+    urls = {
+        96: "https://events.bli.gov.tw/report/attachment_file/report/year/096/h1400.csv",
+        97: "https://events.bli.gov.tw/report/attachment_file/report/year/097/h1310.csv",
+        98: "https://events.bli.gov.tw/report/attachment_file/report/year/098/h1010.csv",
+        99: "https://events.bli.gov.tw/report/attachment_file/report/year/099/h1030.csv",
+        100: "https://events.bli.gov.tw/report/attachment_file/report/year/100/h1030.csv",
+        101: "https://events.bli.gov.tw/report/attachment_file/report/year/101/h1030.csv",
+        102: "https://events.bli.gov.tw/report/attachment_file/report/year/102/h1030.csv",
+        103: "https://events.bli.gov.tw/report/attachment_file/report/year/103/h1000.csv",
+        104: "https://events.bli.gov.tw/report/attachment_file/report/year/104/h1010.csv",
+        105: "https://events.bli.gov.tw/report/attachment_file/report/year/105/h1010.csv",
+        106: "https://events.bli.gov.tw/report/attachment_file/report/year/106/h1010.csv",
+        107: "https://events.bli.gov.tw/report/attachment_file/report/year/107/h1090.csv",
+        108: "https://events.bli.gov.tw/report/attachment_file/report/year/108/h1090.csv",
+        109: "https://events.bli.gov.tw/report/attachment_file/report/year/109/h790.csv",
+        110: "https://events.bli.gov.tw/report/attachment_file/report/year/110/h790.csv",
+        111: "https://events.bli.gov.tw/report/attachment_file/report/year/111/h40040.csv",
+        112: "https://events.bli.gov.tw/report/attachment_file/report/year/112/h40040.csv",
+        113: "https://events.bli.gov.tw/report/attachment_file/report/year/113/h40040.csv",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            r = session.get(url, verify=False)
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        if filename in [111, 112, 113]:
+            data = pd.read_csv(path, compression="gzip", skiprows=list(range(0, 6)), header=None)
+            data = data.iloc[:23, [0, 4]]
+        elif filename in [97, 99]:
+            data = pd.read_csv(
+                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+            )
+            data = data.iloc[:28, [0, 3]]
+        elif filename in [100, 101]:
+            data = pd.read_csv(
+                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+            )
+            data = data.iloc[:23, [0, 3]]
+        elif filename in [96, 98]:
+            data = pd.read_csv(
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 9)),
+                header=None,
+                encoding="BIG5",
+                nrows=28,
+            )
+            data = data.iloc[:28, [0, 3]]
+        elif filename in [102]:
+            data = pd.read_csv(
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 9)),
+                header=None,
+                encoding="BIG5",
+            )
+            data = data.iloc[:23, [0, 3]]
+        elif filename in [104, 106]:
+            data = pd.read_csv(
+                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+            )
+            data = data.iloc[:23, [0, 2]]
+        elif filename in [103, 105]:
+            data = pd.read_csv(
+                path, compression="gzip", skiprows=list(range(0, 9)), header=None, encoding="BIG5"
+            )
+            data = data.iloc[:23, [0, 2]]
+        elif filename in [107, 108, 109, 110]:
+            data = pd.read_csv(
+                path, compression="gzip", skiprows=list(range(0, 11)), header=None, encoding="BIG5"
+            )
+            data = data.iloc[:23, [0, 2]]
+
+        data.columns = ["地區", "平均提繳工資"]
+        data["年度"] = filename
+        data["地區"] = (
+            data["地區"]
+            .str.strip()
+            .str.replace("[ 　　]", "", regex=True)
+            .str.replace(
+                "總平均",
+                "總計",
+            )
+        )
+
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
+    df["平均提繳工資"] = df["平均提繳工資"].astype(float)
+
+    return df
+
+
+# https://apiservice.mol.gov.tw/OdService/openapi/OAS.html
+# F00 類別 33379
+def df_勞工退休準備金專戶餘額統計():
+    url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-020123-FRH"
+
+    r = session.get(url, verify=False)
+    json_data = json.loads(r.content)
+
+    df = pd.json_normalize(json_data["result"]["records"])
+
+    df["家數"] = df["家數"].astype(int)
+    df["佔總數比率"] = df["佔總數比率"].astype(float)
+
+    return df
+
+
+# https://apiservice.mol.gov.tw/OdService/openapi/OAS.html
+# F00 類別 33379
+def df_勞工退休準備金提撥率統計():
+    url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-020123-Wmz"
+
+    r = session.get(url, verify=False)
+    json_data = json.loads(r.content)
+
+    df = pd.json_normalize(json_data["result"]["records"])
+
+    df["家數"] = df["家數"].astype(int)
+    df["佔總數比率"] = df["佔總數比率"].astype(float)
+
+    return df
+
+
+# https://data.gov.tw/dataset/34057 勞工退休金提繳單位、提繳人數、提繳工資、提繳金額概況
+def df_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況():
+    key = "勞工退休金提繳單位、提繳人數、提繳工資、提繳金額概況"
+    key = sanitize_filename(key)
+    urls = {
+        "94_107": "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-0bO",
+        108: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-abu",
+        109: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-HZ9",
+        110: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-PH7",
+        111: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-1UF",
+        112: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-LF0",
+        113: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-s48",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/46102 勞工退休金平均提繳工資-按行業別
+def df_勞工退休金平均提繳工資_按行業別():
+    key = "勞工退休金平均提繳工資-按行業別"
+    key = sanitize_filename(key)
+    urls = {
+        "94_107": "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-dhl",
+        108: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-hTM",
+        109: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-nbz",
+        110: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-igd",
+        111: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-o9Y",
+        112: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-UFg",
+        113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-2d5",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/46103 勞工退休金平均提繳工資-按年齡組別
+def df_勞工退休金平均提繳工資_按年齡組別():
+    key = "勞工退休金平均提繳工資-按年齡組別"
+    key = sanitize_filename(key)
+    urls = {
+        "94_107": "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-0Ho",
+        108: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-955",
+        109: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-tqe",
+        110: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-zzg",
+        111: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-wAG",
+        112: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-jwL",
+        113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-ESm",
+    }
+
+    df = []
+    for filename, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+        data = read_csv_with_cache(path, url)
+        df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/6449 新制勞工退休基金歷年最近月份收益率
+def df_新制勞工退休基金歷年最近月份收益率():
+    url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-020044-45j"
+
+    r = session.get(url, verify=False)
+    json_data = json.loads(r.content)
+
+    df = pd.json_normalize(json_data["result"]["records"])
+
+    df["最近月份收益率"] = df["最近月份收益率"].astype(float)
+
+    return df
+
+
 # https://data.gov.tw/dataset/6742 全國賦稅收入實徵淨額日曆年別-按稅目別與地區別分
 def df_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分():
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=5&funid=i0424&cycle=41&outmode=12&compmode=00&outkind=2&fldspc=0,30,&codspc0=0,39,40,3,&utf=1"

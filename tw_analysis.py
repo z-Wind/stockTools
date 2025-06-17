@@ -2515,6 +2515,109 @@ def main():
 
     plots[f"{key}"] = plotly_json_dump(graph)
 
+    # https://data.gov.tw/dataset/102667
+    key = "勞工退休金提繳統計年報-按地區、行業及規模別"
+    key = sanitize_filename(key)
+    df = df_勞工退休金提繳統計年報_按地區_行業及規模別()
+
+    year = df.iloc[0]["計費年度"]
+
+    df = df.pivot_table(values=["月底人數", "總提繳工資金額"], index="地區別", sort=False)
+    df["平均提繳工資金額"] = df["總提繳工資金額"] / df["月底人數"]
+
+    plots[f"{key}"] = plot_bar_group(
+        df.drop(["總提繳工資金額", "月底人數"], axis="columns").T, f"{key} {year}年"
+    )
+
+    # https://data.gov.tw/dataset/102667 統計年報 -> 113年 -> 勞工退休金 -> 提繳統計 -> 勞工退休金提繳單位、人數及平均提繳工資－按行業及地區分
+    key = "歷史_勞工退休金提繳統計年報_按地區_行業及規模別-按地區、行業及規模別"
+    key = sanitize_filename(key)
+    df = df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別()
+
+    df = df.pivot_table(values="平均提繳工資", columns="地區", index="年度", sort=False)
+
+    plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}年")
+
+    # https://apiservice.mol.gov.tw/OdService/openapi/OAS.html
+    # F00 類別 33379
+    key = "勞工退休準備金專戶餘額統計"
+    key = sanitize_filename(key)
+    df = df_勞工退休準備金專戶餘額統計()
+
+    df = df.pivot_table(
+        values=["家數", "佔總數比率"], index="年度", columns="專戶餘額（級距）", sort=False
+    )
+
+    plots[f"{key}_佔總數比率"] = plot_bar_group(
+        df.loc[:, ("佔總數比率",)] / 100,
+        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+    plots[f"{key}_家數"] = plot_bar_group(
+        df.loc[:, ("家數",)], f"{key}_家數 {df.index[0]}~{df.index[-1]}"
+    )
+
+    # https://apiservice.mol.gov.tw/OdService/openapi/OAS.html
+    # F00 類別 33379
+    key = "勞工退休準備金提撥率統計"
+    key = sanitize_filename(key)
+    df = df_勞工退休準備金提撥率統計()
+
+    df = df.pivot_table(
+        values=["家數", "佔總數比率"], index="年度", columns="提撥率（級距）", sort=False
+    )
+
+    plots[f"{key}_佔總數比率"] = plot_bar_group(
+        df.loc[:, ("佔總數比率",)] / 100,
+        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+    plots[f"{key}_家數"] = plot_bar_group(
+        df.loc[:, ("家數",)], f"{key}_家數 {df.index[0]}~{df.index[-1]}"
+    )
+
+    # https://data.gov.tw/dataset/34057
+    key = "勞工退休金提繳單位、提繳人數、提繳工資、提繳金額概況"
+    key = sanitize_filename(key)
+    df = df_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況()
+
+    df = df.pivot_table(values="提繳工資平均金額", index="年度/底", sort=False)
+
+    plots[f"{key}"] = plot_line(
+        df, f"{key} {df.index[0]}~{df.index[-1]}年", additional_layout={"showlegend": True}
+    )
+
+    # https://data.gov.tw/dataset/46102
+    key = "勞工退休金平均提繳工資-按行業別"
+    key = sanitize_filename(key)
+    df = df_勞工退休金平均提繳工資_按行業別()
+
+    df = df.pivot_table(values="平均提繳工資金額", index="年度", columns="行業別", sort=False)
+
+    plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}年")
+
+    # https://data.gov.tw/dataset/46103
+    key = "勞工退休金平均提繳工資-按年齡組別"
+    key = sanitize_filename(key)
+    df = df_勞工退休金平均提繳工資_按年齡組別()
+
+    df = df.pivot_table(values="平均提繳工資金額", index="年度", columns="年齡級距", sort=False)
+
+    plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}年")
+
+    # https://data.gov.tw/dataset/34057
+    key = "新制勞工退休基金歷年最近月份收益率"
+    key = sanitize_filename(key)
+    df = df_新制勞工退休基金歷年最近月份收益率()
+
+    df = df.pivot_table(values="最近月份收益率", index="年月別", sort=False) / 100
+
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
     # ============================================================
 
     # https://data.gov.tw/dataset/6742

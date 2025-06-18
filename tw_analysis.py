@@ -2550,7 +2550,7 @@ def main():
 
     plots[f"{key}_佔總數比率"] = plot_bar_group(
         df.loc[:, ("佔總數比率",)] / 100,
-        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}年",
+        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}",
         additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
     plots[f"{key}_家數"] = plot_bar_group(
@@ -2569,7 +2569,7 @@ def main():
 
     plots[f"{key}_佔總數比率"] = plot_bar_group(
         df.loc[:, ("佔總數比率",)] / 100,
-        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}年",
+        f"{key}_佔總數比率 {df.index[0]}~{df.index[-1]}",
         additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
     plots[f"{key}_家數"] = plot_bar_group(
@@ -2605,16 +2605,20 @@ def main():
 
     plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}年")
 
-    # https://data.gov.tw/dataset/34057
+    # https://data.gov.tw/dataset/6449
     key = "新制勞工退休基金歷年最近月份收益率"
     key = sanitize_filename(key)
     df = df_新制勞工退休基金歷年最近月份收益率()
 
     df = df.pivot_table(values="最近月份收益率", index="年月別", sort=False) / 100
 
+    total_return = (1 + df["最近月份收益率"]).product()
+    period = len(df.index) / 12
+    irr_return = total_return ** (1 / period) - 1
+
     plots[f"{key}"] = plot_line(
         df,
-        f"{key} {df.index[0]}~{df.index[-1]}",
+        f"{key} {df.index[0]}~{df.index[-1]} 總報酬率:{(total_return-1)*100:.2f}% 年化報酬率:{irr_return*100:.2f}%",
         additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 

@@ -1468,12 +1468,10 @@ def df_勞工退休金平均提繳工資_按年齡組別():
 
 # https://data.gov.tw/dataset/6449 新制勞工退休基金歷年最近月份收益率
 def df_新制勞工退休基金歷年最近月份收益率():
-    url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-020044-45j"
+    url = "https://apiservice.mol.gov.tw/OdService/download/A17000000J-020044-Wkt"
 
-    r = session.get(url, verify=False)
-    json_data = json.loads(r.content)
-
-    df = pd.json_normalize(json_data["result"]["records"])
+    df = read_csv(url)
+    df = df.loc[::-1]
 
     df["最近月份收益率"] = df["最近月份收益率"].astype(float)
 

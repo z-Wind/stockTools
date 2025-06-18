@@ -1,21 +1,29 @@
 import copy
 import os
+import re
 import yfinance as yf
 import pandas as pd
 import time
+import json
+import plotly
 
 from datetime import datetime
 from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
 from flask import render_template
+from flask import Flask
+
 from FFI import rust_pyo3
 
-from flask import Flask
-import json
-import plotly
-
 app = Flask(__name__)
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer": "https://www.google.com/",
+}
 
 
 class Stock:
@@ -73,17 +81,25 @@ class Stock:
     def _getDiv_TW(self):
         try:
             dom = PyQuery(
-                "https://www.moneydj.com/ETF/X/Basic/Basic0005.xdjhtm?etfid=" + self.symbol
+                url=f"https://tw.stock.yahoo.com/quote/{self.symbol}/dividend",
+                headers=headers,
             )
-            data = dom(".datalist")
+            data = dom(r"#layout-col1 ul.List\(n\)")
 
             replaceDiv = {}
-            for i in data.find(".col02").items():
-                replaceDiv[i.text()] = float(i.nextAll(".col07").text())
+            for i in data.find(r"li.List\(n\)").items():
+                date = i.find("div > div:nth-child(7)").text()
+                if re.search(r"\d{4}/\d{2}/\d{2}", date) is None:
+                    continue
+
+                date += " 00:00:00+08:00"
+                div = float(i.find("div > div:nth-child(3)").text())
+                replaceDiv[date] = div
         except Exception as e:
             print(e)
             return {}
 
+        print("replaceDiv:", replaceDiv)
         return replaceDiv
 
     def _getData(self, path):
@@ -185,6 +201,7 @@ class Stock:
 
     def _calAdjClose(self, df):
         div = df[["Dividends"]].copy()
+
         if self.replaceDiv:
             div.loc[:, "Dividends"] = 0
         div = div[div["Dividends"] != 0]
@@ -194,7 +211,7 @@ class Stock:
             div.loc[dt, "Dividends"] = divVal
 
         for date, divVal in self.replaceDiv.items():
-            dt = datetime.strptime(date, "%Y/%m/%d")
+            dt = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
             div.loc[dt, "Dividends"] = divVal
 
         div = div.reset_index()
@@ -382,24 +399,24 @@ class Figure:
 
         self.stocks = []
         for symbol in symbols:
-            try:
-                self.stocks.append(
-                    Stock(
-                        symbol["name"],
-                        remark=symbol.get("remark", ""),
-                        groups=symbol["groups"],
-                        start=start,
-                        end=end,
-                        extraDiv=symbol.get("extraDiv", {}),
-                        replaceDiv=symbol.get("replaceDiv", False),
-                        fromPath=symbol.get("fromPath", False),
-                        dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
-                        name_width=name_width,
-                        daily_return_mul=symbol.get("daily_return_mul", None),
-                    )
+            # try:
+            self.stocks.append(
+                Stock(
+                    symbol["name"],
+                    remark=symbol.get("remark", ""),
+                    groups=symbol["groups"],
+                    start=start,
+                    end=end,
+                    extraDiv=symbol.get("extraDiv", {}),
+                    replaceDiv=symbol.get("replaceDiv", False),
+                    fromPath=symbol.get("fromPath", False),
+                    dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
+                    name_width=name_width,
+                    daily_return_mul=symbol.get("daily_return_mul", None),
                 )
-            except Exception as error:
-                print(f"{symbol} can not be created, it seems something wrong {error}")
+            )
+            # except Exception as error:
+            #     print(f"{symbol} can not be created, it seems something wrong {error}")
 
         end = min([stock.end for stock in self.stocks])
         for stock in self.stocks:
@@ -999,9 +1016,9 @@ class Figure:
 
     def irr_bar(self):
         start, end, df = self.total_return()
-        df = df.rename(index={"Total Return": "IRR"})
         year = pd.Timedelta(end - start).days / 365.0
         df = df.map(lambda x: ((1 + x) ** (1 / year) - 1))
+        df = df.rename(index={"Total Return": "IRR"})
         start = start.strftime("%Y/%m/%d")
         end = end.strftime("%Y/%m/%d")
 

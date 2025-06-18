@@ -2612,8 +2612,15 @@ def main():
 
     df = df.pivot_table(values="最近月份收益率", index="年月別", sort=False) / 100
 
-    total_return = (1 + df["最近月份收益率"]).product()
+    df_year = df.filter(regex=r"-Dec", axis="index")
+    total_return = (1 + df_year["最近月份收益率"]).product()
     period = len(df.index) / 12
+    if "-Dec" not in df.index[-1]:
+        total_return *= 1 + df.iloc[-1]["最近月份收益率"]
+        now = str(datetime.today().year)[2:]
+        df_rest = df.filter(regex=rf"{now}-", axis="index")
+        period += len(df_rest) / 12
+
     irr_return = total_return ** (1 / period) - 1
 
     plots[f"{key}"] = plot_line(

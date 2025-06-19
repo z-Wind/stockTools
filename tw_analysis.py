@@ -2613,19 +2613,26 @@ def main():
     df = df.pivot_table(values="最近月份收益率", index="年月別", sort=False) / 100
 
     df_year = df.filter(regex=r"-Dec", axis="index")
-    total_return = (1 + df_year["最近月份收益率"]).product()
-    period = len(df.index) / 12
+    period = len(df_year)
     if "-Dec" not in df.index[-1]:
-        total_return *= 1 + df.iloc[-1]["最近月份收益率"]
+        df_year = pd.concat([df_year, df.iloc[[-1]]], axis="index")
         now = str(datetime.today().year)[2:]
         df_rest = df.filter(regex=rf"{now}-", axis="index")
         period += len(df_rest) / 12
+
+    total_return = (1 + df_year["最近月份收益率"]).product()
 
     irr_return = total_return ** (1 / period) - 1
 
     plots[f"{key}"] = plot_line(
         df,
-        f"{key} {df.index[0]}~{df.index[-1]} 總報酬率:{(total_return-1)*100:.2f}% 年化報酬率:{irr_return*100:.2f}%",
+        f"{key} {df.index[0]}~{df.index[-1]}",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    plots[f"{key}_年回報率"] = plot_bar_group(
+        df_year,
+        f"{key}_年回報率 {df_year.index[0]}~{df_year.index[-1]} 總報酬率:{(total_return-1)*100:.2f}% 年化報酬率:{irr_return*100:.2f}%",
         additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 

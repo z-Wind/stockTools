@@ -43,6 +43,7 @@ class Stock:
         end=None,
         extraDiv={},
         replaceDiv=False,
+        extraSplit={},
         fromPath="",
         dateDuplcatedCombine=False,
         name_width=7,
@@ -72,6 +73,7 @@ class Stock:
 
         self.extraDiv = extraDiv
         self.replaceDiv = self._getDiv_TW() if replaceDiv else {}
+        self.extraSplit = extraSplit
         self.daily_return_mul = daily_return_mul
 
         self.dateDuplcatedCombine = dateDuplcatedCombine
@@ -124,37 +126,40 @@ class Stock:
 
         return df
 
-    def _getHistory(self, fromPath):
-        if self.history:
-            return self.history
+    def _getHistory_yahoo(self):
+        n = 0
+        while n <= 5:
+            self.yfinance = yf.Ticker(self.symbol)
+            hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
 
-        if fromPath:
-            hist = self._getData(fromPath)
+            if set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
+                hist.reset_index().columns
+            ):
+                if self.remark == "":
+                    info = self.yfinance.info
+                    self.remark = info["longName"] + " type:" + info["typeDisp"]
+                break
+
+            time.sleep(60)
+            n += 1
         else:
-            n = 0
-            while n <= 5:
-                self.yfinance = yf.Ticker(self.symbol)
-                hist = self.yfinance.history(
-                    start="1970-01-02", end=datetime.now(), auto_adjust=False
-                )
-                try:
-                    assert set(
-                        ["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]
-                    ).issubset(hist.reset_index().columns)
-                    if self.remark == "":
-                        info = self.yfinance.info
-                        self.remark = info["longName"] + " type:" + info["typeDisp"]
-                    break
-                except AssertionError:
-                    time.sleep(60)
-                    n += 1
-                    continue
-            else:
-                print(self.symbol)
-                print(hist.reset_index().columns)
-                assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
-                    hist.reset_index().columns
-                )
+            print(self.symbol)
+            print(hist.reset_index().columns)
+            assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
+                hist.reset_index().columns
+            )
+
+        # 回復 yahoo 的原本價格
+        ratio = 1.0
+        for index, row in hist.iloc[::-1].iterrows():
+            hist.loc[index, "Open"] *= ratio
+            hist.loc[index, "High"] *= ratio
+            hist.loc[index, "Low"] *= ratio
+            hist.loc[index, "Close"] *= ratio
+            # hist.loc[index, "Volume"] /= ratio
+
+            if row["Stock Splits"] != 0.0:
+                ratio *= row["Stock Splits"]
 
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]
@@ -170,8 +175,20 @@ class Stock:
         # 去掉非數字
         hist = hist[pd.to_numeric(hist["Close"], errors="coerce").notnull()]
 
+        return hist
+
+    def _getHistory(self, fromPath):
+        if self.history:
+            return self.history
+
+        if fromPath:
+            hist = self._getData(fromPath)
+        else:
+            hist = self._getHistory_yahoo()
+
         data = self._calAdjClose(hist)
         # data.to_csv(self.symbol + ".csv")
+
         if self.daily_return_mul:
             data = self._adj_hist_by_daily_return_mul(data)
             self.symbol = f"{self.symbol}x{self.daily_return_mul}"
@@ -207,7 +224,7 @@ class Stock:
         div = div[div["Dividends"] != 0]
 
         for date, divVal in self.extraDiv.items():
-            dt = datetime.strptime(date, "%Y/%m/%d")
+            dt = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
             div.loc[dt, "Dividends"] = divVal
 
         for date, divVal in self.replaceDiv.items():
@@ -218,36 +235,48 @@ class Stock:
 
         split = df[["Stock Splits"]].copy()
         split = split[split["Stock Splits"] != 0]
+
+        for date, splitVal in self.extraSplit.items():
+            dt = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
+            split.loc[dt, "Stock Splits"] = splitVal
+
         split = split.reset_index()
 
         print(self.name)
+        print(split)
+        print(div)
 
-        data = df.reset_index().copy()
+        data = df.copy()
+
+        for i, row in div.iterrows():
+            data.loc[row["Date"], "Dividends Modified"] = row["Dividends"]
+        for i, row in split.iterrows():
+            data.loc[row["Date"], "Stock Splits Modified"] = row["Stock Splits"]
+
+        data = data.reset_index()
+        data = data.sort_values("Date")
+        data = data[data["Close"].notna()]
+
         if div.empty:
             print("empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'")
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
-            return data.sort_values("Date")
-
-        print(split)
+            return data
 
         data.loc[:, "Adj Close Cal"] = 0.0
         data.loc[:, "Adj Ratio"] = 1.0
 
-        # yahoo 已先做過 split 的價格調整，所以股息也要調整，ratio 才會對
-        div.loc[:, "Adj Dividends"] = div.loc[:, "Dividends"]
         for i, row in split.iterrows():
             splitDate = row.Date
             splitVal = 1 / row["Stock Splits"]
-            if div["Date"][div["Date"] >= splitDate].empty:
+            if data["Date"][data["Date"] >= splitDate].empty:
                 continue
-            index = div["Date"] < splitDate
+            index = data["Date"] < splitDate
             if index.any():
-                div.loc[index, "Adj Dividends"] = div.loc[index, "Dividends"] * splitVal
-        print(div)
+                data.loc[index, "Adj Ratio"] *= splitVal
 
         for i, row in div.iterrows():
             divDate = row.Date
-            divVal = row["Adj Dividends"]
+            divVal = row["Dividends"]
             if data["Date"][data["Date"] >= divDate].empty:
                 continue
             index = data["Date"] < divDate
@@ -256,7 +285,7 @@ class Stock:
 
         data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
 
-        return data.sort_values("Date")
+        return data
 
     def _adj_hist_by_daily_return_mul(self, df):
         result = df.copy()
@@ -409,6 +438,7 @@ class Figure:
                     end=end,
                     extraDiv=symbol.get("extraDiv", {}),
                     replaceDiv=symbol.get("replaceDiv", False),
+                    extraSplit=symbol.get("extraSplit", {}),
                     fromPath=symbol.get("fromPath", False),
                     dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
                     name_width=name_width,
@@ -1369,7 +1399,13 @@ if __name__ == "__main__":
             "groups": ["日正"],
         },
         # =================================================================================
-        {"name": "0050.TW", "remark": "元大臺灣50", "replaceDiv": True, "groups": ["常用", "ETF"]},
+        {
+            "name": "0050.TW",
+            "remark": "元大臺灣50",
+            "replaceDiv": True,
+            "groups": ["常用", "ETF"],
+            "extraSplit": {"2025/06/09 00:00:00+08:00": 4},
+        },
         {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
         {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True, "groups": ["日正"]},
         {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},

@@ -184,7 +184,7 @@ def plot_bar_stack_multi_index(
     if additional_layout:
         layout = merge_dict(layout, additional_layout)
 
-    graph = {"data": data_list[::-1], "layout": layout}
+    graph = {"data": data_list, "layout": layout}
     graph = merge_dict(copy.deepcopy(default_template), graph)
 
     return plotly_json_dump(graph)
@@ -2011,29 +2011,109 @@ def main():
     )
 
     # https://data.gov.tw/dataset/9634
-    key = "歷年受僱員工每人每月總薪資"
+    key = "歷年受僱員工每人每月總薪資平均數"
     key = sanitize_filename(key)
-    df = df_歷年受僱員工每人每月總薪資()
+    df = df_歷年受僱員工每人每月總薪資平均數()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
-    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年")
+    plots[f"{key}_年"] = plot_line(
+        df_year,
+        f"{key}_全體受僱員工(含本國籍、外國籍之全時員工及部分工時員工)_年 {df_year.index[0]}~{df_year.index[-1]}年",
+    )
     df_month = df.filter(regex=r"^\d{6}$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
-        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+        f"{key}_全體受僱員工(含本國籍、外國籍之全時員工及部分工時員工)_月 {df_month.index[0]}~{df_month.index[-1]}",
     )
 
     # https://data.gov.tw/dataset/9663
-    key = "歷年受僱員工每人每月經常性薪資"
+    key = "歷年受僱員工每人每月經常性薪資平均數"
     key = sanitize_filename(key)
-    df = df_歷年受僱員工每人每月經常性薪資()
+    df = df_歷年受僱員工每人每月經常性薪資平均數()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
-    plots[f"{key}_年"] = plot_line(df_year, f"{key}_年 {df_year.index[0]}~{df_year.index[-1]}年")
+    plots[f"{key}_年"] = plot_line(
+        df_year,
+        f"{key}_全體受僱員工(含本國籍、外國籍之全時員工及部分工時員工)_年 {df_year.index[0]}~{df_year.index[-1]}年",
+    )
     df_month = df.filter(regex=r"^\d{6}$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
-        f"{key}_月 {df_month.index[0]}~{df_month.index[-1]}",
+        f"{key}_全體受僱員工(含本國籍、外國籍之全時員工及部分工時員工)_月 {df_month.index[0]}~{df_month.index[-1]}",
+    )
+
+    # https://www.stat.gov.tw/News_Content.aspx?n=4580&s=232642
+    key = "工業及服務業全體受僱員工全年總薪資統計表"
+    key = sanitize_filename(key)
+    (
+        df_按性別及教育程度分,
+        df_按年齡別分,
+        df_按員工特性,
+        df_按年齡及教育程度分,
+        df_按工作場所所在縣市別及年齡別分,
+    ) = df_工業及服務業全體受僱員工全年總薪資統計表()
+
+    years = df_按性別及教育程度分["年度"].unique().tolist()
+    df = df_按性別及教育程度分.pivot_table(
+        index=["行業", "年度"], columns=["統計", "性別教育程度"], values="值", sort=False
+    )
+
+    df.columns = [f"{統計}_{教育程度}" for 統計, 教育程度 in df.columns]
+    plots[f"{key}_行業及教育程度"] = plot_bar_stack_multi_index(
+        df, f"{key}_行業及教育程度 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+    )
+
+    years = df_按年齡別分["年度"].unique().tolist()
+    df = df_按年齡別分.pivot_table(
+        index=["行業", "年度"], columns=["統計", "年齡別"], values="值", sort=False
+    )
+    df.columns = [f"{統計}_{年齡別}" for 統計, 年齡別 in df.columns]
+    plots[f"{key}_行業及年齡別"] = plot_bar_stack_multi_index(
+        df, f"{key}_行業及年齡別 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+    )
+
+    years = df_按員工特性["年度"].unique().tolist()
+    df = df_按員工特性.pivot_table(
+        index=["年齡教育別", "年度"], columns=["統計", "性別"], values="值", sort=False
+    )
+    df.columns = [f"{統計}_{性別}" for 統計, 性別 in df.columns]
+    plots[f"{key}_員工特性"] = plot_bar_stack_multi_index(
+        df, f"{key}_員工特性 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+    )
+
+    years = df_按年齡及教育程度分["年度"].unique().tolist()
+    df = df_按年齡及教育程度分.pivot_table(
+        index=["年齡別", "年度"], columns=["統計", "教育程度"], values="值", sort=False
+    )
+    df.columns = [f"{統計}_{教育程度}" for 統計, 教育程度 in df.columns]
+    plots[f"{key}_年齡及教育程度"] = plot_bar_stack_multi_index(
+        df, f"{key}_年齡及教育程度 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+    )
+
+    years = df_按工作場所所在縣市別及年齡別分["年度"].unique().tolist()
+    df = df_按工作場所所在縣市別及年齡別分.pivot_table(
+        index=["年齡別", "年度"], columns=["統計", "縣市"], values="值", sort=False
+    )
+    df.columns = [f"{統計}_{縣市}" for 統計, 縣市 in df.columns]
+    plots[f"{key}_年齡及縣市"] = plot_bar_stack_multi_index(
+        df, f"{key}_年齡及縣市 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+    )
+
+    # https://www.stat.gov.tw/Point.aspx?sid=t.4&n=3583&sms=11480
+    key = "工業及服務業每人每月工時(時)"
+    key = sanitize_filename(key)
+    df = df_受僱員工每人每月工時()
+
+    df_年 = df.pivot_table(values=df.columns[1:-2], index="年", aggfunc="mean", sort=False)
+    plots[f"{key}_年"] = plot_line(
+        df_年,
+        f"{key}_年 {df_年.index[0]}~{df_年.index[-1]}",
+    )
+
+    df_月 = df.pivot_table(values=df.columns[1:-2], index="年月", aggfunc="mean", sort=False)
+    plots[f"{key}_月"] = plot_line(
+        df_月,
+        f"{key}_月 {df_月.index[0]}~{df_月.index[-1]}",
     )
 
     # https://data.gov.tw/dataset/34125

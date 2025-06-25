@@ -1,5 +1,6 @@
 from datetime import datetime
 import gzip
+import itertools
 import json
 import re
 import numpy as np
@@ -117,7 +118,7 @@ def read_excel_with_cache(
         excel_bytes = io.BytesIO(f_gz.read())
     df = pd.read_excel(
         excel_bytes, engine="calamine", skiprows=skiprows, nrows=nrows, usecols=usecols
-    )  # Use openpyxl
+    )
 
     return df
 
@@ -990,7 +991,7 @@ def df_企業ESG資訊揭露彙總資料_人力發展():
 
 
 # https://data.gov.tw/dataset/9634 歷年受僱員工每人每月總薪資
-def df_歷年受僱員工每人每月總薪資():
+def df_歷年受僱員工每人每月總薪資平均數():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05001.xml"
 
     df = read_xml(url, "//每人每月總薪資")
@@ -1003,7 +1004,7 @@ def df_歷年受僱員工每人每月總薪資():
 
 
 # https://data.gov.tw/dataset/9663 歷年受僱員工每人每月經常性薪資
-def df_歷年受僱員工每人每月經常性薪資():
+def df_歷年受僱員工每人每月經常性薪資平均數():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230037/mp05002.xml"
 
     df = read_xml(url, "//每人每月經常性薪資")
@@ -1011,6 +1012,247 @@ def df_歷年受僱員工每人每月經常性薪資():
     df = df.set_index("年月別_Year_and_month")
     splits = df.columns.str.split("_", n=1, expand=True)
     df.columns = [split[0] for split in splits]
+
+    return df
+
+
+# https://www.stat.gov.tw/News_Content.aspx?n=4580&s=232642 工業及服務業全體受僱員工全年總薪資統計表
+def df_工業及服務業全體受僱員工全年總薪資統計表():
+    url_按性別及教育程度分 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11753/232642/%E8%A1%A81%E3%80%80%E5%90%84%E6%A5%AD%E5%8F%97%E5%83%B1%E5%93%A1%E5%B7%A5%E5%85%A8%E5%B9%B4%E7%B8%BD%E8%96%AA%E8%B3%87%E7%B5%B1%E8%A8%88%EF%BC%8D%E6%8C%89%E6%80%A7%E5%88%A5%E5%8F%8A%E6%95%99%E8%82%B2%E7%A8%8B%E5%BA%A6%E5%88%86.xlsx"
+    r = session.get(url_按性別及教育程度分, verify=False)
+
+    df_按性別及教育程度分 = []
+    for i in range(0, 3):
+        data = pd.read_excel(
+            io.BytesIO(r.content),
+            engine="calamine",
+            sheet_name=i,
+            skiprows=7,
+            nrows=20,
+            header=None,
+        )
+        val_columns = list(
+            itertools.product(
+                ["平均數", "中位數"],
+                ["全體", "男", "女", "國中及以下", "高級中等(高中、高職)", "專科及大學", "研究所"],
+            )
+        )
+        data.columns = ["行業"] + val_columns
+
+        data["行業"] = data["行業"].str.strip()
+        data = data.melt(id_vars="行業", value_vars=val_columns, value_name="值")
+        data["值"] *= 10000
+        data["統計"], data["性別教育程度"] = zip(*data["variable"])
+        data = data.drop("variable", axis="columns")
+        data["年度"] = 112 - i
+
+        df_按性別及教育程度分.append(data)
+
+    df_按性別及教育程度分 = pd.concat(df_按性別及教育程度分[::-1], axis="index", ignore_index=True)
+
+    url_按年齡別分 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11753/232642/%E8%A1%A82%E3%80%80%E5%90%84%E6%A5%AD%E5%8F%97%E5%83%B1%E5%93%A1%E5%B7%A5%E5%85%A8%E5%B9%B4%E7%B8%BD%E8%96%AA%E8%B3%87%E7%B5%B1%E8%A8%88%EF%BC%8D%E6%8C%89%E5%B9%B4%E9%BD%A1%E5%88%A5%E5%88%86.xlsx"
+    r = session.get(url_按年齡別分, verify=False)
+
+    df_按年齡別分 = []
+    for i in range(0, 3):
+        data = pd.read_excel(
+            io.BytesIO(r.content),
+            engine="calamine",
+            sheet_name=i,
+            skiprows=7,
+            nrows=20,
+            header=None,
+        )
+        val_columns = list(
+            itertools.product(
+                ["平均數", "中位數"],
+                [
+                    "全體",
+                    "未滿30歲",
+                    "未滿25歲",
+                    "25-29歲",
+                    "30-39歲",
+                    "40-49歲",
+                    "50-64歲",
+                    "65歲以上",
+                ],
+            )
+        )
+        data.columns = ["行業"] + val_columns
+
+        data["行業"] = data["行業"].str.strip()
+        data = data.melt(id_vars="行業", value_vars=val_columns, value_name="值")
+        data["值"] *= 10000
+        data["統計"], data["年齡別"] = zip(*data["variable"])
+        data = data.drop("variable", axis="columns")
+        data["年度"] = 112 - i
+
+        df_按年齡別分.append(data)
+
+    df_按年齡別分 = pd.concat(df_按年齡別分[::-1], axis="index", ignore_index=True)
+
+    url_按員工特性 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11753/232642/%E8%A1%A84%E3%80%80%E5%B7%A5%E6%A5%AD%E5%8F%8A%E6%9C%8D%E5%8B%99%E6%A5%AD%E5%8F%97%E5%83%B1%E5%93%A1%E5%B7%A5%E5%85%A8%E5%B9%B4%E7%B8%BD%E8%96%AA%E8%B3%87%E7%B5%B1%E8%A8%88%EF%BC%8D%E6%8C%89%E5%93%A1%E5%B7%A5%E7%89%B9%E6%80%A7%E5%8F%8A%E5%93%A1%E5%B7%A5%E8%A6%8F%E6%A8%A1%E5%88%A5%E5%88%86.xlsx"
+    r = session.get(url_按員工特性, verify=False)
+
+    df_按員工特性 = []
+    for i in range(0, 3):
+        data = pd.read_excel(
+            io.BytesIO(r.content),
+            engine="calamine",
+            sheet_name=i,
+            skiprows=8,
+            nrows=20,
+            header=None,
+        )
+        data = data.dropna(axis="index", how="any")
+        val_columns = list(
+            itertools.product(
+                ["平均數", "中位數"],
+                [
+                    "全體",
+                    "男",
+                    "女",
+                ],
+            )
+        )
+        data.columns = ["年齡教育別"] + val_columns
+
+        data["年齡教育別"] = data["年齡教育別"].str.strip()
+        data = data.melt(id_vars="年齡教育別", value_vars=val_columns, value_name="值")
+        data["值"] *= 10000
+        data["統計"], data["性別"] = zip(*data["variable"])
+        data = data.drop("variable", axis="columns")
+        data["年度"] = 112 - i
+
+        df_按員工特性.append(data)
+
+    df_按員工特性 = pd.concat(df_按員工特性[::-1], axis="index", ignore_index=True)
+
+    url_按年齡及教育程度分 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11753/232642/%E8%A1%A85%E3%80%80%E5%B7%A5%E6%A5%AD%E5%8F%8A%E6%9C%8D%E5%8B%99%E6%A5%AD%E5%8F%97%E5%83%B1%E5%93%A1%E5%B7%A5%E5%85%A8%E5%B9%B4%E7%B8%BD%E8%96%AA%E8%B3%87%E7%B5%B1%E8%A8%88%EF%BC%8D%E6%8C%89%E5%B9%B4%E9%BD%A1%E5%8F%8A%E6%95%99%E8%82%B2%E7%A8%8B%E5%BA%A6%E5%88%86.xlsx"
+    r = session.get(url_按年齡及教育程度分, verify=False)
+
+    df_按年齡及教育程度分 = []
+    for i in range(0, 3):
+        data = pd.read_excel(
+            io.BytesIO(r.content),
+            engine="calamine",
+            sheet_name=i,
+            skiprows=8,
+            nrows=8,
+            header=None,
+        )
+        data = data.dropna(axis="index", how="any")
+        val_columns = list(
+            itertools.product(
+                ["平均數", "中位數"],
+                ["全體", "國中及以下", "高級中等(高中、高職)", "專科及大學", "研究所"],
+            )
+        )
+        data.columns = ["年齡別"] + val_columns
+
+        data["年齡別"] = data["年齡別"].str.strip()
+        data = data.melt(id_vars="年齡別", value_vars=val_columns, value_name="值")
+        data["值"] *= 10000
+        data["統計"], data["教育程度"] = zip(*data["variable"])
+        data = data.drop("variable", axis="columns")
+        data["年度"] = 112 - i
+
+        df_按年齡及教育程度分.append(data)
+
+    df_按年齡及教育程度分 = pd.concat(df_按年齡及教育程度分[::-1], axis="index", ignore_index=True)
+
+    url_按工作場所所在縣市別及年齡別分 = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11753/232642/%E8%A1%A86%E3%80%80%E5%B7%A5%E6%A5%AD%E5%8F%8A%E6%9C%8D%E5%8B%99%E6%A5%AD%E5%85%A8%E5%B9%B4%E7%B8%BD%E8%96%AA%E8%B3%87%E7%B5%B1%E8%A8%88%EF%BC%8D%E6%9C%AC%E5%9C%8B%E7%B1%8D%E5%85%A8%E6%99%82%E5%8F%97%E5%83%B1%E5%93%A1%E5%B7%A5%E6%8C%89%E5%B7%A5%E4%BD%9C%E5%A0%B4%E6%89%80%E6%89%80%E5%9C%A8%E7%B8%A3%E5%B8%82%E5%88%A5%E5%8F%8A%E5%B9%B4%E9%BD%A1%E5%88%A5%E5%88%86.xlsx"
+    r = session.get(url_按工作場所所在縣市別及年齡別分, verify=False)
+
+    df_按工作場所所在縣市別及年齡別分 = []
+    for i in range(0, 5):
+        data = pd.read_excel(
+            io.BytesIO(r.content),
+            engine="calamine",
+            sheet_name=i,
+            skiprows=7,
+            nrows=21,
+            header=None,
+        )
+        data = data.dropna(axis="index", how="any")
+        val_columns = list(
+            itertools.product(
+                ["平均數", "中位數"],
+                [
+                    "全體",
+                    "未滿30歲",
+                    "未滿25歲",
+                    "25-29歲",
+                    "30-39歲",
+                    "40-49歲",
+                    "50-64歲",
+                    "65歲以上",
+                ],
+            )
+        )
+        data.columns = ["縣市"] + val_columns
+
+        data["縣市"] = data["縣市"].str.strip()
+        data = data.melt(id_vars="縣市", value_vars=val_columns, value_name="值")
+        data["值"] *= 10000
+        data["統計"], data["年齡別"] = zip(*data["variable"])
+        data = data.drop("variable", axis="columns")
+        data["年度"] = 112 - i
+
+        df_按工作場所所在縣市別及年齡別分.append(data)
+
+    df_按工作場所所在縣市別及年齡別分 = pd.concat(
+        df_按工作場所所在縣市別及年齡別分[::-1], axis="index", ignore_index=True
+    )
+
+    return (
+        df_按性別及教育程度分,
+        df_按年齡別分,
+        df_按員工特性,
+        df_按年齡及教育程度分,
+        df_按工作場所所在縣市別及年齡別分,
+    )
+
+
+# https://www.stat.gov.tw/Point.aspx?sid=t.4&n=3583&sms=11480 工業及服務業每人每月工時(時)
+def df_受僱員工每人每月工時():
+    url = "https://nstatdb.dgbas.gov.tw/dgbasall/webMain.aspx?sdmx/A046401010/1+2+3+4+31+32+33+34+35+36+37+38+39+40+41+42+43+44+45+46.1+2+3..M.&startTime={first_year}&endTime={year}-M{month}"
+
+    first_year = 1973
+    year = datetime.today().year
+    month = datetime.today().month
+    r = session.get(url.format(first_year=first_year, year=year, month=month), verify=False)
+    json_data = json.loads(r.content)
+
+    datas = json_data["data"]["dataSets"][0]["series"].items()
+    kinds = json_data["data"]["structure"]["dimensions"]["series"][0]["values"]
+    sexes = json_data["data"]["structure"]["dimensions"]["series"][1]["values"]
+    df = []
+    for key, data in datas:
+        periods = json_data["data"]["structure"]["dimensions"]["observation"][0]["values"]
+
+        kind, sex = key.split(":", 1)
+        kind = int(kind)
+        sex = int(sex)
+
+        colname = f"{kinds[kind]["name"]}_{sexes[sex]["name"]}"
+        ser = pd.Series(
+            [x[0] for x in data["observations"].values()],
+            index=[p["id"] for p in periods],
+            name=colname,
+        )
+
+        df.append(ser[ser != 0.0])
+
+    df = pd.concat(df, axis="columns")
+    df = df.reset_index()
+    df = df.rename(columns={"index": "年月"})
+
+    split = df["年月"].str.split("-", n=1, expand=True)
+    df["年"] = split[0].str.strip()
+    df["月"] = split[1].str.strip()
+
+    df = df.sort_values(["年", "月"])
 
     return df
 

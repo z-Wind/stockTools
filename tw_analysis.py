@@ -1201,6 +1201,28 @@ def main():
         title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
+    # https://data.gov.tw/dataset/93951
+    # https://data.gov.tw/dataset/93950
+    def df_家庭收支調查_戶數五等分位之平均每戶儲蓄率():
+        儲蓄 = df_家庭收支調查_戶數五等分位之平均每戶儲蓄()
+        儲蓄 = 儲蓄.rename(columns={"平均每戶儲蓄": "平均每戶"})
+        所得總額 = df_家庭收支調查_戶數五等分位之平均每戶所得總額()
+        所得總額 = 所得總額.rename(columns={"平均每戶所得總額": "平均每戶"})
+
+        return 儲蓄 / 所得總額[儲蓄.columns]
+
+    年_plot(
+        plots,
+        key="家庭收支調查-戶數五等分位之平均每戶儲蓄率",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶儲蓄率,
+        title_suffix=" 儲蓄率=儲蓄/所得總額",
+        additional_layout={
+            "yaxis": {
+                "tickformat": ".2%",
+            }
+        },
+    )
+
     # https://data.gov.tw/dataset/9424
     年_plot(
         plots,
@@ -1283,6 +1305,25 @@ def main():
         title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
     )
 
+    # https://data.gov.tw/dataset/54825
+    # https://data.gov.tw/dataset/54823
+    def df_家庭收支調查_家庭組織型態別平均每戶儲蓄率():
+        儲蓄 = df_家庭收支調查_家庭組織型態別平均每戶儲蓄()
+        所得總額 = df_家庭收支調查_家庭組織型態別平均每戶所得總額()
+        return 儲蓄 / 所得總額[儲蓄.columns]
+
+    年_plot(
+        plots,
+        key="家庭收支調查-家庭組織型態別平均每戶儲蓄率",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶儲蓄率,
+        title_suffix=" 儲蓄率=儲蓄/所得總額",
+        additional_layout={
+            "yaxis": {
+                "tickformat": ".2%",
+            }
+        },
+    )
+
     # https://data.gov.tw/dataset/27963
     年_plot(
         plots,
@@ -1347,6 +1388,25 @@ def main():
         key="家庭收支調查-各縣市別平均每戶儲蓄",
         df_get=df_家庭收支調查_各縣市別平均每戶儲蓄,
         title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+    )
+
+    # https://data.gov.tw/dataset/9417
+    # https://data.gov.tw/dataset/9416
+    def df_家庭收支調查_各縣市別平均每戶儲蓄率():
+        儲蓄 = df_家庭收支調查_各縣市別平均每戶儲蓄()
+        所得總額 = df_家庭收支調查_各縣市別平均每戶所得總額()
+        return 儲蓄 / 所得總額[儲蓄.columns]
+
+    年_plot(
+        plots,
+        key="家庭收支調查-各縣市別平均每戶儲蓄率",
+        df_get=df_家庭收支調查_各縣市別平均每戶儲蓄率,
+        title_suffix=" 儲蓄率=儲蓄/所得總額",
+        additional_layout={
+            "yaxis": {
+                "tickformat": ".2%",
+            }
+        },
     )
 
     # ===================================================================
@@ -1454,7 +1514,7 @@ def main():
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
             "yaxis2": {
-                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
                 "tickformat": ".2%",
             },
         },
@@ -1475,7 +1535,7 @@ def main():
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
             "yaxis2": {
-                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
                 "tickformat": ".2%",
             },
         },
@@ -1509,7 +1569,7 @@ def main():
         additional_layout={
             "yaxis": {"title": {"text": "平均"}},
             "yaxis2": {
-                "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
                 "tickformat": ".2%",
             },
         },
@@ -1604,7 +1664,209 @@ def main():
             "overlaying": "y",
             "side": "right",
             "tickformat": ".2%",
-            "title": {"text": f"{last_year-1}年度/{last_year}年度"},
+            "title": {"text": f"{last_year}年度/{last_year-1}年度"},
+        },
+        "yaxis": {"title": {"text": "平均"}},
+        "barmode": "group",
+        "updatemenus": updatemenus,
+    }
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+    plots[f"{key}_公司_產業_排序"] = plotly_json_dump(graph)
+
+    # https://mopsov.twse.com.tw/mops/web/t100sb14
+    key = "公開資訊觀測站_非擔任主管職務之全時員工薪資資訊"
+    key = sanitize_filename(key)
+    df, last_year = df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊()
+
+    df_薪資 = df.sort_values("公司代號").set_index("公司")
+    df_薪資 = df_薪資[
+        [
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            "員工薪資-中位數調整變動情形",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+            "員工薪資-平均數調整變動情形",
+        ]
+    ]
+
+    plots[f"{key}"] = plot_lines_bars(
+        df_薪資,
+        title=f"{key} {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "員工薪資-中位數調整變動情形",
+            "員工薪資-平均數調整變動情形",
+        ],
+        bars_left_axis=[
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis2": {
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+    plots[f"{key}_排序"] = plot_lines_bars(
+        df_薪資.sort_values([f"員工薪資-中位數_{last_year}年(人)"], ascending=False),
+        title=f"{key}_排序 {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "員工薪資-中位數調整變動情形",
+            "員工薪資-平均數調整變動情形",
+        ],
+        bars_left_axis=[
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis2": {
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+
+    df_薪資_產業類別 = df.pivot_table(
+        values=[
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            "員工薪資-中位數調整變動情形",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+            "員工薪資-平均數調整變動情形",
+        ],
+        index="產業類別",
+        aggfunc="mean",
+        sort=False,
+    )
+
+    plots[f"{key}_產業類別_排序"] = plot_lines_bars(
+        df_薪資_產業類別.sort_values([f"員工薪資-中位數_{last_year}年(人)"], ascending=False),
+        title=f"{key}_產業類別_排序 {last_year}年度",
+        lines_left_axis=[],
+        lines_right_axis=[
+            "員工薪資-中位數調整變動情形",
+            "員工薪資-平均數調整變動情形",
+        ],
+        bars_left_axis=[
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+        ],
+        sort=False,
+        additional_layout={
+            "yaxis": {"title": {"text": "平均"}},
+            "yaxis2": {
+                "title": {"text": f"{last_year}年度/{last_year-1}年度"},
+                "tickformat": ".2%",
+            },
+        },
+    )
+
+    data_list = []
+    df_公司 = df.set_index("公司").sort_values(
+        [f"員工薪資-中位數_{last_year}年(人)"],
+        ascending=False,
+    )
+    for company in df_公司.index:
+        names = [
+            f"員工薪資-中位數_{last_year}年(人)",
+            f"員工薪資-中位數_{last_year-1}年(人)",
+            f"員工薪資-平均數_{last_year}年(人)",
+            f"員工薪資-平均數_{last_year-1}年(人)",
+        ]
+        data = {
+            "type": "scatter",
+            "name": f"{company}_金額",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "mode": "markers",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+        names = [
+            "員工薪資-中位數調整變動情形",
+            "員工薪資-平均數調整變動情形",
+        ]
+        data = {
+            "type": "scatter",
+            "name": f"{company}_薪資變動",
+            "x": names,
+            "y": df_公司.loc[company, names].tolist(),
+            "yaxis": "y2",
+            "mode": "markers",
+            "legendgroup": company,
+        }
+        data_list.append(data)
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_公司.index) * 4,
+                }
+            ],  # 顯示所有線條
+            "label": "全部公司",
+            "method": "restyle",
+        }
+    ]
+    kinds = df["產業類別"].dropna().unique().tolist()
+    for kind in kinds:
+        arr = [
+            [True] * 2 if df_公司.loc[index, "產業類別"] == kind else [False] * 2
+            for index in df_公司.index
+        ]
+        arr = sum(arr, [])
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.09,
+            "xanchor": "center",
+            "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "產業選擇",
+        },
+    ]
+
+    layout = {
+        "title": {"text": f"{key}_公司_產業類別_排序 {last_year}年度"},
+        "hovermode": "x",
+        "xaxis": {"type": "category"},
+        "yaxis2": {
+            "overlaying": "y",
+            "side": "right",
+            "tickformat": ".2%",
+            "title": {"text": f"{last_year}年度/{last_year-1}年度"},
         },
         "yaxis": {"title": {"text": "平均"}},
         "barmode": "group",

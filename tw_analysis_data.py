@@ -876,7 +876,7 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
 
         return pd.read_html(path, encoding="utf8")[0]
 
-    for year in range(113, 114):  # datetime.today().year - 1911 + 1):
+    for year in range(113, datetime.today().year - 1911 + 1):
         data_上市 = {
             "encodeURIComponent": 1,
             "step": 1,
@@ -940,6 +940,113 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
 
         df.loc[:, ["平均員工薪資費用調整變動情形"]] = (
             df["平均員工薪資費用調整變動情形(%)"]
+            .str.replace("%", "")
+            .replace("-", np.nan)
+            .astype(float)
+            / 100
+        )
+
+        return df
+
+    df_上市 = clear_data(df_上市)
+    df_上櫃 = clear_data(df_上櫃)
+
+    df = pd.concat([df_上市, df_上櫃], ignore_index=True)
+    df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
+
+    return df, last_year
+
+
+# https://mopsov.twse.com.tw/mops/web/t100sb15 公開資訊觀測站_非擔任主管職務之全時員工薪資資訊
+def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
+    key = "公開資訊觀測站_非擔任主管職務之全時員工薪資資訊"
+    key = sanitize_filename(key)
+    url = "https://mopsov.twse.com.tw/mops/web/ajax_t100sb15"
+    last_year = 113
+
+    def get_df(path, url, data):
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            r = session.post(url, data)
+            pd.read_html(io.BytesIO(r.content), encoding="utf8")[0]
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        return pd.read_html(path, encoding="utf8")[0]
+
+    for year in range(113, datetime.today().year - 1911 + 1):
+        data_上市 = {
+            "encodeURIComponent": 1,
+            "step": 1,
+            "firstin": 1,
+            "TYPEK": "sii",
+            "RYEAR": year,
+            "code": "",
+        }
+        data_上櫃 = {
+            "encodeURIComponent": 1,
+            "step": 1,
+            "firstin": 1,
+            "TYPEK": "otc",
+            "RYEAR": year,
+            "code": "",
+        }
+
+        try:
+            df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
+            df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
+            last_year = year
+        except Exception as e:
+            print(e)
+            break
+
+    def clear_data(df: pd.DataFrame) -> pd.DataFrame:
+        df = df[df.columns[:12]]
+
+        df.columns = [
+            "產業類別",
+            "公司代號",
+            "公司名稱",
+            "員工薪資總額(仟元)",
+            "員工人數-年度平均(人)",
+            f"員工薪資-平均數_{last_year}年(仟元/人)",
+            f"員工薪資-平均數_{last_year-1}年(仟元/人)",
+            "員工薪資-平均數調整變動情形(%)",
+            f"員工薪資-中位數_{last_year}年(仟元/人)",
+            f"員工薪資-中位數_{last_year-1}年(仟元/人)",
+            "員工薪資-中位數調整變動情形(%)",
+            "每股盈餘(元/股)",
+        ]
+
+        df.loc[:, ["員工薪資總額"]] = (
+            df["員工薪資總額(仟元)"].replace("-", np.nan).astype(float) * 1000
+        )
+
+        df.loc[:, [f"員工薪資-平均數_{last_year}年(人)"]] = (
+            df[f"員工薪資-平均數_{last_year}年(仟元/人)"].replace("-", np.nan).astype(float) * 1000
+        )
+        df.loc[:, [f"員工薪資-平均數_{last_year-1}年(人)"]] = (
+            df[f"員工薪資-平均數_{last_year-1}年(仟元/人)"].replace("-", np.nan).astype(float)
+            * 1000
+        )
+        df.loc[:, ["員工薪資-平均數調整變動情形"]] = (
+            df["員工薪資-平均數調整變動情形(%)"]
+            .str.replace("%", "")
+            .replace("-", np.nan)
+            .astype(float)
+            / 100
+        )
+
+        df.loc[:, [f"員工薪資-中位數_{last_year}年(人)"]] = (
+            df[f"員工薪資-中位數_{last_year}年(仟元/人)"].replace("-", np.nan).astype(float) * 1000
+        )
+        df.loc[:, [f"員工薪資-中位數_{last_year-1}年(人)"]] = (
+            df[f"員工薪資-中位數_{last_year-1}年(仟元/人)"].replace("-", np.nan).astype(float)
+            * 1000
+        )
+        df.loc[:, ["員工薪資-中位數調整變動情形"]] = (
+            df["員工薪資-中位數調整變動情形(%)"]
             .str.replace("%", "")
             .replace("-", np.nan)
             .astype(float)

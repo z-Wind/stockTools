@@ -3405,6 +3405,18 @@ def main():
     year = df["statistic_yyy"].max()
     df = df[df["statistic_yyy"] == year]
 
+    df_婚姻_總人數 = df.pivot_table(
+        values="population",
+        index="sex",
+        columns="marital_status",
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_人數分佈"] = plot_bar_group(
+        df_婚姻_總人數,
+        f"{key}_人數分佈 {year}年",
+    )
+
     df_男_年齡_婚姻_縣市 = df[df["sex"] == "男"].pivot_table(
         values="population",
         index=["marital_status", "age"],
@@ -4381,8 +4393,13 @@ def main():
     )
 
     df_婚姻類型 = df.pivot_table(
-        values="number_of_marry", index="year", columns="marriage_type", aggfunc="sum", sort=False
+        values="number_of_marry",
+        index="year",
+        columns=["marriage_type", "sex"],
+        aggfunc="sum",
+        sort=False,
     )
+    df_婚姻類型.columns = [f"{類型}_{性別}" for 類型, 性別 in df_婚姻類型.columns]
     plots[f"{key}_婚姻類型"] = plot_line(
         df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}年"
     )

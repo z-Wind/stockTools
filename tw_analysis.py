@@ -2240,37 +2240,38 @@ def main():
         sort=False,
     )
 
-    df_職災 = df[
-        [
-            "職業災害人數及比率-人數",
-            "職業災害人數及比率-比率",
+    if "職業災害人數及比率-人數" in df.columns:
+        df_職災 = df[
+            [
+                "職業災害人數及比率-人數",
+                "職業災害人數及比率-比率",
+            ]
         ]
-    ]
-    df_職災 = df_職災.rename(
-        columns={
-            "職業災害人數及比率-人數": "人數",
-            "職業災害人數及比率-比率": "比率",
-        }
-    )
-    df_職災["比率"] = df_職災["比率"].str.removesuffix("%").astype(float) / 100.0
-    plots[f"{key}_職業災害人數及比率"] = plot_lines_bars(
-        df_職災,
-        lines_left_axis=[],
-        lines_right_axis=["比率"],
-        bars_left_axis=["人數"],
-        title=f"{key}_職業災害人數及比率 {year}年",
-        sort=False,
-        additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
-    )
-    plots[f"{key}_職業災害人數及比率_排序"] = plot_lines_bars(
-        df_職災.sort_values(["人數", "比率"], ascending=False),
-        lines_left_axis=[],
-        lines_right_axis=["比率"],
-        bars_left_axis=["人數"],
-        title=f"{key}_職業災害人數及比率_排序 {year}年",
-        sort=False,
-        additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
-    )
+        df_職災 = df_職災.rename(
+            columns={
+                "職業災害人數及比率-人數": "人數",
+                "職業災害人數及比率-比率": "比率",
+            }
+        )
+        df_職災["比率"] = df_職災["比率"].str.removesuffix("%").astype(float) / 100.0
+        plots[f"{key}_職業災害人數及比率"] = plot_lines_bars(
+            df_職災,
+            lines_left_axis=[],
+            lines_right_axis=["比率"],
+            bars_left_axis=["人數"],
+            title=f"{key}_職業災害人數及比率 {year}年",
+            sort=False,
+            additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
+        )
+        plots[f"{key}_職業災害人數及比率_排序"] = plot_lines_bars(
+            df_職災.sort_values(["人數", "比率"], ascending=False),
+            lines_left_axis=[],
+            lines_right_axis=["比率"],
+            bars_left_axis=["人數"],
+            title=f"{key}_職業災害人數及比率_排序 {year}年",
+            sort=False,
+            additional_layout={"yaxis2": {"title": {"text": "比率(%)"}}},
+        )
 
     # https://data.gov.tw/dataset/9634
     key = "歷年受僱員工每人每月總薪資平均數"
@@ -3400,7 +3401,9 @@ def main():
     # https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP052/{yyy} 請指定年
     key = "現住人口性別、年齡、婚姻狀況(含同婚)"
     key = sanitize_filename(key)
-    df, year = df_現住人口性別_年齡_婚姻狀況()
+    df = df_現住人口性別_年齡_婚姻狀況()
+    year = df["statistic_yyy"].max()
+    df = df[df["statistic_yyy"] == year]
 
     df_男_年齡_婚姻_縣市 = df[df["sex"] == "男"].pivot_table(
         values="population",
@@ -3958,7 +3961,15 @@ def main():
             values=[
                 "出生數_合計",
                 "結婚對數_合計",
+                "結婚對數_異性",
+                "結婚對數_同性",
+                "結婚對數_同性_男",
+                "結婚對數_同性_女",
                 "離婚對數_合計",
+                "離婚對數_異性",
+                "離婚對數_同性",
+                "離婚對數_同性_男",
+                "離婚對數_同性_女",
                 "人口數_合計",
             ],
             index=index,
@@ -3982,16 +3993,51 @@ def main():
         df_出生_結婚_離婚["婚姻自然增加率_合計"] = (
             df_出生_結婚_離婚["婚姻自然增加數_合計"] / df_出生_結婚_離婚["人口數_合計"]
         )
-        df_出生_結婚_離婚["結婚率_合計"] = (
+        df_出生_結婚_離婚["粗結婚率_合計"] = (
             df_出生_結婚_離婚["結婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
         )
-        df_出生_結婚_離婚["離婚率_合計"] = (
+        df_出生_結婚_離婚["粗結婚率_異性"] = (
+            df_出生_結婚_離婚["結婚對數_異性"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗結婚率_同性"] = (
+            df_出生_結婚_離婚["結婚對數_同性"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗結婚率_同性_男"] = (
+            df_出生_結婚_離婚["結婚對數_同性_男"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗結婚率_同性_女"] = (
+            df_出生_結婚_離婚["結婚對數_同性_女"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗離婚率_合計"] = (
             df_出生_結婚_離婚["離婚對數_合計"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗離婚率_異性"] = (
+            df_出生_結婚_離婚["離婚對數_異性"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗離婚率_同性"] = (
+            df_出生_結婚_離婚["離婚對數_同性"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗離婚率_同性_男"] = (
+            df_出生_結婚_離婚["離婚對數_同性_男"] / df_出生_結婚_離婚["人口數_合計"]
+        )
+        df_出生_結婚_離婚["粗離婚率_同性_女"] = (
+            df_出生_結婚_離婚["離婚對數_同性_女"] / df_出生_結婚_離婚["人口數_合計"]
         )
 
         plots[f"{key}_出生_結婚_離婚_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚,
-            lines_left_axis=["結婚對數_合計", "離婚對數_合計"],
+            lines_left_axis=[
+                "結婚對數_合計",
+                "結婚對數_異性",
+                "結婚對數_同性",
+                "結婚對數_同性_男",
+                "結婚對數_同性_女",
+                "離婚對數_合計",
+                "離婚對數_異性",
+                "離婚對數_同性",
+                "離婚對數_同性_男",
+                "離婚對數_同性_女",
+            ],
             lines_right_axis=["出生數_合計"],
             bars_left_axis=["婚姻自然增加數_合計"],
             title=f"{key}_出生_結婚_離婚_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
@@ -4002,14 +4048,30 @@ def main():
             title=f"{key}_婚姻自然增加率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={"yaxis": {"tickformat": ".2%"}},
         )
-        plots[f"{key}_結婚率_{suffix}"] = plot_line(
-            df_出生_結婚_離婚[["結婚率_合計"]],
-            title=f"{key}_結婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+        plots[f"{key}_粗結婚率_{suffix}"] = plot_line(
+            df_出生_結婚_離婚[
+                [
+                    "粗結婚率_合計",
+                    "粗結婚率_異性",
+                    "粗結婚率_同性",
+                    "粗結婚率_同性_男",
+                    "粗結婚率_同性_女",
+                ]
+            ],
+            title=f"{key}_粗結婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={"yaxis": {"tickformat": ".2%"}},
         )
-        plots[f"{key}_離婚率_{suffix}"] = plot_line(
-            df_出生_結婚_離婚[["離婚率_合計"]],
-            title=f"{key}_離婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+        plots[f"{key}_粗離婚率_{suffix}"] = plot_line(
+            df_出生_結婚_離婚[
+                [
+                    "粗離婚率_合計",
+                    "粗離婚率_異性",
+                    "粗離婚率_同性",
+                    "粗離婚率_同性_男",
+                    "粗離婚率_同性_女",
+                ]
+            ],
+            title=f"{key}_粗離婚率_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={"yaxis": {"tickformat": ".2%"}},
         )
 
@@ -4017,7 +4079,15 @@ def main():
             values=[
                 "出生數_合計",
                 "結婚對數_合計",
+                "結婚對數_異性",
+                "結婚對數_同性",
+                "結婚對數_同性_男",
+                "結婚對數_同性_女",
                 "離婚對數_合計",
+                "離婚對數_異性",
+                "離婚對數_同性",
+                "離婚對數_同性_男",
+                "離婚對數_同性_女",
                 "人口數_合計",
             ],
             columns="縣市",
@@ -4048,12 +4118,44 @@ def main():
                 df_出生_結婚_離婚_縣市[("婚姻自然增加數_合計", region)]
                 / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
             )
-            df_出生_結婚_離婚_縣市[("結婚率_合計", region)] = (
+            df_出生_結婚_離婚_縣市[("粗結婚率_合計", region)] = (
                 df_出生_結婚_離婚_縣市[("結婚對數_合計", region)]
                 / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
             )
-            df_出生_結婚_離婚_縣市[("離婚率_合計", region)] = (
+            df_出生_結婚_離婚_縣市[("粗結婚率_異性", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_異性", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗結婚率_同性", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_同性", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗結婚率_同性_男", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_同性_男", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗結婚率_同性_女", region)] = (
+                df_出生_結婚_離婚_縣市[("結婚對數_同性_女", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗離婚率_合計", region)] = (
                 df_出生_結婚_離婚_縣市[("離婚對數_合計", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗離婚率_異性", region)] = (
+                df_出生_結婚_離婚_縣市[("離婚對數_異性", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗離婚率_同性", region)] = (
+                df_出生_結婚_離婚_縣市[("離婚對數_同性", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗離婚率_同性_男", region)] = (
+                df_出生_結婚_離婚_縣市[("離婚對數_同性_男", region)]
+                / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
+            )
+            df_出生_結婚_離婚_縣市[("粗離婚率_同性_女", region)] = (
+                df_出生_結婚_離婚_縣市[("離婚對數_同性_女", region)]
                 / df_出生_結婚_離婚_縣市[("人口數_合計", region)]
             )
 
@@ -4067,7 +4169,15 @@ def main():
                 [
                     [
                         f"結婚對數_合計_{region}",
+                        f"結婚對數_異性_{region}",
+                        f"結婚對數_同性_{region}",
+                        f"結婚對數_同性_男_{region}",
+                        f"結婚對數_同性_女_{region}",
                         f"離婚對數_合計_{region}",
+                        f"離婚對數_異性_{region}",
+                        f"離婚對數_同性_{region}",
+                        f"離婚對數_同性_男_{region}",
+                        f"離婚對數_同性_女_{region}",
                     ]
                     for region in regions
                 ],
@@ -4116,12 +4226,17 @@ def main():
             legendgroup=True,
             sort=True,
         )
-        plots[f"{key}_結婚率_縣市_{suffix}"] = plot_lines_bars(
+        plots[f"{key}_粗結婚率_縣市_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚_縣市,
             lines_left_axis=sum(
                 [
                     [
-                        f"結婚率_合計_{region}",
+                        f"粗結婚率_合計_{region}",
+                        f"粗結婚率_合計_{region}",
+                        f"粗結婚率_異性_{region}",
+                        f"粗結婚率_同性_{region}",
+                        f"粗結婚率_同性_男_{region}",
+                        f"粗結婚率_同性_女_{region}",
                     ]
                     for region in regions
                 ],
@@ -4129,7 +4244,7 @@ def main():
             ),
             lines_right_axis=[],
             bars_left_axis=[],
-            title=f"{key}_結婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            title=f"{key}_粗結婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
@@ -4137,12 +4252,16 @@ def main():
             legendgroup=True,
             sort=True,
         )
-        plots[f"{key}_離婚率_縣市_{suffix}"] = plot_lines_bars(
+        plots[f"{key}_粗離婚率_縣市_{suffix}"] = plot_lines_bars(
             df_出生_結婚_離婚_縣市,
             lines_left_axis=sum(
                 [
                     [
-                        f"離婚率_合計_{region}",
+                        f"粗離婚率_合計_{region}",
+                        f"粗離婚率_異性_{region}",
+                        f"粗離婚率_同性_{region}",
+                        f"粗離婚率_同性_男_{region}",
+                        f"粗離婚率_同性_女_{region}",
                     ]
                     for region in regions
                 ],
@@ -4150,7 +4269,7 @@ def main():
             ),
             lines_right_axis=[],
             bars_left_axis=[],
-            title=f"{key}_離婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
+            title=f"{key}_粗離婚率_縣市_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
                 "hovermode": "x",
@@ -4172,24 +4291,68 @@ def main():
             df_區域別, f"{key}_區域別_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
 
-        df_total = df.pivot_table(values="結婚對數_合計", index=index, aggfunc="sum", sort=False)
+        df_total = df.pivot_table(
+            values=[
+                "結婚對數_合計",
+                "結婚對數_異性",
+                "結婚對數_同性",
+                "結婚對數_同性_男",
+                "結婚對數_同性_女",
+            ],
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
         plots[f"{key}_總和_結婚對數_{suffix}"] = plot_line(
             df_total, f"{key}_總和_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
         df_區域別 = df.pivot_table(
-            values="結婚對數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+            values=[
+                "結婚對數_合計",
+                "結婚對數_異性",
+                "結婚對數_同性",
+                "結婚對數_同性_男",
+                "結婚對數_同性_女",
+            ],
+            index=index,
+            columns="縣市",
+            aggfunc="sum",
+            sort=False,
         )
+        df_區域別.columns = [f"{類別}_{縣市}" for 類別, 縣市 in df_區域別.columns]
         plots[f"{key}_區域別_結婚對數_{suffix}"] = plot_line(
             df_區域別, f"{key}_區域別_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
 
-        df_total = df.pivot_table(values="離婚對數_合計", index=index, aggfunc="sum", sort=False)
+        df_total = df.pivot_table(
+            values=[
+                "離婚對數_合計",
+                "離婚對數_異性",
+                "離婚對數_同性",
+                "離婚對數_同性_男",
+                "離婚對數_同性_女",
+            ],
+            index=index,
+            aggfunc="sum",
+            sort=False,
+        )
         plots[f"{key}_總和_離婚對數_{suffix}"] = plot_line(
             df_total, f"{key}_總和_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
         df_區域別 = df.pivot_table(
-            values="離婚對數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+            values=[
+                "離婚對數_合計",
+                "離婚對數_異性",
+                "離婚對數_同性",
+                "離婚對數_同性_男",
+                "離婚對數_同性_女",
+            ],
+            index=index,
+            columns="縣市",
+            aggfunc="sum",
+            sort=False,
         )
+        df_區域別.columns = [f"{類別}_{縣市}" for 類別, 縣市 in df_區域別.columns]
         plots[f"{key}_區域別_離婚對數_{suffix}"] = plot_line(
             df_區域別, f"{key}_區域別_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
         )
@@ -4819,14 +4982,55 @@ def main():
     key = "離婚/終止結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
     key = sanitize_filename(key)
     df = df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
-
     years = df["statistic_yyy"].unique().tolist()
+
+    df_現住人口 = df_現住人口性別_年齡_婚姻狀況()
+    df_現住人口 = df_現住人口[df_現住人口["statistic_yyy"].isin(years)]
 
     df_total = df.pivot_table(
         values="divorce_count", index="statistic_yyy", aggfunc="sum", sort=False
     )
     plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
+    )
+
+    df_已婚人數 = df_現住人口.pivot_table(
+        values="population",
+        index="statistic_yyy",
+        columns=["marital_status", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+    df_離婚人數 = df.pivot_table(
+        values="divorce_count",
+        index="statistic_yyy",
+        columns=["marriage_type", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+
+    df_離婚率 = pd.DataFrame()
+    df_離婚率["離婚人數_不同性別"] = df_離婚人數.loc[:, ("不同性別",)].sum(axis=1)
+    df_離婚率["已婚人數_不同性別"] = df_已婚人數.loc[:, ("有偶_不同性別",)].sum(axis=1)
+    df_離婚率["離婚率_不同性別"] = df_離婚率["離婚人數_不同性別"] / df_離婚率["已婚人數_不同性別"]
+    df_離婚率["離婚人數_相同性別"] = df_離婚人數.loc[:, ("相同性別",)].sum(axis=1)
+    df_離婚率["已婚人數_相同性別"] = df_已婚人數.loc[:, ("有偶_相同性別",)].sum(axis=1)
+    df_離婚率["離婚率_相同性別"] = df_離婚率["離婚人數_相同性別"] / df_離婚率["已婚人數_相同性別"]
+    df_離婚率["離婚人數_相同性別_男"] = df_離婚人數.loc[:, ("相同性別", "男")]
+    df_離婚率["已婚人數_相同性別_男"] = df_已婚人數.loc[:, ("有偶_相同性別", "男")]
+    df_離婚率["離婚率_相同性別_男"] = (
+        df_離婚率["離婚人數_相同性別_男"] / df_離婚率["已婚人數_相同性別_男"]
+    )
+    df_離婚率["離婚人數_相同性別_女"] = df_離婚人數.loc[:, ("相同性別", "女")]
+    df_離婚率["已婚人數_相同性別_女"] = df_已婚人數.loc[:, ("有偶_相同性別", "女")]
+    df_離婚率["離婚率_相同性別_女"] = (
+        df_離婚率["離婚人數_相同性別_女"] / df_離婚率["已婚人數_相同性別_女"]
+    )
+
+    plots[f"{key}_離婚率"] = plot_line(
+        df_離婚率.filter(like="離婚率", axis="columns"),
+        f"{key}_離婚率 {df_離婚率.index[0]}~{df_離婚率.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 
     df_區域別 = df.pivot_table(
@@ -4836,13 +5040,101 @@ def main():
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
+    df_區域別_已婚人數 = df_現住人口.pivot_table(
+        values="population",
+        index="statistic_yyy",
+        columns=["縣市", "marital_status", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+    df_區域別_離婚人數 = df.pivot_table(
+        values="divorce_count",
+        index="statistic_yyy",
+        columns=["縣市", "marriage_type", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+
+    regions = df["縣市"].unique().tolist()
+    df_區域別_離婚率 = pd.DataFrame()
+    for region in regions:
+        df_區域別_離婚率[f"{region}_離婚人數_不同性別"] = df_區域別_離婚人數.loc[
+            :,
+            (
+                region,
+                "不同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_離婚率[f"{region}_已婚人數_不同性別"] = df_區域別_已婚人數.loc[
+            :,
+            (
+                region,
+                "有偶_不同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_離婚率[f"{region}_離婚率_不同性別"] = (
+            df_區域別_離婚率[f"{region}_離婚人數_不同性別"]
+            / df_區域別_離婚率[f"{region}_已婚人數_不同性別"]
+        )
+        df_區域別_離婚率[f"{region}_離婚人數_相同性別"] = df_區域別_離婚人數.loc[
+            :,
+            (
+                region,
+                "相同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_離婚率[f"{region}_已婚人數_相同性別"] = df_區域別_已婚人數.loc[
+            :,
+            (
+                region,
+                "有偶_相同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_離婚率[f"{region}_離婚率_相同性別"] = (
+            df_區域別_離婚率[f"{region}_離婚人數_相同性別"]
+            / df_區域別_離婚率[f"{region}_已婚人數_相同性別"]
+        )
+        df_區域別_離婚率[f"{region}_離婚人數_相同性別_男"] = df_區域別_離婚人數.loc[
+            :, (region, "相同性別", "男")
+        ]
+        df_區域別_離婚率[f"{region}_已婚人數_相同性別_男"] = df_區域別_已婚人數.loc[
+            :, (region, "有偶_相同性別", "男")
+        ]
+        df_區域別_離婚率[f"{region}_離婚率_相同性別_男"] = (
+            df_區域別_離婚率[f"{region}_離婚人數_相同性別_男"]
+            / df_區域別_離婚率[f"{region}_已婚人數_相同性別_男"]
+        )
+        df_區域別_離婚率[f"{region}_離婚人數_相同性別_女"] = df_區域別_離婚人數.loc[
+            :, (region, "相同性別", "女")
+        ]
+        df_區域別_離婚率[f"{region}_已婚人數_相同性別_女"] = df_區域別_已婚人數.loc[
+            :, (region, "有偶_相同性別", "女")
+        ]
+        df_區域別_離婚率[f"{region}_離婚率_相同性別_女"] = (
+            df_區域別_離婚率[f"{region}_離婚人數_相同性別_女"]
+            / df_區域別_離婚率[f"{region}_已婚人數_相同性別_女"]
+        )
+
+        df_區域別_離婚率 = df_區域別_離婚率.copy()
+
+    plots[f"{key}_區域別_離婚率"] = plot_line(
+        df_區域別_離婚率.filter(like="離婚率", axis="columns"),
+        f"{key}_區域別_離婚率 {df_區域別_離婚率.index[0]}~{df_區域別_離婚率.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
     df_婚姻類型 = df.pivot_table(
         values="divorce_count",
         index="statistic_yyy",
-        columns="marriage_type",
+        columns=["marriage_type", "sex"],
         aggfunc="sum",
         sort=False,
     )
+    df_婚姻類型.columns = [f"{類型}_{性別}" for 類型, 性別 in df_婚姻類型.columns]
     plots[f"{key}_婚姻類型"] = plot_line(
         df_婚姻類型, f"{key}_婚姻類型 {df_婚姻類型.index[0]}~{df_婚姻類型.index[-1]}年"
     )

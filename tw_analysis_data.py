@@ -2149,14 +2149,11 @@ def df_現住人口性別_年齡_婚姻狀況():
 
         return data
 
-    year = datetime.today().year - 1911
-    while True:
+    for year in range(108, datetime.today().year - 1911 + 1):
         page = 1
         json_data = get_data(year, page)
         if "responseData" not in json_data:
-            year -= 1
-            if year < 113:
-                raise f"無法獲取資料 {key}"
+            print(f"無法獲取資料 {year} {key}")
             continue
 
         data = pd.json_normalize(json_data["responseData"])
@@ -2167,7 +2164,6 @@ def df_現住人口性別_年齡_婚姻狀況():
             json_data = get_data(year, page)
             data = pd.json_normalize(json_data["responseData"])
             df.append(data)
-        break
 
     df = pd.concat(df, ignore_index=True)
     df["population"] = df["population"].astype(int)
@@ -2177,7 +2173,7 @@ def df_現住人口性別_年齡_婚姻狀況():
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
 
-    return df, year
+    return df
 
 
 # https://data.gov.tw/dataset/32970 動態資料統計表

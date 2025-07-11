@@ -114,7 +114,7 @@ class Stock:
                 dfs.append(pd.read_csv(os.path.join(dirPath, f)))
 
         df = pd.concat(dfs, ignore_index=True).copy()
-        df.loc[:, "Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
+        df.loc[:, "Date"] = pd.to_datetime(df["Date"], infer_datetime_format=True)
         # 去掉 0
         df = df[df["Adj Close"] != 0]
         # 去掉非數字
@@ -1397,6 +1397,22 @@ if __name__ == "__main__":
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣高股息指數"),
             "daily_return_mul": 2,
             "groups": ["日正"],
+        },
+        # =================================================================================
+        {
+            "name": "0050.TW",
+            "remark": "元大台灣卓越50基金",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
+            "replaceDiv": True,
+            "groups": ["常用", "基金"],
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        },
+        {
+            "name": "006208.TW",
+            "remark": "富邦台灣釆吉50基金",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "富邦台灣釆吉50基金"),
+            "replaceDiv": True,
+            "groups": ["常用", "基金"],
         },
         # =================================================================================
         {

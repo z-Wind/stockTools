@@ -41,7 +41,7 @@ fund_querys = [
         "filter": "台灣卓越50基金",
         "name": "元大台灣卓越50基金",
         "start_date": datetime(
-            2017, 1, 1, 0, 0, 0, tzinfo=taiwan_timezone
+            2012, 1, 1, 0, 0, 0, tzinfo=taiwan_timezone
         ),  # datetime(2003, 6, 25, 0, 0, 0, tzinfo=taiwan_timezone),
         "comid": "A0005",
     },
@@ -55,9 +55,10 @@ fund_querys = [
 
 for fund_query in fund_querys:
     start_datetime = fund_query["start_date"] + timedelta(days=1)
-    end_datetime = datetime.combine(date.today(), datetime.min.time()).replace(
-        tzinfo=taiwan_timezone
-    ) + timedelta(days=1)
+    # end_datetime = datetime.combine(date.today(), datetime.min.time()).replace(
+    #     tzinfo=taiwan_timezone
+    # ) + timedelta(days=1)
+    end_datetime = datetime(2017, 1, 1, 0, 0, 0, tzinfo=taiwan_timezone)
 
     current_datetime = end_datetime
     root = Path("./extraData") / fund_query["name"]

@@ -38,17 +38,19 @@ r = session.get(url)
 taiwan_timezone = timezone(timedelta(hours=8))
 fund_querys = [
     {
-        "symbol": "0050",
+        "filter": "台灣卓越50基金",
         "name": "元大台灣卓越50基金",
-        "start_date": datetime(2003, 6, 25, 0, 0, 0, tzinfo=taiwan_timezone),
+        "start_date": datetime(
+            2008, 1, 1, 0, 0, 0, tzinfo=taiwan_timezone
+        ),  # datetime(2003, 6, 25, 0, 0, 0, tzinfo=taiwan_timezone),
         "comid": "A0005",
     },
-    {
-        "symbol": "006208",
-        "name": "富邦台灣釆吉50基金",
-        "start_date": datetime(2012, 6, 22, 0, 0, 0, tzinfo=taiwan_timezone),
-        "comid": "A0010",
-    },
+    # {
+    #     "filter": "台灣釆吉50基金",
+    #     "name": "富邦台灣釆吉50基金",
+    #     "start_date": datetime(2012, 6, 22, 0, 0, 0, tzinfo=taiwan_timezone),
+    #     "comid": "A0010",
+    # },
 ]
 
 for fund_query in fund_querys:
@@ -92,6 +94,7 @@ for fund_query in fund_querys:
             print(current_datetime, history.get(current_datetime))
             continue
 
+        start_time = time.time()
         dom = PyQuery(r.text)
 
         __VIEWSTATE = dom(r"#__VIEWSTATE").val()
@@ -107,14 +110,16 @@ for fund_query in fund_querys:
             "ctl00$ContentPlaceHolder1$BtnQuery": "查詢",
         }
 
-        time.sleep(1)
+        data_time = time.time() - start_time
+        time.sleep(0.5)
         r = session.post(url, data)
+        post_time = time.time() - start_time
 
         if "本日查無符合資料!!" in r.text:
             continue
 
         # with open("a.txt", "w") as f:
-        # f.write(r.content)
+        #     f.write(r.content)
 
         dom = PyQuery(r.text)
         funds = dom(r"tr.DTeven")
@@ -124,16 +129,23 @@ for fund_query in fund_querys:
             continue
 
         fund = funds.filter(
-            lambda i, this: PyQuery(this)(r"td:nth-child(4)").text() == fund_query["symbol"]
+            lambda i, this: fund_query["filter"] in PyQuery(this)(r"td:nth-last-child(5)").text()
         )
-        val = fund(r"td:nth-child(8)").text()
+        val = fund(r"td:nth-last-child(3)").text()
         if val == "":
             print(current_datetime, None)
             history[current_datetime] = None
             continue
 
-        print(current_datetime, val)
-        history[current_datetime] = float(val)
+        val = float(val)
+        print(
+            current_datetime,
+            f"{val:.2f}",
+            f"Data 準備： {data_time:.2f} 秒",
+            f"Post： {post_time:.2f} 秒",
+            f"總執行： {time.time() - start_time:.2f} 秒",
+        )
+        history[current_datetime] = val
 
     history_list = [[d, val, val, 0, 0] for d, val in history.items()]
     history_list.sort(key=lambda x: x[0], reverse=True)

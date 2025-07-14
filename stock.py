@@ -62,6 +62,8 @@ class Stock:
         Date     |   Close |  Adj Close   |   Dividends  |    Stock Splits
         %Y-%m-%d |   Float |  Float       |   Float      |    Int
         """
+        print("\n================================================================\n")
+
         self.symbol = symbol
         self.groups = groups
         self.remark = remark
@@ -101,7 +103,7 @@ class Stock:
             print(e)
             return {}
 
-        print("replaceDiv:", replaceDiv)
+        print(self.name, "replaceDiv:", replaceDiv)
         return replaceDiv
 
     def _getData(self, path):

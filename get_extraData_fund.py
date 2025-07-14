@@ -41,8 +41,8 @@ fund_querys = [
         "filter": "台灣卓越50基金",
         "name": "元大台灣卓越50基金",
         "start_date": datetime(
-            2008, 1, 1, 0, 0, 0, tzinfo=taiwan_timezone
-        ),  # datetime(2003, 6, 25, 0, 0, 0, tzinfo=taiwan_timezone),
+            2012, 5, 7, 0, 0, 0, tzinfo=taiwan_timezone
+        ),  # 投顧會的資料只到這一天不到成立日 # datetime(2003, 6, 25, 0, 0, 0, tzinfo=taiwan_timezone),
         "comid": "A0005",
     },
     # {

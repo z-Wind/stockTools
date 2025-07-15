@@ -3,6 +3,7 @@ import gzip
 import itertools
 import json
 import re
+import time
 import numpy as np
 import pandas as pd
 import io
@@ -2753,6 +2754,59 @@ def df_全國公立動物收容所收容處理情形統計表():
     return df
 
 
+# https://www.twse.com.tw/zh/products/broker/month-rank.html 定期定額交易戶數統計排行月報表
+# https://www.twse.com.tw/rwd/zh/brokerService/ETFRank?date={year}{month}01&response=json&_={timestamp} 請指定年月 timestamp
+def df_定期定額交易戶數統計排行月報表():
+    key = "定期定額交易戶數統計排行月報表"
+    key = sanitize_filename(key)
+    url_year_month = "https://www.twse.com.tw/rwd/zh/brokerService/ETFRank?date={year}{month:02d}01&response=json&_={timestamp}"
+    df = []
+
+    def get_data(year, month):
+        path = EXTRA_DATA_DIR / key / f"{year}{month:02d}.json.gz"
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            timestamp = int(datetime.now().timestamp() * 1000)
+            url = url_year_month.format(year=year, month=month, timestamp=timestamp)
+            time.sleep(1)
+            r = session.get(url)
+
+            if r.json()["stat"] != "OK":
+                return {}
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        with gzip.open(path, "rb") as f:
+            data = json.load(f)
+
+        return data
+
+    for year in range(2020, datetime.today().year + 1):
+        for month in range(1, 12 + 1):
+            if year == 2020 and month < 10:
+                continue
+            elif year == datetime.today().year and month >= datetime.today().month:
+                continue
+
+            json_data = get_data(year, month)
+            if "data" in json_data:
+                datas = [
+                    [[data[1], data[2], data[3]], [data[4], data[5], data[6]]]
+                    for data in json_data["data"]
+                ]
+                datas = [data for data_two in datas for data in data_two]
+                data = pd.DataFrame(datas, columns=["代號", "名稱", "交易戶數"])
+                data["交易戶數"] = data["交易戶數"].str.replace(",", "").astype(int)
+                data["年月"] = f"{year}{month:02d}"
+                df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
+
+    return df
+
+
 def update():
     df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊()
     df_村里戶數_單一年齡人口()
@@ -2762,6 +2816,7 @@ def update():
     df_嬰兒出生數按性別_生母原屬國籍_地區_年齡及教育程度分_按登記()
     df_嬰兒出生數按嬰兒性別及生父母年齡分_按登記()
     df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
+    df_定期定額交易戶數統計排行月報表()
 
     df_人力資源調查重要指標()
     df_教育程度別失業率()

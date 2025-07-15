@@ -5249,6 +5249,25 @@ def main():
 
     # ========================================================================
 
+    # https://www.twse.com.tw/zh/products/broker/month-rank.html
+    # https://www.twse.com.tw/rwd/zh/brokerService/ETFRank?date={year}{month}01&response=json&_={timestamp} 請指定年月 timestamp
+    key = "定期定額交易戶數統計排行月報表"
+    key = sanitize_filename(key)
+    df = df_定期定額交易戶數統計排行月報表()
+
+    df["全名"] = df["代號"] + "_" + df["名稱"]
+    df = df.pivot_table(
+        index="年月",
+        columns="全名",
+        values="交易戶數",
+        sort=True,
+        aggfunc="sum",
+    )
+
+    plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}")
+
+    # ========================================================================
+
     prefix = "TW_Analysis"
     report_dir = Path("report")
     with app.app_context():

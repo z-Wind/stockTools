@@ -47,7 +47,7 @@ default_template = merge_dict(
     theme_template,
     {
         "layout": {
-            "height": 600,
+            # "height": 600,
             "margin": {"b": 135},
             # "autosize": False,
             "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
@@ -69,7 +69,17 @@ default_template = merge_dict(
             # "plot_bgcolor": "#000",  # Black plot background
             # "paper_bgcolor": "#000",  # Black paper background
             # "legend": {"font": {"color": "#ffffff"}},  # White legend text
-        }
+        },
+        "config": {
+            "responsive": True,
+            "toImageButtonOptions": {
+                # "format": "png",  # one of png, svg, jpeg, webp
+                "filename": "image",
+                # "width": 1920,
+                # "height": 1080,
+                "scale": 5,  # Multiply title/legend/axis/canvas sizes by this factor,
+            },
+        },
     },
 )
 

@@ -23,5 +23,11 @@
         {% for key,item in plots.items() %}
         <script src="./{{jsfolder}}/{{key}}.js"></script>
         {%- endfor %} 
+
+        <script>
+            window.onload = function() {
+                window.dispatchEvent(new Event('resize'));
+            };
+        </script>
     </body>
 </html>

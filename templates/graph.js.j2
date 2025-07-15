@@ -1,8 +1,6 @@
-var config = { responsive: true }
-
 var {{ key }} = {{ item | safe }};
 
 Plotly.newPlot("{{key}}",
     {{ key }}.data,
     {{ key }}.layout || {},
-    config);
+    {{ key }}.config);

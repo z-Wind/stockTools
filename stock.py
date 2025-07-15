@@ -48,6 +48,7 @@ class Stock:
         dateDuplcatedCombine=False,
         name_width=7,
         daily_return_mul=None,
+        name_suffix="",
     ):
         """
         symbol: 代碼
@@ -68,6 +69,7 @@ class Stock:
         self.groups = groups
         self.remark = remark
         self.name_width = name_width
+        self.name_suffix = name_suffix
         if start:
             self.start = datetime.strptime(start, "%Y-%m-%d")
         if end:
@@ -305,7 +307,8 @@ class Stock:
     def name(self):
         symbol = self.symbol.replace(".TW", "")
         if self.remark:
-            return f"{symbol:{self.name_width}s} {self.remark}"
+            name = symbol + self.name_suffix
+            return f"{name:{self.name_width}s} {self.remark}"
         else:
             return symbol
 
@@ -385,7 +388,7 @@ class Figure:
     theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
     default_template = {
         "layout": {
-            "height": 600,
+            # "height": 600,
             # "autosize": False,
             "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
             "font": {"family": "Courier New"},
@@ -397,7 +400,17 @@ class Figure:
                 "tickfont": {"family": "Courier New"},
                 "automargin": True,
             },
-        }
+        },
+        "config": {
+            "responsive": True,
+            "toImageButtonOptions": {
+                # "format": "png",  # one of png, svg, jpeg, webp
+                "filename": "image",
+                # "width": 1920,
+                # "height": 1080,
+                "scale": 5,  # Multiply title/legend/axis/canvas sizes by this factor,
+            },
+        },
     }
     name_width = 7
 
@@ -445,6 +458,7 @@ class Figure:
                     dateDuplcatedCombine=symbol.get("dateDuplcatedCombine", False),
                     name_width=name_width,
                     daily_return_mul=symbol.get("daily_return_mul", None),
+                    name_suffix=symbol.get("name_suffix", ""),
                 )
             )
             # except Exception as error:
@@ -527,7 +541,7 @@ class Figure:
 
         return updatemenus
 
-    def _plotBar_without_group(self, df, title=None):
+    def _plotBar_without_group(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -543,13 +557,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotBar_with_group(self, df, title=None):
+    def _plotBar_with_group(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -566,13 +584,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotArea(self, df, title=None):
+    def _plotArea(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -596,13 +618,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotLine_without_markers(self, df, title=None):
+    def _plotLine_without_markers(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -625,13 +651,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotViolin(self, df, title=None):
+    def _plotViolin(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -656,13 +686,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotHeatmap(self, df, title=None, range_color=[-1, 1]):
+    def _plotHeatmap(self, df, title, filename, range_color=[-1, 1]):
         data = {
             "type": "heatmap",
             "z": df.values.tolist(),
@@ -694,13 +728,17 @@ class Figure:
             },
         }
 
-        graph = {"data": [data], "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": [data], "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotBox_without_group(self, df, title=None):
+    def _plotBox_without_group(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.groupby(level=0, sort=False):
@@ -728,13 +766,17 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotBox_with_group(self, df, title=None):
+    def _plotBox_with_group(self, df, title, filename):
         dataList = []
         symbols = []
         for symbol, data in df.groupby(level=0, sort=False):
@@ -763,7 +805,11 @@ class Figure:
             "updatemenus": self._group_button(symbols),
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": filename},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         # 序列化
@@ -773,13 +819,13 @@ class Figure:
         dataList = []
         buttons = []
         for i, (symbol, df_daily, df_rollback) in enumerate(data):
-            start = df_daily["Start"].iat[0].strftime("%Y/%m/%d")
-            end = df_daily["End"].iat[-1].strftime("%Y/%m/%d")
+            start = df_daily["Start"].iat[0].strftime("%Y-%m-%d")
+            end = df_daily["End"].iat[-1].strftime("%Y-%m-%d")
             df_daily = df_daily.sort_values(by=["Return"])
 
             x = df_daily.apply(
-                lambda x: "{}~{}".format(
-                    x["Start"].strftime("%Y/%m/%d"), x["End"].strftime("%Y/%m/%d")
+                lambda x: "{} ~ {}".format(
+                    x["Start"].strftime("%Y-%m-%d"), x["End"].strftime("%Y-%m-%d")
                 ),
                 axis=1,
             )
@@ -957,7 +1003,11 @@ class Figure:
             ],
         }
 
-        graph = {"data": dataList, "layout": layout}
+        config = {
+            "toImageButtonOptions": {"filename": f"Daily Return Analysis_{start}~{end}"},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
         axis_n = 0
@@ -989,9 +1039,13 @@ class Figure:
             end = max(end, st.history["Date"].iloc[-1])
 
         df = pd.concat(data, axis=1)
-        start = start.strftime("%Y/%m/%d")
-        end = end.strftime("%Y/%m/%d")
-        graph = self._plotBar_with_group(df, title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>")
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
+        graph = self._plotBar_with_group(
+            df,
+            title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>",
+            filename=f"Annual Return_{start}~{end}",
+        )
         graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         graph = json.dumps(graph)
 
@@ -1036,11 +1090,13 @@ class Figure:
 
     def total_return_bar(self):
         start, end, df = self.total_return()
-        start = start.strftime("%Y/%m/%d")
-        end = end.strftime("%Y/%m/%d")
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
 
         graph = self._plotBar_without_group(
-            df, title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>"
+            df,
+            title=f"<b>Total Return<b><br><i>{start} ~ {end}<i>",
+            filename=f"Total Return_{start}~{end}",
         )
         graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         graph = json.dumps(graph)
@@ -1051,10 +1107,14 @@ class Figure:
         year = pd.Timedelta(end - start).days / 365.0
         df = df.map(lambda x: ((1 + x) ** (1 / year) - 1))
         df = df.rename(index={"Total Return": "IRR"})
-        start = start.strftime("%Y/%m/%d")
-        end = end.strftime("%Y/%m/%d")
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
 
-        graph = self._plotBar_without_group(df, title=f"<b>IRR<b><br><i>{start} ~ {end}<i>")
+        graph = self._plotBar_without_group(
+            df,
+            title=f"<b>IRR<b><br><i>{start} ~ {end}<i>",
+            filename=f"IRR_{start}~{end}",
+        )
         graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         graph = json.dumps(graph)
 
@@ -1097,11 +1157,13 @@ class Figure:
 
     def year_regular_saving_plan_irr_bar(self):
         start, end, df = self.year_regular_saving_plan_irr()
-        start = start.strftime("%Y/%m/%d")
-        end = end.strftime("%Y/%m/%d")
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
 
         graph = self._plotBar_without_group(
-            df, title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>"
+            df,
+            title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>",
+            filename=f"Year Regular Saving Plan IRR_{start}~{end}",
         )
         graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         graph = json.dumps(graph)
@@ -1124,11 +1186,12 @@ class Figure:
             df,
             title=(
                 f"<b>{self.iYear} Years Rollback<b><br>"
-                f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
-                f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
-                f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
-                f" {end.strftime('%Y/%m/%d')}<i>"
+                f"Start: <i>{start.strftime('%Y-%m-%d')} ~"
+                f" {(end-relativedelta(years=self.iYear)).strftime('%Y-%m-%d')}<i><br>"
+                f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y-%m-%d')} ~"
+                f" {end.strftime('%Y-%m-%d')}<i>"
             ),
+            filename=f"{self.iYear} Years Rollback_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}",
         )
         lines = self._mergeDict(json.loads(lines), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         lines = json.dumps(lines)
@@ -1146,11 +1209,12 @@ class Figure:
             df,
             title=(
                 f"<b>{self.iYear} Years Rollback<b><br>"
-                f"Start: <i>{start.strftime('%Y/%m/%d')} ~"
-                f" {(end-relativedelta(years=self.iYear)).strftime('%Y/%m/%d')}<i><br>"
-                f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y/%m/%d')} ~"
-                f" {end.strftime('%Y/%m/%d')}<i>"
+                f"Start: <i>{start.strftime('%Y-%m-%d')} ~"
+                f" {(end-relativedelta(years=self.iYear)).strftime('%Y-%m-%d')}<i><br>"
+                f"End  : <i>{(start+relativedelta(years=self.iYear)).strftime('%Y-%m-%d')} ~"
+                f" {end.strftime('%Y-%m-%d')}<i>"
             ),
+            filename=f"{self.iYear} Years Rollback Violin_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}",
         )
         violin = self._mergeDict(json.loads(violin), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         violin = json.dumps(violin)
@@ -1170,10 +1234,12 @@ class Figure:
             data.append(s)
 
         df = pd.concat(data, axis=1)
-        start = df.dropna().index[0].strftime("%Y/%m/%d")
-        end = df.dropna().index[-1].strftime("%Y/%m/%d")
+        start = df.dropna().index[0].strftime("%Y-%m-%d")
+        end = df.dropna().index[-1].strftime("%Y-%m-%d")
         close = self._plotHeatmap(
-            df.corr(), title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>"
+            df.corr(),
+            title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>",
+            filename=f"Correlation of Close_{start}~{end}",
         )
 
         # =========================================================================
@@ -1188,10 +1254,12 @@ class Figure:
             data.append(s)
 
         df = pd.concat(data, axis=1)
-        start = df.dropna().index[0].strftime("%Y/%m/%d")
-        end = df.dropna().index[-1].strftime("%Y/%m/%d")
+        start = df.dropna().index[0].strftime("%Y-%m-%d")
+        end = df.dropna().index[-1].strftime("%Y-%m-%d")
         closeAdj = self._plotHeatmap(
-            df.corr(), title=f"<b>Correlation of Adj Close <b><br><i>{start} ~ {end}<i>"
+            df.corr(),
+            title=f"<b>Correlation of Adj Close<b><br><i>{start} ~ {end}<i>",
+            filename=f"Correlation of Adj Close_{start}~{end}",
         )
 
         return close, closeAdj
@@ -1226,8 +1294,8 @@ class Figure:
             data[st.name] = df
 
         df = pd.concat(data, axis=1)
-        start = df.index[0].strftime("%Y/%m/%d")
-        end = df.index[-1].strftime("%Y/%m/%d")
+        start = df.index[0].strftime("%Y-%m-%d")
+        end = df.index[-1].strftime("%Y-%m-%d")
 
         data_stat_year = {}
         for st in self.stocks:
@@ -1248,7 +1316,8 @@ class Figure:
 
         annual_return = self._plotBox_with_group(
             data_stat_year,
-            title=(f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>"),
+            title=f"<b>Annual Return Active vs Passive<b><br><i>{start} ~ {end}<i>",
+            filename=f"Annual Return Active vs Passive_{start} ~ {end}",
         )
         annual_return = self._mergeDict(
             json.loads(annual_return), {"layout": {"yaxis": {"tickformat": ".2%"}}}
@@ -1284,9 +1353,10 @@ class Figure:
             data_stat_all,
             title=(
                 f"<b>Total Return Active vs Passive<b><br>"
-                f"<i>{start.strftime('%Y/%m/%d')} ~"
-                f" {end.strftime('%Y/%m/%d')}<i>"
+                f"<i>{start.strftime('%Y-%m-%d')} ~"
+                f" {end.strftime('%Y-%m-%d')}<i>"
             ),
+            filename=f"Total Return Active vs Passive_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}",
         )
         total_return = self._mergeDict(
             json.loads(total_return), {"layout": {"yaxis": {"tickformat": ".2%"}}}
@@ -1403,6 +1473,7 @@ if __name__ == "__main__":
         # =================================================================================
         {
             "name": "0050.TW",
+            "name_suffix": "Fund",
             "remark": "元大台灣卓越50基金",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
             "replaceDiv": True,
@@ -1411,6 +1482,7 @@ if __name__ == "__main__":
         },
         {
             "name": "006208.TW",
+            "name_suffix": "Fund",
             "remark": "富邦台灣釆吉50基金",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "富邦台灣釆吉50基金"),
             "replaceDiv": True,
@@ -1446,6 +1518,14 @@ if __name__ == "__main__":
         {"name": "2303.TW", "remark": "聯電", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2308.TW", "remark": "台達電", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2454.TW", "remark": "聯發科", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2886.TW", "remark": "兆豐金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2884.TW", "remark": "玉山金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2891.TW", "remark": "中信金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2892.TW", "remark": "第一金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "5880.TW", "remark": "合庫金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2881.TW", "remark": "富邦金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2885.TW", "remark": "元大金", "replaceDiv": True, "groups": ["個股"]},
+        {"name": "2887.TW", "remark": "台新金", "replaceDiv": True, "groups": ["個股"]},
     ]
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 

@@ -383,6 +383,34 @@ class Stock:
 
         return rollback
 
+    def retire(
+        self,
+        year_start: int,
+        year_end: int,
+        init_money: int,
+        init_expense: int,
+        inflation_percent: int,
+    ):
+        annual_return = self.yearReturn[self.name].to_dict()
+        years = list(range(year_start, year_end + 1))
+
+        balance = init_money
+        expense = init_expense
+        inflation = 1 + inflation_percent / 100
+
+        data = []
+        for year in years:
+            data.append(balance)
+
+            if balance > 0:
+                balance -= expense
+                expense *= inflation
+                balance *= annual_return.get(year, 0) + 1.0
+
+        df = pd.DataFrame(data, index=years, columns=[self.name])
+
+        return df
+
 
 class Figure:
     theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
@@ -1365,6 +1393,85 @@ class Figure:
 
         return total_return, annual_return
 
+    def retire_separate_graph(self):
+        init_money = 10000000
+        init_expense = 400000
+        inflation_percent = 3
+        data = []
+        for st in self.stocks:
+            df = st.retire(st.start.year, st.end.year, init_money, init_expense, inflation_percent)
+            data.append(df)
+
+        df = pd.concat(data, axis="columns")
+        df = df.sort_index()
+        start = df.index[0]
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(
+                f"<b>Retire Simulation Separate<b><br>"
+                f"<b>initial money: {init_money}<b><br>"
+                f"<b>initial expense: {init_expense}<b><br>"
+                f"<b>inflation: {inflation_percent}%<b><br>"
+                f"<i>{start} ~ {end}<i>"
+            ),
+            filename=f"Retire Simulation Separate_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
+    def retire_graph(self):
+        df = self.intersection_history()
+        start = df.index[0]
+        end = df.index[-1]
+
+        init_money = 10000000
+        init_expense = 400000
+        inflation_percent = 3
+        data = []
+        for st in self.stocks:
+            df = st.retire(start.year, end.year, init_money, init_expense, inflation_percent)
+            data.append(df)
+
+        df = pd.concat(data, axis="columns")
+        start = df.index[0]
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(
+                f"<b>Retire Simulation<b><br>"
+                f"<b>initial money: {init_money}<b><br>"
+                f"<b>initial expense: {init_expense}<b><br>"
+                f"<b>inflation: {inflation_percent}%<b><br>"
+                f"<i>{start} ~ {end}<i>"
+            ),
+            filename=f"Retire Simulation_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
 
 def report(
     symbols,
@@ -1398,6 +1505,8 @@ def report(
     plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
+    plots["retire"] = fig.retire_graph()
+    plots["retire_separate"] = fig.retire_separate_graph()
 
     with app.app_context():
         jsfolder = f"{prefix}"

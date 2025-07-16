@@ -871,7 +871,6 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
 
         if not path.is_file():
             r = session.post(url, data)
-            pd.read_html(io.BytesIO(r.content), encoding="utf8")[0]
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
@@ -970,7 +969,6 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
 
         if not path.is_file():
             r = session.post(url, data)
-            pd.read_html(io.BytesIO(r.content), encoding="utf8")[0]
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
@@ -2803,6 +2801,97 @@ def df_定期定額交易戶數統計排行月報表():
                 df.append(data)
 
     df = pd.concat(df, ignore_index=True)
+
+    return df
+
+
+# https://www.tdcc.com.tw/portal/zh/smWeb/qryStock
+# https://data.gov.tw/dataset/11452 集保戶股權分散表
+# https://schema.nat.gov.tw/gsp/frontstage/resource.download/9f7d9184-20a0-49eb-b7dd-96e23686c4ef
+def df_集保戶股權分散表():
+    url = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
+
+    df = read_csv(url)
+    df["證券代號"] = df["證券代號"].str.strip()
+
+    symbols = df["證券代號"].unique().tolist()
+    infos = 查詢_證券編碼(symbols)
+
+    def 分級(x):
+        match x:
+            case 1:
+                return "1-999"
+            case 2:
+                return "1,000-5,000"
+            case 3:
+                return "5,001-10,000"
+            case 4:
+                return "10,001-15,000"
+            case 5:
+                return "15,001-20,000"
+            case 6:
+                return "20,001-30,000"
+            case 7:
+                return "30,001-40,000"
+            case 8:
+                return "40,001-50,000"
+            case 9:
+                return "50,001-100,000"
+            case 10:
+                return "100,001-200,000"
+            case 11:
+                return "200,001-400,000"
+            case 12:
+                return "400,001-600,000"
+            case 13:
+                return "600,001-800,000"
+            case 14:
+                return "800,001-1,000,000"
+            case 15:
+                return "1,000,001 以上"
+            case 16:
+                return "差異數調整"
+            case 17:
+                return "合計"
+
+    df["持股分級說明"] = df["持股分級"].apply(分級)
+
+    def 全名(symbol):
+        info = infos[infos["有價證券代號"] == symbol]
+        if len(info) == 1:
+            return f"{symbol:7s} {info["有價證券名稱"].iat[0]}"
+        else:
+            return symbol
+
+    df["全名"] = df["證券代號"].apply(全名)
+
+    return df
+
+
+# https://isin.twse.com.tw/isin/single_i.jsp 證券編碼_單筆/多筆查詢
+def 查詢_證券編碼(symbols):
+    url = "https://isin.twse.com.tw/isin/single_main.jsp"
+
+    datas = []
+    interval = 1000
+    for i in range(0, len(symbols), interval):
+        r = session.get(
+            url, params={"owncode": ",".join(symbols[i : i + interval]), "stockname": ""}
+        )
+        try:
+            data = pd.read_html(io.StringIO(r.text), encoding="big5")[0]
+            data.columns = data.iloc[0]
+            data = data.drop(0)
+            datas.append(data)
+        except Exception as e:
+            print(e)
+            print(r.url)
+
+        time.sleep(1)
+
+    df = pd.concat(datas, ignore_index=True)
+    df.index.name = None
+    df.columns.name = None
 
     return df
 

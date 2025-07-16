@@ -5266,6 +5266,38 @@ def main():
 
     plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}")
 
+    # https://www.tdcc.com.tw/portal/zh/smWeb/qryStock
+    # https://data.gov.tw/dataset/11452
+    # https://schema.nat.gov.tw/gsp/frontstage/resource.download/9f7d9184-20a0-49eb-b7dd-96e23686c4ef
+    key = "集保戶股權分散表"
+    key = sanitize_filename(key)
+    df = df_集保戶股權分散表()
+    date = df.loc[0, "資料日期"]
+
+    df_合計 = df[df["持股分級"] == 17].set_index("全名")
+
+    df_人數 = df_合計.sort_values(by="人數", ascending=False)[["人數"]].T
+    plots[f"{key}_人數"] = plot_bar(
+        df_人數, f"{key}_人數 {date}", additional_layout={"yaxis": {"tickformat": None}}
+    )
+
+    df_股數 = df_合計.sort_values(by="股數", ascending=False)[["股數"]].T
+    plots[f"{key}_股數"] = plot_bar(
+        df_股數, f"{key}_股數 {date}", additional_layout={"yaxis": {"tickformat": None}}
+    )
+
+    df_分級 = df[df["持股分級"].isin(range(1, 16))].pivot_table(
+        values="人數", index="持股分級說明", columns="全名", aggfunc="sum", sort=False
+    )
+    plots[f"{key}_分級"] = plot_bar_group(
+        df_分級,
+        f"{key}_分級 {date}",
+        additional_layout={
+            "yaxis": {"tickformat": None, "title": {"text": "人數"}},
+            "xaxis": {"title": {"text": "持股分級"}},
+        },
+    )
+
     # ========================================================================
 
     prefix = "TW_Analysis"

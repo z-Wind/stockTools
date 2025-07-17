@@ -622,7 +622,7 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotArea(self, df, title, filename):
+    def _plotArea(self, df, title, filename, additional_layout=None):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -641,10 +641,12 @@ class Figure:
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
             "title": {"text": title},
             # "font": {"family": "Courier New"},
-            "xaxis": {"title": "End Date"},
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
+
+        if additional_layout:
+            layout = self._mergeDict(layout, additional_layout)
 
         config = {
             "toImageButtonOptions": {"filename": filename},
@@ -656,7 +658,7 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotLine_without_markers(self, df, title, filename):
+    def _plotLine_without_markers(self, df, title, filename, additional_layout=None):
         dataList = []
         symbols = []
         for symbol, data in df.items():
@@ -674,10 +676,12 @@ class Figure:
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
             "title": {"text": title},
             # "font": {"family": "Courier New"},
-            "xaxis": {"title": "End Date"},
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
+
+        if additional_layout:
+            layout = self._mergeDict(layout, additional_layout)
 
         config = {
             "toImageButtonOptions": {"filename": filename},
@@ -1220,6 +1224,7 @@ class Figure:
                 f" {end.strftime('%Y-%m-%d')}<i>"
             ),
             filename=f"{self.iYear} Years Rollback_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}",
+            additional_layout={"xaxis": {"title": {"text": "End Date"}}},
         )
         lines = self._mergeDict(json.loads(lines), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         lines = json.dumps(lines)
@@ -1418,6 +1423,7 @@ class Figure:
                 f"<i>{start} ~ {end}<i>"
             ),
             filename=f"Retire Simulation Separate_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
         )
         lines = self._mergeDict(
             json.loads(lines),
@@ -1459,6 +1465,7 @@ class Figure:
                 f"<i>{start} ~ {end}<i>"
             ),
             filename=f"Retire Simulation_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
         )
         lines = self._mergeDict(
             json.loads(lines),

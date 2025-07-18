@@ -57,7 +57,8 @@ class Stock:
         end:    結束時間
         =======================================
         extraDiv:   額外的股息資料
-        replaceDiv: 取代原本的股息資料
+        replaceDiv: 用其他網站取代原本的股息資料
+        extraSplit:   額外的分割資料
         =======================================
         fromPath: 外部匯入股價資訊，需有以下欄位資訊
         Date     |   Close |  Adj Close   |   Dividends  |    Stock Splits
@@ -153,6 +154,19 @@ class Stock:
                 hist.reset_index().columns
             )
 
+        # 特調，因為股價有針對 split 調整，但資料中卻沒有 split
+        # 而且還只調到某個日期，再之前就又沒調整
+        finetune_split = {}
+        if self.symbol == "0050.TW":
+            finetune_split["2014/01/02 00:00:00+08:00"] = 1 / 4
+
+            for date, split in self.extraSplit.items():
+                date = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
+                hist.loc[date, "Stock Splits"] = split
+            for date, split in finetune_split.items():
+                date = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
+                hist.loc[date, "Stock Splits"] = split
+
         # 回復 yahoo 的原本價格
         ratio = 1.0
         for index, row in hist.iloc[::-1].iterrows():
@@ -164,6 +178,11 @@ class Stock:
 
             if row["Stock Splits"] != 0.0:
                 ratio *= row["Stock Splits"]
+
+        # 特調後，回復正確的 split
+        for date, split in finetune_split.items():
+            date = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
+            hist.loc[date, "Stock Splits"] = 0
 
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]
@@ -1610,7 +1629,7 @@ if __name__ == "__main__":
             "remark": "元大臺灣50",
             "replaceDiv": True,
             "groups": ["常用", "ETF"],
-            "extraSplit": {"2025/06/09 00:00:00+08:00": 4},
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
         {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
         {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True, "groups": ["日正"]},

@@ -2896,7 +2896,32 @@ def 查詢_證券編碼(symbols):
     return df
 
 
+# https://data.gov.tw/dataset/7232 銀行間市場新臺幣對美元收盤匯率
+def df_銀行間市場新臺幣對美元收盤匯率():
+    key = "銀行間市場新臺幣對美元收盤匯率"
+    key = sanitize_filename(key)
+    path = EXTRA_DATA_DIR / key / "data.csv"
+    _ensure_dir_exists(path)
+
+    url = (
+        "https://www.cbc.gov.tw/public/data/OpenData/%E5%A4%96%E5%8C%AF%E5%B1%80/FTDOpenData015.csv"
+    )
+    df = read_csv(url)
+
+    df.loc[:, "Date"] = pd.to_datetime(df["日期"], format="%Y%m%d")
+    df.loc[:, "Close"] = df["NTD/USD"].astype(float)
+    df.loc[:, "Adj Close"] = df["Close"]
+    df.loc[:, "Dividends"] = 0
+    df.loc[:, "Stock Splits"] = 0
+
+    df.to_csv(path, index=False, lineterminator="\n")
+
+    return df
+
+
 def update():
+    df_銀行間市場新臺幣對美元收盤匯率()
+
     df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊()
     df_村里戶數_單一年齡人口()
     df_現住人口性別_年齡_婚姻狀況()

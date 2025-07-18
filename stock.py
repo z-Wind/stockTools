@@ -2034,5 +2034,17 @@ if __name__ == "__main__":
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
+        # =================================================================================
+        {
+            "name": "NT/US",
+            "remark": "美元收盤匯率",
+            "fromPath": os.path.join(
+                os.path.dirname(__file__),
+                "extraData",
+                "TW_Analysis",
+                "銀行間市場新臺幣對美元收盤匯率",
+            ),
+            "groups": ["常用"],
+        },
     ]
     report(symbols, prefix="US", iYear=2, name_width=6)

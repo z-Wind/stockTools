@@ -425,8 +425,9 @@ class Stock:
                 balance -= expense
                 expense *= inflation
                 balance *= annual_return.get(year, 0) + 1.0
+        data.append(balance)
 
-        df = pd.DataFrame(data, index=years, columns=[self.name])
+        df = pd.DataFrame(data, index=[str(x) for x in years] + ["YTD"], columns=[self.name])
 
         return df
 

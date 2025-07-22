@@ -8,10 +8,15 @@ import numpy as np
 import pandas as pd
 import io
 import requests
+import warnings
 
 from requests.adapters import HTTPAdapter
+import urllib3
 from urllib3.util import Retry
 from pathlib import Path
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 # Regular expression for sanitizing strings for use as keys or filenames
 FILENAME_SANITIZE_PATTERN = r'[- ,、()~∕\/－%*?:"<>|（）—]+'
@@ -229,6 +234,9 @@ def df_人力資源調查重要指標():
     }
     xpath = "//人力資源調查重要指標"
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
+
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
@@ -301,6 +309,9 @@ def df_教育程度別失業率():
     }
     xpath = "//教育程度別失業率"
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
+
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
@@ -361,6 +372,9 @@ def df_年齡組別失業率():
     }
     xpath = "//年齡組別失業率"
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
+
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
@@ -407,6 +421,9 @@ def df_教育程度別失業率_按年齡分():
         113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04068a113.xml",
     }
     xpath = "//教育程度別失業率_按年齡分"
+
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
 
     df = []
     for year, url in urls.items():
@@ -856,6 +873,9 @@ def df_家庭部門平均每戶資產負債():
     # 負債轉為負值
     df.iloc[13:16] = -df.iloc[13:16]
 
+    if int(df.columns[-1]) + 2 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
+
     return df
 
 
@@ -876,7 +896,7 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
 
         return pd.read_html(path, encoding="utf8")[0]
 
-    for year in range(113, datetime.today().year - 1911 + 1):
+    for year in range(113, datetime.today().year - 1911):
         data_上市 = {
             "encodeURIComponent": 1,
             "step": 1,
@@ -899,7 +919,8 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
             df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
             last_year = year
         except Exception as e:
-            print(e)
+            print(key)
+            print("no data", year, url, e)
             break
 
     def clear_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -969,12 +990,15 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
 
         if not path.is_file():
             r = session.post(url, data)
+            if "查無資料" in r.text:
+                raise f"無法獲取資料 {data.RYEAR} {data.TYPEK}"
+
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
         return pd.read_html(path, encoding="utf8")[0]
 
-    for year in range(113, datetime.today().year - 1911 + 1):
+    for year in range(113, datetime.today().year - 1911):
         data_上市 = {
             "encodeURIComponent": 1,
             "step": 1,
@@ -997,7 +1021,8 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
             df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
             last_year = year
         except Exception as e:
-            print(e)
+            print(key)
+            print("no data", year, url, e)
             break
 
     def clear_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -1368,7 +1393,10 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
     key = "各業廠商僱用職缺按月計薪者每人每月平均最低薪資－按職類及員工規模分"
     key = sanitize_filename(key)
     url = {113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234463/mp05044a113.xml"}
-    lastyear = 113
+    lastyear = max(url.keys())
+
+    if lastyear + 1911 + 1 < datetime.now().year and datetime.now().month > 1:
+        print(f"請更新 {key}")
 
     df = read_xml_with_cache(
         EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
@@ -1387,7 +1415,11 @@ def df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行
     key = "各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分"
     key = sanitize_filename(key)
     url = {112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05025a112.xml"}
-    lastyear = 112
+    lastyear = max(url.keys())
+
+    if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 10:
+        print(f"請更新 {key}")
+
     df = read_xml_with_cache(
         EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
         url[lastyear],
@@ -1445,7 +1477,11 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
             "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
         ],
     }
-    lastyear = 112
+    lastyear = max(url.keys())
+
+    if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 10:
+        print(f"請更新 {key}")
+
     df = []
     for year in range(106, lastyear + 1):
         data = read_xml_with_cache(
@@ -1523,8 +1559,7 @@ def df_公司合併報表監察人酬金相關資訊():
         "股東權益報酬率(%)",
         "實收資本額(千元)",
     ]
-    df[num_index] = df[num_index].replace(",", "", regex=True)
-    df[num_index] = df[num_index].astype(float)
+    df[num_index] = df[num_index].replace(",", "", regex=True).astype(float)
     df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
 
@@ -1604,7 +1639,8 @@ def df_勞工退休金提繳統計年報_按地區_行業及規模別():
     return df
 
 
-# https://data.gov.tw/dataset/102667 統計年報 -> 113年 -> 勞工退休金 -> 提繳統計 -> 勞工退休金提繳單位、人數及平均提繳工資－按行業及地區分
+# https://data.gov.tw/dataset/102667
+# https://www.bli.gov.tw/0013087.html 統計年報 -> 113年 -> 勞工退休金 -> 提繳統計 -> 勞工退休金提繳單位、人數及平均提繳工資－按行業及地區分
 def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
     key = "歷史_勞工退休金提繳統計年報_按地區_行業及規模別"
     key = sanitize_filename(key)
@@ -1628,6 +1664,9 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
         112: "https://events.bli.gov.tw/report/attachment_file/report/year/112/h40040.csv",
         113: "https://events.bli.gov.tw/report/attachment_file/report/year/113/h40040.csv",
     }
+
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 6:
+        print(f"請更新 {key}")
 
     df = []
     for filename, url in urls.items():
@@ -1753,6 +1792,12 @@ def df_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況(
         113: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-s48",
     }
 
+    if (
+        max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
+        and datetime.now().month > 6
+    ):
+        print(f"請更新 {key}")
+
     df = []
     for filename, url in urls.items():
         path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
@@ -1778,6 +1823,12 @@ def df_勞工退休金平均提繳工資_按行業別():
         113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-2d5",
     }
 
+    if (
+        max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
+        and datetime.now().month > 6
+    ):
+        print(f"請更新 {key}")
+
     df = []
     for filename, url in urls.items():
         path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
@@ -1802,6 +1853,12 @@ def df_勞工退休金平均提繳工資_按年齡組別():
         112: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-jwL",
         113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-ESm",
     }
+
+    if (
+        max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
+        and datetime.now().month > 6
+    ):
+        print(f"請更新 {key}")
 
     df = []
     for filename, url in urls.items():
@@ -2064,7 +2121,8 @@ def df_村里戶數_單一年齡人口():
                     else:
                         return {}
                 except Exception as e:
-                    print("no data", url, e)
+                    print(key)
+                    print("no data", year, month, url, e)
                     continue
             else:
                 return {}
@@ -2138,7 +2196,8 @@ def df_現住人口性別_年齡_婚姻狀況():
                     else:
                         return {}
                 except Exception as e:
-                    print("no data", url, e)
+                    print(key)
+                    print("no data", year, url, e)
                     continue
             else:
                 return {}
@@ -2148,7 +2207,7 @@ def df_現住人口性別_年齡_婚姻狀況():
 
         return data
 
-    for year in range(108, datetime.today().year - 1911 + 1):
+    for year in range(108, datetime.today().year - 1911):
         page = 1
         json_data = get_data(year, page)
         if "responseData" not in json_data:
@@ -2222,7 +2281,8 @@ def df_動態資料統計表():
                     else:
                         return {}
                 except Exception as e:
-                    print("no data", url, e)
+                    print(key)
+                    print("no data", yearmonth, url, e)
                     continue
             else:
                 return {}
@@ -2406,6 +2466,9 @@ def df_結婚對數按婚姻類型_性別及年齡分_按登記():
         113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=169B54F1-8C46-48FB-8E28-164755BE51F8",
     }
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
+        print(f"請更新 {key}")
+
     df = []
     for filename, url in urls.items():
         path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
@@ -2500,6 +2563,9 @@ def df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度�
         111: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1C52FAFC-FEFC-4B10-8E51-81CD91CCB649",
         112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=F1806618-D721-426B-8A51-95C96AE728CF",
     }
+
+    if max(urls.keys()) + 1911 + 2 < datetime.now().year and datetime.now().month > 3:
+        print(f"請更新 {key}")
 
     df = []
     for filename, url in urls.items():
@@ -2600,6 +2666,9 @@ def df_嬰兒出生數按生母年齡及出生身分分_按登記():
         113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=6AF685B1-DA07-4E8C-AFE0-C59A3FB06021",
     }
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
+        print(f"請更新 {key}")
+
     df = []
     for filename, url in urls.items():
         path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
@@ -2631,6 +2700,9 @@ def df_嬰兒出生數按性別_胎次及生母年齡分_按登記():
         113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=1858BBBA-82EC-4E00-8C77-0E206E4CCED2",
     }
 
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
+        print(f"請更新 {key}")
+
     df = []
     for filename, url in urls.items():
         path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
@@ -2657,6 +2729,9 @@ def df_嬰兒出生數按嬰兒性別及出生胎別分_按登記():
         112: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=C7432B38-55F0-4DF1-8C91-33770B7A823C",
         113: "https://data.moi.gov.tw/MoiOD/System/DownloadFile.aspx?DATA=A6B28B8E-F601-452F-925A-75A6320A633F",
     }
+
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
+        print(f"請更新 {key}")
 
     df = []
     for filename, url in urls.items():
@@ -2884,6 +2959,7 @@ def 查詢_證券編碼(symbols):
             data = data.drop(0)
             datas.append(data)
         except Exception as e:
+            print("查詢_證券編碼")
             print(e)
             print(r.url)
 
@@ -2931,6 +3007,8 @@ def update():
     df_嬰兒出生數按嬰兒性別及生父母年齡分_按登記()
     df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記()
     df_定期定額交易戶數統計排行月報表()
+    df_綜稅總所得各縣市申報統計分析表()
+    df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
 
     df_人力資源調查重要指標()
     df_教育程度別失業率()
@@ -2940,8 +3018,6 @@ def update():
     df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分()
     df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分()
     df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分()
-    df_綜稅總所得各縣市申報統計分析表()
-    df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
     df_結婚對數按婚姻類型_性別及年齡分_按登記()
     df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度分_按登記()
     df_嬰兒出生數按生母年齡及出生身分分_按登記()

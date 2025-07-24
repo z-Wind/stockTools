@@ -115,7 +115,7 @@ def read_excel_with_cache(
     skiprows=None,
     nrows=None,
     usecols=None,
-    sheet_name=None,
+    sheet_name=0,
 ) -> pd.DataFrame:
     _ensure_dir_exists(path)
 

@@ -494,6 +494,79 @@ def df_國民所得統計_常用資料_季():
     return df
 
 
+# https://data.gov.tw/dataset/9421 家庭收支調查-所得總額按來源別分
+def df_家庭收支調查_所得總額按來源別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/013-%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D%E6%8C%89%E4%BE%86%E6%BA%90%E5%88%A5%E5%88%86.csv"
+    columns_remove_patt = "-億元"
+    index_col = "年"
+
+    df = read_csv(url)
+
+    億元_columns = [col for col in df.columns if "億元" in col]
+    df[億元_columns] = df[億元_columns] * 100000000
+
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/24137 家庭收支調查-所得總額與可支配所得
+def df_家庭收支調查_所得總額與可支配所得():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/034-%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D%E8%88%87%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv"
+    index_col = "年"
+
+    df = read_csv(url)
+
+    億元_columns = [col for col in df.columns if "億元" in col]
+    df[億元_columns] = df[億元_columns] * 100000000
+
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace("-億元", "", regex=True)
+    df.columns = df.columns.str.replace("-元", "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/24140 家庭收支調查-戶內人數別平均每戶所得總額
+def df_家庭收支調查_戶內人數別平均每戶所得總額():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/037-%E6%88%B6%E5%85%A7%E4%BA%BA%E6%95%B8%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/22236 家庭收支調查-農家平均每戶所得總額按來自農業與非農業分
+def df_家庭收支調查_農家平均每戶所得總額按來自農業與非農業分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/032-%E8%BE%B2%E5%AE%B6%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D%E6%8C%89%E4%BE%86%E8%87%AA%E8%BE%B2%E6%A5%AD%E8%88%87%E9%9D%9E%E8%BE%B2%E6%A5%AD%E5%88%86.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/24736 家庭收支調查-農家與非農家平均每戶可支配所得、所得總額及儲蓄
+def df_家庭收支調查_農家與非農家平均每戶可支配所得_所得總額及儲蓄():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/043-%E8%BE%B2%E5%AE%B6%E8%88%87%E9%9D%9E%E8%BE%B2%E5%AE%B6%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E3%80%81%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D%E5%8F%8A%E5%84%B2%E8%93%84.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
 # https://data.gov.tw/dataset/93951 家庭收支調查-戶數五等分位之平均每戶所得總額
 def df_家庭收支調查_戶數五等分位之平均每戶所得總額():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/067-%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B5%84%E4%B9%8B%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv"
@@ -848,6 +921,216 @@ def df_家庭收支調查_所得收入者各縣市別平均每人非消費支出
 # https://data.gov.tw/dataset/117929 家庭收支調查-所得收入者各縣市別平均每人可支配所得
 def df_家庭收支調查_所得收入者各縣市別平均每人可支配所得():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/080-%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E8%80%85%E5%90%84%E7%B8%A3%E5%B8%82%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E4%BA%BA%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/144913 家庭收支調查-性別統計指標-可支配所得按戶數五等分位經濟戶長性別比率
+def df_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/090-%E6%80%A7%E5%88%A5%E7%B5%B1%E8%A8%88%E6%8C%87%E6%A8%99-%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E6%8C%89%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E6%80%A7%E5%88%A5%E6%AF%94%E7%8E%87.csv"
+    columns_remove_patt = "經濟戶長比率"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    df = df / 100
+
+    return df
+
+
+# https://data.gov.tw/dataset/91919 家庭收支調查-性別統計指標-戶數與結構按經濟戶長性別分
+def df_家庭收支調查_性別統計指標_戶數與結構按經濟戶長性別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/064-%E6%80%A7%E5%88%A5%E7%B5%B1%E8%A8%88%E6%8C%87%E6%A8%99-%E6%88%B6%E6%95%B8%E8%88%87%E7%B5%90%E6%A7%8B%E6%8C%89%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E6%80%A7%E5%88%A5%E5%88%86.csv"
+    columns_remove_patt = "經濟戶長"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+
+    df["男性經濟戶長比率"] = df["男性經濟戶長比率"] / 100
+    df["女性經濟戶長比率"] = df["女性經濟戶長比率"] / 100
+
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/111591 家庭收支調查-家庭戶數按所得總額組別及經濟戶長性別分
+def df_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/079-%E5%AE%B6%E5%BA%AD%E6%88%B6%E6%95%B8%E6%8C%89%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D%E7%B5%84%E5%88%A5%E5%8F%8A%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E6%80%A7%E5%88%A5%E5%88%86.csv"
+    index_col = "所得總額組別"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+
+    df.columns = df.columns.str.replace("-戶數", "", regex=True)
+
+    return df, datetime.today().year - 2
+
+
+# https://data.gov.tw/dataset/108265 家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分
+def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/074-%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E5%8F%8A%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA%E4%BE%9D%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E6%8C%89%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E5%88%86%E5%8F%8A%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E5%B9%B4%E9%BD%A1%E7%B5%84%E5%88%A5%E5%88%86.csv"
+    index_col = "依可支配所得按戶數五等分位分"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+
+    df.columns = df.columns.str.replace("經濟戶長-元", "", regex=True)
+    df.columns = df.columns.str.replace("-元", "", regex=True)
+
+    df = df.T
+
+    return df, datetime.today().year - 2
+
+
+# https://data.gov.tw/dataset/108266 家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分
+def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/075-%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E5%8F%8A%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA%E4%BE%9D%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E6%8C%89%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E5%88%86%E5%8F%8A%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E6%95%99%E8%82%B2%E7%A8%8B%E5%BA%A6%E5%88%A5%E5%88%86.csv"
+    index_col = "依可支配所得按戶數五等分位分"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+
+    df.columns = df.columns.str.replace("經濟戶長", "", regex=True)
+    df.columns = df.columns.str.replace("-元", "", regex=True)
+
+    df = df.T
+
+    return df, datetime.today().year - 2
+
+
+# https://data.gov.tw/dataset/101340 家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分
+def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/073-%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E5%8F%8A%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA%E4%BE%9D%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97%E6%8C%89%E6%88%B6%E6%95%B8%E4%BA%94%E7%AD%89%E5%88%86%E4%BD%8D%E5%88%86%E5%8F%8A%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E6%80%A7%E5%88%A5%E5%88%86.csv"
+    index_col = "依可支配所得按戶數五等分位分"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+
+    df.columns = df.columns.str.replace("經濟戶長", "", regex=True)
+    df.columns = df.columns.str.replace("-元", "", regex=True)
+
+    df = df.T
+
+    return df, datetime.today().year - 2
+
+
+# https://data.gov.tw/dataset/45125 家庭收支調查-性別統計指標-經濟戶長人數按性別、教育程度及年齡分
+def df_家庭收支調查_性別統計指標_經濟戶長人數按性別_教育程度及年齡分():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/055-%E6%80%A7%E5%88%A5%E7%B5%B1%E8%A8%88%E6%8C%87%E6%A8%99-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E4%BA%BA%E6%95%B8%E6%8C%89%E6%80%A7%E5%88%A5%E3%80%81%E6%95%99%E8%82%B2%E7%A8%8B%E5%BA%A6%E5%8F%8A%E5%B9%B4%E9%BD%A1%E5%88%86.csv"
+    columns_remove_patt = "-人"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/36369 家庭收支調查-經濟戶長職業別平均每戶所得總額
+def df_家庭收支調查_經濟戶長職業別平均每戶所得總額():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/049-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/36370 家庭收支調查-經濟戶長職業別平均每戶所得收入總計
+def df_家庭收支調查_經濟戶長職業別平均每戶所得收入總計():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/050-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E6%94%B6%E5%85%A5%E7%B8%BD%E8%A8%88.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/43462 家庭收支調查-經濟戶長職業別平均每戶非消費支出
+def df_家庭收支調查_經濟戶長職業別平均每戶非消費支出():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/053-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E9%9D%9E%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/30901 家庭收支調查-經濟戶長職業別平均每戶可支配所得
+def df_家庭收支調查_經濟戶長職業別平均每戶可支配所得():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/047-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%AF%E6%94%AF%E9%85%8D%E6%89%80%E5%BE%97.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/37450 家庭收支調查-經濟戶長職業別平均每戶消費支出
+def df_家庭收支調查_經濟戶長職業別平均每戶消費支出():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/052-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%B6%88%E8%B2%BB%E6%94%AF%E5%87%BA.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# hhttps://data.gov.tw/dataset/43463 家庭收支調查-經濟戶長職業別平均每戶經常性支出
+def df_家庭收支調查_經濟戶長職業別平均每戶經常性支出():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/054-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E7%B6%93%E5%B8%B8%E6%80%A7%E6%94%AF%E5%87%BA.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/30900 家庭收支調查-經濟戶長職業別平均每戶儲蓄
+def df_家庭收支調查_經濟戶長職業別平均每戶儲蓄():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/048-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%84%B2%E8%93%84.csv"
+    columns_remove_patt = "-元"
+    index_col = "年"
+
+    df = read_csv(url)
+    df = df.set_index(index_col)
+    df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    return df
+
+
+# https://data.gov.tw/dataset/37444 家庭收支調查-經濟戶長職業別平均每戶受僱人員報酬
+def df_家庭收支調查_經濟戶長職業別平均每戶受僱人員報酬():
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/051-%E7%B6%93%E6%BF%9F%E6%88%B6%E9%95%B7%E8%81%B7%E6%A5%AD%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E5%8F%97%E5%83%B1%E4%BA%BA%E5%93%A1%E5%A0%B1%E9%85%AC.csv"
     columns_remove_patt = "-元"
     index_col = "年"
 

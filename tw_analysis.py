@@ -1155,6 +1155,58 @@ def main():
 
     # =================================================
 
+    # https://data.gov.tw/dataset/9421
+    key = "家庭收支調查-所得總額按來源別分"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_所得總額按來源別分()
+
+    percent_columns = [col for col in df.columns if "百分比" in col]
+    df[percent_columns] = df[percent_columns] / 100
+
+    plots[key] = plot_lines_bars(
+        df,
+        lines_left_axis=percent_columns,
+        bars_right_axis=[col for col in df.columns if "百分比" not in col],
+        title=f"{key} {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/24137
+    key = "家庭收支調查-所得總額與可支配所得"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_所得總額與可支配所得()
+
+    plots[key] = plot_lines_bars(
+        df,
+        lines_left_axis=[col for col in df.columns if "平均每戶" in col],
+        bars_right_axis=[col for col in df.columns if "平均每戶" not in col],
+        title=f"{key}-元 {df.index[0]}~{df.index[-1]}年",
+    )
+
+    # https://data.gov.tw/dataset/24140
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶所得總額",
+        df_get=df_家庭收支調查_戶內人數別平均每戶所得總額,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/22236
+    年_plot(
+        plots,
+        key="家庭收支調查-農家平均每戶所得總額按來自農業與非農業分",
+        df_get=df_家庭收支調查_農家平均每戶所得總額按來自農業與非農業分,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/24736
+    年_plot(
+        plots,
+        key="家庭收支調查-農家與非農家平均每戶可支配所得、所得總額及儲蓄",
+        df_get=df_家庭收支調查_農家與非農家平均每戶可支配所得_所得總額及儲蓄,
+        title_suffix="-元",
+    )
+
     # https://data.gov.tw/dataset/93951
     年_plot(
         plots,
@@ -1443,6 +1495,168 @@ def main():
         key="家庭收支調查-所得收入者各縣市別平均每人可支配所得",
         df_get=df_家庭收支調查_所得收入者各縣市別平均每人可支配所得,
         title_suffix="-元 可支配所得=所得收入-非消費支出, 平均每人可支配所得=平均每位所得收入者可支配所得",
+    )
+
+    # https://data.gov.tw/dataset/144913
+    年_plot(
+        plots,
+        key="家庭收支調查-性別統計指標-可支配所得按戶數五等分位經濟戶長性別比率",
+        df_get=df_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率,
+        title_suffix="",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/91919
+    key = "家庭收支調查-性別統計指標-戶數與結構按經濟戶長性別分"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_性別統計指標_戶數與結構按經濟戶長性別分()
+
+    plots[key] = plot_lines_bars(
+        df,
+        lines_left_axis=["男性比率", "女性比率"],
+        bars_right_axis=["總計戶數", "男性戶數", "女性戶數"],
+        title=f"{key} {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    # https://data.gov.tw/dataset/108265
+    key = (
+        "家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分"
+    )
+    key = sanitize_filename(key)
+    df, last_year = (
+        df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分()
+    )
+
+    plots[key] = plot_bar_group(
+        df,
+        title=f"{key}-元 {last_year}年",
+    )
+
+    # https://data.gov.tw/dataset/108266
+    key = "家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分"
+    key = sanitize_filename(key)
+    df, last_year = (
+        df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分()
+    )
+
+    plots[key] = plot_bar_group(
+        df,
+        title=f"{key}-元 {last_year}年",
+    )
+
+    # https://data.gov.tw/dataset/101340
+    key = "家庭收支調查-平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分"
+    key = sanitize_filename(key)
+    df, last_year = (
+        df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分()
+    )
+
+    plots[key] = plot_bar_group(
+        df,
+        title=f"{key}-元 {last_year}年",
+    )
+
+    # https://data.gov.tw/dataset/111591
+    key = "家庭收支調查-家庭戶數按所得總額組別及經濟戶長性別分"
+    key = sanitize_filename(key)
+    df, last_year = df_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別分()
+
+    idx = [i for i in df.index if i != "總計"]
+    plots[key] = plot_bar_group(
+        df.loc[idx, :],
+        title=f"{key}-戶數 {last_year}年",
+    )
+
+    # https://data.gov.tw/dataset/45125
+    年_plot(
+        plots,
+        key="家庭收支調查-性別統計指標-經濟戶長人數按性別、教育程度及年齡分",
+        df_get=df_家庭收支調查_性別統計指標_經濟戶長人數按性別_教育程度及年齡分,
+        title_suffix="-人",
+    )
+
+    # https://data.gov.tw/dataset/36369
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶所得總額",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶所得總額,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/36370
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶所得收入總計",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶所得收入總計,
+        title_suffix="-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+    )
+
+    # https://data.gov.tw/dataset/43462
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶非消費支出",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶非消費支出,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/30901
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶可支配所得",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
+    )
+
+    # https://data.gov.tw/dataset/37450
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶消費支出",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶消費支出,
+        title_suffix="-元",
+    )
+
+    # hhttps://data.gov.tw/dataset/43463
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶經常性支出",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶經常性支出,
+        title_suffix="-元 經常性支出=消費支出+非消費支出",
+    )
+
+    # https://data.gov.tw/dataset/30900
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶儲蓄",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶儲蓄,
+        title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+    )
+
+    # https://data.gov.tw/dataset/9417
+    # https://data.gov.tw/dataset/9416
+    def df_家庭收支調查_經濟戶長職業別平均每戶儲蓄率():
+        儲蓄 = df_家庭收支調查_經濟戶長職業別平均每戶儲蓄()
+        所得總額 = df_家庭收支調查_經濟戶長職業別平均每戶所得總額()
+        return 儲蓄 / 所得總額[儲蓄.columns]
+
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶儲蓄率",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶儲蓄率,
+        title_suffix=" 儲蓄率=儲蓄/所得總額",
+        additional_layout={
+            "yaxis": {
+                "tickformat": ".2%",
+            }
+        },
+    )
+
+    # https://data.gov.tw/dataset/37444
+    年_plot(
+        plots,
+        key="家庭收支調查-經濟戶長職業別平均每戶受僱人員報酬",
+        df_get=df_家庭收支調查_經濟戶長職業別平均每戶受僱人員報酬,
+        title_suffix="-元",
     )
 
     # https://www.stat.gov.tw/cp.aspx?n=2773

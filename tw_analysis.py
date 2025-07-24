@@ -1746,10 +1746,10 @@ def main():
 
     plots[key] = plot_lines_bars(
         df,
-        lines_left_axis=["男性比率", "女性比率"],
-        bars_right_axis=["總計戶數", "男性戶數", "女性戶數"],
+        bars_left_axis=["男性比率", "女性比率"],
+        lines_right_axis=["總計戶數", "男性戶數", "女性戶數"],
         title=f"{key} {df.index[0]}~{df.index[-1]}年",
-        additional_layout={"yaxis": {"tickformat": ".2%"}},
+        additional_layout={"barmode": "stack", "yaxis": {"tickformat": ".2%"}},
     )
 
     # https://data.gov.tw/dataset/108265
@@ -1761,9 +1761,18 @@ def main():
         df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分()
     )
 
-    plots[key] = plot_bar_group(
-        df,
-        title=f"{key}-元 {last_year}年",
+    df_可支配 = df[[col for col in df.columns if "可支配" in col]]
+    df_可支配.columns = df_可支配.columns.str.replace("平均每戶可支配所得-", "", regex=True)
+    plots[f"{key}_平均每戶可支配所得"] = plot_bar_group(
+        df_可支配,
+        title=f"{key}_平均每戶可支配所得-元 {last_year}年",
+    )
+
+    df_消費 = df[[col for col in df.columns if "消費" in col]]
+    df_消費.columns = df_消費.columns.str.replace("平均每戶消費支出-", "", regex=True)
+    plots[f"{key}_平均每戶消費支出"] = plot_bar_group(
+        df_消費,
+        title=f"{key}_平均每戶消費支出-元 {last_year}年",
     )
 
     # https://data.gov.tw/dataset/108266
@@ -1773,9 +1782,18 @@ def main():
         df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分()
     )
 
-    plots[key] = plot_bar_group(
-        df,
-        title=f"{key}-元 {last_year}年",
+    df_可支配 = df[[col for col in df.columns if "可支配" in col]]
+    df_可支配.columns = df_可支配.columns.str.replace("平均每戶可支配所得-", "", regex=True)
+    plots[f"{key}_平均每戶可支配所得"] = plot_bar_group(
+        df_可支配,
+        title=f"{key}_平均每戶可支配所得-元 {last_year}年",
+    )
+
+    df_消費 = df[[col for col in df.columns if "消費" in col]]
+    df_消費.columns = df_消費.columns.str.replace("平均每戶消費支出-", "", regex=True)
+    plots[f"{key}_平均每戶消費支出"] = plot_bar_group(
+        df_消費,
+        title=f"{key}_平均每戶消費支出-元 {last_year}年",
     )
 
     # https://data.gov.tw/dataset/101340
@@ -1785,9 +1803,18 @@ def main():
         df_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分()
     )
 
-    plots[key] = plot_bar_group(
-        df,
-        title=f"{key}-元 {last_year}年",
+    df_可支配 = df[[col for col in df.columns if "可支配" in col]]
+    df_可支配.columns = df_可支配.columns.str.replace("平均每戶可支配所得-", "", regex=True)
+    plots[f"{key}_平均每戶可支配所得"] = plot_bar_group(
+        df_可支配,
+        title=f"{key}_平均每戶可支配所得-元 {last_year}年",
+    )
+
+    df_消費 = df[[col for col in df.columns if "消費" in col]]
+    df_消費.columns = df_消費.columns.str.replace("平均每戶消費支出-", "", regex=True)
+    plots[f"{key}_平均每戶消費支出"] = plot_bar_group(
+        df_消費,
+        title=f"{key}_平均每戶消費支出-元 {last_year}年",
     )
 
     # https://data.gov.tw/dataset/111591

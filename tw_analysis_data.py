@@ -1267,8 +1267,6 @@ def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配
     df.columns = df.columns.str.replace("經濟戶長-元", "", regex=True)
     df.columns = df.columns.str.replace("-元", "", regex=True)
 
-    df = df.T
-
     return df, datetime.today().year - 2
 
 
@@ -1283,8 +1281,6 @@ def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配
     df.columns = df.columns.str.replace("經濟戶長", "", regex=True)
     df.columns = df.columns.str.replace("-元", "", regex=True)
 
-    df = df.T
-
     return df, datetime.today().year - 2
 
 
@@ -1298,8 +1294,6 @@ def df_家庭收支調查_平均每戶可支配所得及消費支出依可支配
 
     df.columns = df.columns.str.replace("經濟戶長", "", regex=True)
     df.columns = df.columns.str.replace("-元", "", regex=True)
-
-    df = df.T
 
     return df, datetime.today().year - 2
 

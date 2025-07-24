@@ -202,7 +202,7 @@ def plot_bar_stack_multi_index(
 
 def plot_lines_bars(
     df: pd.DataFrame,
-    lines_left_axis: list[str],
+    lines_left_axis: list[str] = [],
     lines_right_axis: list[str] = [],
     bars_left_axis: list[str] = [],
     bars_right_axis: list[str] = [],
@@ -1155,6 +1155,50 @@ def main():
 
     # =================================================
 
+    # https://data.gov.tw/dataset/6429
+    key = "家庭收支調查-家庭收支重要指標"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_家庭收支重要指標()
+
+    percent_columns = [col for col in df.columns if "百分比" in col]
+    df[percent_columns] = df[percent_columns] / 100
+
+    plots[f"{key}_人數"] = plot_line(
+        df[
+            [
+                "平均每戶人數-人",
+                "平均每戶就業人數-人",
+            ]
+        ],
+        title=f"{key}_人數 {df.index[0]}~{df.index[-1]}年",
+    )
+
+    plots[f"{key}_收支"] = plot_lines_bars(
+        df,
+        lines_left_axis=[
+            "每戶可支配所得平均數-元",
+            "每人可支配所得平均數-元",
+            "每戶可支配所得中位數-元",
+            "每人可支配所得中位數-元",
+            "消費支出-元",
+            "儲蓄-元",
+        ],
+        lines_right_axis=[
+            "消費傾向-百分比",
+            "儲蓄率-百分比",
+        ],
+        title=f"{key}_收支 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis2": {"tickformat": ".2%"}},
+    )
+
+    plots[f"{key}_居住"] = plot_lines_bars(
+        df,
+        lines_left_axis=["住宅坪數平均數-坪", "住宅坪數中位數-坪"],
+        lines_right_axis=["自有住宅率-百分比"],
+        title=f"{key}_居住 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"yaxis2": {"tickformat": ".2%"}},
+    )
+
     # https://data.gov.tw/dataset/9421
     key = "家庭收支調查-所得總額按來源別分"
     key = sanitize_filename(key)
@@ -1183,12 +1227,137 @@ def main():
         title=f"{key}-元 {df.index[0]}~{df.index[-1]}年",
     )
 
+    # https://data.gov.tw/dataset/22230
+    key = "家庭收支調查-所得收入者人數與按年齡組別及性別之分配"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_所得收入者人數與按年齡組別及性別之分配()
+
+    plots[f"{key}_年齡"] = plot_lines_bars(
+        df,
+        bars_left_axis=[col for col in df.columns if "歲" in col],
+        lines_right_axis=["所得收入者人數合計"],
+        title=f"{key}_年齡 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={
+            "barmode": "stack",
+            "yaxis": {
+                "tickformat": ".2%",
+            },
+        },
+    )
+    plots[f"{key}_性別"] = plot_lines_bars(
+        df,
+        bars_left_axis=[col for col in df.columns if "性" in col],
+        lines_right_axis=["所得收入者人數合計"],
+        title=f"{key}_性別 {df.index[0]}~{df.index[-1]}年",
+        additional_layout={
+            "barmode": "stack",
+            "yaxis": {
+                "tickformat": ".2%",
+            },
+        },
+    )
+
     # https://data.gov.tw/dataset/24140
     年_plot(
         plots,
         key="家庭收支調查-戶內人數別平均每戶所得總額",
         df_get=df_家庭收支調查_戶內人數別平均每戶所得總額,
         title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/24141
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶所得收入總計",
+        df_get=df_家庭收支調查_戶內人數別平均每戶所得收入總計,
+        title_suffix="-元 所得收入=所得總額-自用住宅及其他營建物設算折舊",
+    )
+
+    # https://data.gov.tw/dataset/24734
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶非消費支出",
+        df_get=df_家庭收支調查_戶內人數別平均每戶非消費支出,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/24138
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶可支配所得",
+        df_get=df_家庭收支調查_戶內人數別平均每戶可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
+    )
+
+    # https://data.gov.tw/dataset/24733
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶消費支出",
+        df_get=df_家庭收支調查_戶內人數別平均每戶消費支出,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/24735
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶經常性支出",
+        df_get=df_家庭收支調查_戶內人數別平均每戶經常性支出,
+        title_suffix="-元 經常性支出=消費支出+非消費支出",
+    )
+
+    # https://data.gov.tw/dataset/24139
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶儲蓄",
+        df_get=df_家庭收支調查_戶內人數別平均每戶儲蓄,
+        title_suffix="-元 儲蓄=所得收入-經常性支出=可支配所得-消費支出",
+    )
+
+    # https://data.gov.tw/dataset/24140
+    # https://data.gov.tw/dataset/24139
+    def df_家庭收支調查_戶內人數別平均每戶儲蓄率():
+        儲蓄 = df_家庭收支調查_戶內人數別平均每戶儲蓄()
+        儲蓄 = 儲蓄.rename(columns={"平均每戶儲蓄": "平均每戶"})
+        所得總額 = df_家庭收支調查_戶內人數別平均每戶所得總額()
+        所得總額 = 所得總額.rename(columns={"平均每戶所得總額": "平均每戶"})
+
+        return 儲蓄 / 所得總額[儲蓄.columns]
+
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶儲蓄率",
+        df_get=df_家庭收支調查_戶內人數別平均每戶儲蓄率,
+        title_suffix=" 儲蓄率=儲蓄/所得總額",
+        additional_layout={
+            "yaxis": {
+                "tickformat": ".2%",
+            }
+        },
+    )
+
+    # https://data.gov.tw/dataset/24731
+    年_plot(
+        plots,
+        key="家庭收支調查-戶內人數別平均每戶受僱人員報酬",
+        df_get=df_家庭收支調查_戶內人數別平均每戶受僱人員報酬,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/9559 家庭收支調查-家庭戶數按戶內人口規模別之分配
+    key = "家庭收支調查-家庭戶數按戶內人口規模別之分配"
+    key = sanitize_filename(key)
+    df = df_家庭收支調查_家庭戶數按戶內人口規模別之分配()
+    df = df.drop(columns="臺灣地區合計")
+
+    plots[key] = plot_bar_group(
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}年",
+        additional_layout={
+            "barmode": "stack",
+            "yaxis": {
+                "tickformat": ".2%",
+            },
+        },
     )
 
     # https://data.gov.tw/dataset/22236
@@ -1204,6 +1373,22 @@ def main():
         plots,
         key="家庭收支調查-農家與非農家平均每戶可支配所得、所得總額及儲蓄",
         df_get=df_家庭收支調查_農家與非農家平均每戶可支配所得_所得總額及儲蓄,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/27962
+    年_plot(
+        plots,
+        key="家庭收支調查-農家與非農家平均每戶消費支出、非消費支出及經常性支出",
+        df_get=df_家庭收支調查_農家與非農家平均每戶消費支出_非消費支出及經常性支出,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/24737
+    年_plot(
+        plots,
+        key="家庭收支調查-農家與非農家平均每戶所得收入總計及受僱人員報酬",
+        df_get=df_家庭收支調查_農家與非農家平均每戶所得收入總計及受僱人員報酬,
         title_suffix="-元",
     )
 
@@ -1285,6 +1470,14 @@ def main():
         },
     )
 
+    # https://data.gov.tw/dataset/94754
+    年_plot(
+        plots,
+        key="家庭收支調查-戶數五等分位之平均每戶受僱人員報酬",
+        df_get=df_家庭收支調查_戶數五等分位之平均每戶受僱人員報酬,
+        title_suffix="-元",
+    )
+
     # https://data.gov.tw/dataset/9424
     年_plot(
         plots,
@@ -1301,12 +1494,28 @@ def main():
         title_suffix="-人",
     )
 
+    # https://data.gov.tw/dataset/9422
+    年_plot(
+        plots,
+        key="家庭收支調查-戶數十等分位組分界點之可支配所得",
+        df_get=df_家庭收支調查_戶數十等分位組分界點之可支配所得,
+        title_suffix="-元",
+    )
+
     # https://data.gov.tw/dataset/132285
     年_plot(
         plots,
         key="家庭收支調查-所得收入者五等分位平均每人可支配所得",
         df_get=df_家庭收支調查_所得收入者五等分位平均每人可支配所得,
         title_suffix="平均每人可支配所得=平均每位所得收入者可支配所得",
+    )
+
+    # hhttps://data.gov.tw/dataset/11573
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者十等分位組分界點之可支配所得",
+        df_get=df_家庭收支調查_所得收入者十等分位組分界點之可支配所得,
+        title_suffix="-元 平均每人可支配所得=平均每位所得收入者可支配所得",
     )
 
     # =================================================
@@ -1384,6 +1593,14 @@ def main():
                 "tickformat": ".2%",
             }
         },
+    )
+
+    # hhttps://data.gov.tw/dataset/76263
+    年_plot(
+        plots,
+        key="家庭收支調查-家庭組織型態別平均每戶受僱人員報酬",
+        df_get=df_家庭收支調查_家庭組織型態別平均每戶受僱人員報酬,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/27963
@@ -1471,6 +1688,14 @@ def main():
         },
     )
 
+    # https://data.gov.tw/dataset/9419
+    年_plot(
+        plots,
+        key="家庭收支調查-各縣市別平均每戶受僱人員報酬",
+        df_get=df_家庭收支調查_各縣市別平均每戶受僱人員報酬,
+        title_suffix="-元",
+    )
+
     # ===================================================================
 
     # https://data.gov.tw/dataset/117930
@@ -1495,6 +1720,14 @@ def main():
         key="家庭收支調查-所得收入者各縣市別平均每人可支配所得",
         df_get=df_家庭收支調查_所得收入者各縣市別平均每人可支配所得,
         title_suffix="-元 可支配所得=所得收入-非消費支出, 平均每人可支配所得=平均每位所得收入者可支配所得",
+    )
+
+    # https://data.gov.tw/dataset/119936
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者各縣市別平均每人受僱人員報酬",
+        df_get=df_家庭收支調查_所得收入者各縣市別平均每人受僱人員報酬,
+        title_suffix="-元",
     )
 
     # https://data.gov.tw/dataset/144913
@@ -1568,11 +1801,30 @@ def main():
         title=f"{key}-戶數 {last_year}年",
     )
 
+    # https://www.stat.gov.tw/cp.aspx?n=3913 主計總處統計專區 -> 家庭收支調查 -> 統計表 -> 性別指標
+    key = "家庭收支調查-所得收入者人數按性別及可支配所得組別分"
+    key = sanitize_filename(key)
+    df, last_year = df_家庭收支調查_所得收入者人數按性別及可支配所得組別分()
+
+    idx = [i for i in df.index if i != "總計"]
+    plots[key] = plot_bar_group(
+        df.loc[idx, :],
+        title=f"{key}-人數 {last_year}年",
+    )
+
     # https://data.gov.tw/dataset/45125
     年_plot(
         plots,
         key="家庭收支調查-性別統計指標-經濟戶長人數按性別、教育程度及年齡分",
         df_get=df_家庭收支調查_性別統計指標_經濟戶長人數按性別_教育程度及年齡分,
+        title_suffix="-人",
+    )
+
+    # https://data.gov.tw/dataset/130026
+    年_plot(
+        plots,
+        key="家庭收支調查-性別統計指標-單親戶長人數按性別、教育程度及年齡分",
+        df_get=df_家庭收支調查_性別統計指標_單親戶長人數按性別_教育程度及年齡分,
         title_suffix="-人",
     )
 
@@ -1656,6 +1908,38 @@ def main():
         plots,
         key="家庭收支調查-經濟戶長職業別平均每戶受僱人員報酬",
         df_get=df_家庭收支調查_經濟戶長職業別平均每戶受僱人員報酬,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/131148
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者職業別平均每人所得收入總計",
+        df_get=df_家庭收支調查_所得收入者職業別平均每人所得收入總計,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/132281
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者職業別平均每人非消費支出",
+        df_get=df_家庭收支調查_所得收入者職業別平均每人非消費支出,
+        title_suffix="-元",
+    )
+
+    # https://data.gov.tw/dataset/130027
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者職業別平均每人可支配所得",
+        df_get=df_家庭收支調查_所得收入者職業別平均每人可支配所得,
+        title_suffix="-元 可支配所得=所得收入-非消費支出",
+    )
+
+    # https://data.gov.tw/dataset/131149
+    年_plot(
+        plots,
+        key="家庭收支調查-所得收入者職業別平均每人受僱人員報酬",
+        df_get=df_家庭收支調查_所得收入者職業別平均每人受僱人員報酬,
         title_suffix="-元",
     )
 

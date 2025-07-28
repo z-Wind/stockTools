@@ -431,6 +431,35 @@ class Stock:
 
         return df
 
+    def retire_adj(
+        self,
+        year_start: int,
+        year_end: int,
+        init_money: int,
+        init_expense: int,
+        inflation_percent: int,
+    ):
+        annual_return = self.yearReturn[self.name].to_dict()
+        years = list(range(year_start, year_end + 1))
+
+        balance = init_money
+        expense = init_expense
+        inflation = 1 + inflation_percent / 100
+
+        data = []
+        for year in years:
+            data.append(balance)
+
+            if balance > 0:
+                balance -= expense
+                balance /= inflation
+                balance *= annual_return.get(year, 0) + 1.0
+        data.append(balance)
+
+        df = pd.DataFrame(data, index=[str(x) for x in years] + ["YTD"], columns=[self.name])
+
+        return df
+
 
 class Figure:
     theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
@@ -1457,6 +1486,47 @@ class Figure:
 
         return lines
 
+    def retire_adj_separate_graph(self):
+        init_money = 10000000
+        init_expense = 400000
+        inflation_percent = 3
+        data = []
+        for st in self.stocks:
+            df = st.retire_adj(
+                st.start.year, st.end.year, init_money, init_expense, inflation_percent
+            )
+            data.append(df)
+
+        df = pd.concat(data, axis="columns")
+        df = df.sort_index()
+        start = df.index[0]
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(
+                f"<b>Retire Simulation Separate (Inflation adjusted)<b><br>"
+                f"<b>initial money: {init_money}<b><br>"
+                f"<b>initial expense: {init_expense}<b><br>"
+                f"<b>inflation: {inflation_percent}%<b><br>"
+                f"<i>{start} ~ {end}<i>"
+            ),
+            filename=f"Retire Simulation Separate_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
     def retire_graph(self):
         df = self.intersection_history()
         start = df.index[0]
@@ -1479,6 +1549,48 @@ class Figure:
             df,
             title=(
                 f"<b>Retire Simulation<b><br>"
+                f"<b>initial money: {init_money}<b><br>"
+                f"<b>initial expense: {init_expense}<b><br>"
+                f"<b>inflation: {inflation_percent}%<b><br>"
+                f"<i>{start} ~ {end}<i>"
+            ),
+            filename=f"Retire Simulation_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
+    def retire_adj_graph(self):
+        df = self.intersection_history()
+        start = df.index[0]
+        end = df.index[-1]
+
+        init_money = 10000000
+        init_expense = 400000
+        inflation_percent = 3
+        data = []
+        for st in self.stocks:
+            df = st.retire_adj(start.year, end.year, init_money, init_expense, inflation_percent)
+            data.append(df)
+
+        df = pd.concat(data, axis="columns")
+        start = df.index[0]
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(
+                f"<b>Retire Simulation (Inflation adjusted)<b><br>"
                 f"<b>initial money: {init_money}<b><br>"
                 f"<b>initial expense: {init_expense}<b><br>"
                 f"<b>inflation: {inflation_percent}%<b><br>"
@@ -1534,6 +1646,8 @@ def report(
     plots["dailyReturn"] = fig.daily_return_graph()
     plots["retire"] = fig.retire_graph()
     plots["retire_separate"] = fig.retire_separate_graph()
+    plots["retire_adj"] = fig.retire_adj_graph()
+    plots["retire_adj_separate"] = fig.retire_adj_separate_graph()
 
     with app.app_context():
         jsfolder = f"{prefix}"

@@ -2243,6 +2243,127 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     return df, lastyear
 
 
+# https://www.mof.gov.tw/singlehtml/285?cntId=64525 財政部「財政統計年報」 -> 綜合所得稅結算申報－按淨所得級距別分
+def df_財政統計年報_綜合所得稅結算申報_按淨所得級距別分():
+    key = "財政統計年報_綜合所得稅結算申報－按淨所得級距別分"
+    key = sanitize_filename(key)
+    urls = {
+        97: ("csv", "https://www.mof.gov.tw/download/pub82938"),
+        98: ("csv", "https://www.mof.gov.tw/download/pub83857"),
+        99: ("xls", "https://www.mof.gov.tw/download/pub84529"),
+        100: ("xls", "https://www.mof.gov.tw/download/pub76111"),
+        101: ("xls", "https://www.mof.gov.tw/download/pub76629"),
+        102: ("xls", "https://www.mof.gov.tw/download/pub77174"),
+        103: ("xls", "https://www.mof.gov.tw/download/pub77720"),
+        104: (
+            "xls",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/104%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33120.xls",
+        ),
+        105: ("xls", "https://www.mof.gov.tw/download/pub78801"),
+        106: ("xls", "https://www.mof.gov.tw/download/pub79311"),
+        107: ("xls", "https://www.mof.gov.tw/download/pub79760"),
+        108: (
+            "xls",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/108%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xls",
+        ),
+        109: (
+            "xls",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/109%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xls",
+        ),
+        110: (
+            "xls",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/110%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xls",
+        ),
+        111: (
+            "xlsx",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/111%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xlsx",
+        ),
+        112: (
+            "xlsx",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/112%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xlsx",
+        ),
+        113: (
+            "xlsx",
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/113%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xlsx",
+        ),
+    }
+
+    if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
+        print(f"請更新 {key}")
+
+    df = []
+    for year, (filetype, url) in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{year}.{filetype}.gz"
+        _ensure_dir_exists(path)
+        if not path.is_file():
+            r = session.get(url, verify=False)
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+    last_year = max(urls.keys())
+    filetype, _ = urls[last_year]
+
+    path = EXTRA_DATA_DIR / key / f"{last_year}.{filetype}.gz"
+    with gzip.open(path, "rb") as f_gz:
+        # Read the gzipped content into BytesIO for pandas
+        excel_bytes = io.BytesIO(f_gz.read())
+
+    df1 = pd.read_excel(
+        excel_bytes,
+        engine="calamine",
+        header=None,
+        skiprows=13,
+        nrows=8,
+        usecols=list(range(0, 11)),
+        names=[
+            "所得級距",
+            "申報戶數",
+            "核定所得淨額",
+            "核定所得淨額_分開計稅之股利所得",
+            "核定應納稅額",
+            "核定應納稅額_分開計稅之股利所得",
+            "各類所得_合計",
+            "各類所得_營利所得",
+            "各類所得_執行業務所得",
+            "各類所得_薪資所得",
+            "各類所得_利息所得",
+        ],
+    ).set_index("所得級距")
+    df1.index = df1.index.str.strip().str.replace("\r\n(NT$10,000)", "")
+
+    df2 = pd.read_excel(
+        excel_bytes,
+        engine="calamine",
+        header=None,
+        skiprows=13,
+        nrows=8,
+        usecols=list(range(11, 11 + 12)),
+        names=[
+            "所得級距",
+            "各類所得_租賃及權利金所得",
+            "各類所得_財產交易所得",
+            "各類所得_機會中獎所得",
+            "各類所得_股利所得",
+            "各類所得_股利所得_分開計稅之股利所得",
+            "各類所得_退職所得",
+            "各類所得_其他所得",
+            "各類所得_稿費所得",
+            "各類所得_未能歸類所得",
+            "薪資收入",
+            "稿費收入額",
+        ],
+    ).set_index("所得級距")
+    df2.index = df2.index.str.strip().str.replace("\r\n(NT$10,000)", "")
+
+    df = pd.concat([df1, df2], axis="columns")
+
+    cols = [col for col in df.columns if col != "申報戶數"]
+    df[cols] *= 1000
+
+    return df, last_year
+
+
 # https://data.gov.tw/dataset/102667 勞工退休金提繳統計年報-按地區、行業及規模別
 def df_勞工退休金提繳統計年報_按地區_行業及規模別():
     url = "https://apiservice.mol.gov.tw/OdService/rest/datastore/A17000000J-030214-cOJ"

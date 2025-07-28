@@ -3481,6 +3481,37 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
     plots[f"{key}"] = plotly_json_dump(graph)
 
 
+def plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(plots):
+    key = "財政統計年報_綜合所得稅結算申報－按淨所得級距別分"
+    key = sanitize_filename(key)
+    df, lastyear = df_財政統計年報_綜合所得稅結算申報_按淨所得級距別分()
+
+    plots[f"{key}_戶數"] = plot_bar_group(df[["申報戶數"]], f"{key}_戶數 {lastyear}年")
+    plots[f"{key}_戶數比例"] = plot_bar_group(
+        df[["申報戶數"]] / df["申報戶數"].sum(),
+        f"{key}_戶數比例 {lastyear}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
+    )
+
+    cols = [
+        col
+        for col in df.columns
+        if "各類所得_" in col
+        and "合計" not in col
+        and col != "各類所得_股利所得_分開計稅之股利所得"
+    ]
+
+    plots[f"{key}_各類所得平均"] = plot_bar_group(
+        df[["各類所得_合計"] + cols].div(df["申報戶數"], axis="index"),
+        f"{key}_各類所得平均 {lastyear}年",
+    )
+    plots[f"{key}_各類所得比例"] = plot_bar_group(
+        df[cols].div(df["各類所得_合計"], axis="index").loc[:, ::-1],
+        f"{key}_各類所得比例 {lastyear}年",
+        additional_layout={"barmode": "stack", "yaxis": {"tickformat": ".2%"}},
+    )
+
+
 def plot_勞工退休金提繳統計年報_按地區_行業及規模別(plots):
     key = "勞工退休金提繳統計年報-按地區、行業及規模別"
     key = sanitize_filename(key)
@@ -6016,6 +6047,7 @@ def main():
     plot_公司合併報表監察人酬金相關資訊(plots)
     plot_綜稅總所得各縣市申報統計分析表(plots)
     plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plots)
+    plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(plots)
     plot_勞工退休金提繳統計年報_按地區_行業及規模別(plots)
     plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別_按地區_行業及規模別(plots)
     plot_勞工退休準備金專戶餘額統計(plots)

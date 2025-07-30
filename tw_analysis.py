@@ -29,6 +29,8 @@ def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = 
         if key in a:
             if isinstance(a[key], dict) and isinstance(b[key], dict):
                 merge_dict(a[key], b[key], path + [str(key)], overwrite)
+            elif isinstance(a[key], list) and isinstance(b[key], list):
+                a[key] += b[key]
             elif a[key] != b[key] and overwrite:
                 a[key] = b[key]
             elif a[key] == b[key]:
@@ -69,6 +71,24 @@ default_template = merge_dict(
             # "plot_bgcolor": "#000",  # Black plot background
             # "paper_bgcolor": "#000",  # Black paper background
             # "legend": {"font": {"color": "#ffffff"}},  # White legend text
+            "annotations": [
+                {
+                    "text": "<b>@zwindr<b>",  # The text for your watermark
+                    "textangle": 0,  # Angle of the text (e.g., for a diagonal watermark)
+                    "opacity": 0.5,  # Transparency of the text (lower for a subtle watermark)
+                    "font": {
+                        "color": "white",  # Color of the text
+                        "size": 12,  # Size of the text
+                    },
+                    "xref": "paper",  # Reference x-coordinate to the entire plot area (0 to 1)
+                    "yref": "paper",  # Reference y-coordinate to the entire plot area (0 to 1)
+                    "xanchor": "right",
+                    "yanchor": "bottom",
+                    "x": 1.0,  # X-position (0.5 for center)
+                    "y": 1.0,  # Y-position (0.5 for center)
+                    "showarrow": False,  # Hide the arrow typically associated with annotations
+                }
+            ],
         },
         "config": {
             "responsive": True,

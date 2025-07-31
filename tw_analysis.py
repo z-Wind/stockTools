@@ -5051,9 +5051,59 @@ def plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育
 
     years = df["year"].unique().tolist()
 
+    df_現住人口 = df_現住人口性別_年齡_婚姻狀況()
+    df_現住人口 = df_現住人口[df_現住人口["statistic_yyy"].isin(years)]
+
     df_total = df.pivot_table(values="number_of_marry", index="year", aggfunc="sum", sort=False)
     plots[f"{key}_總和"] = plot_line(
         df_total, f"{key}_總和 {df_total.index[0]}~{df_total.index[-1]}年"
+    )
+
+    df_單身人數 = df_現住人口.pivot_table(
+        values="population",
+        index="statistic_yyy",
+        columns=["marital_status", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+    df_結婚人數 = df.pivot_table(
+        values="number_of_marry",
+        index="year",
+        columns=["marriage_type", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+
+    df_結婚率 = pd.DataFrame()
+    df_結婚率["結婚人數_不同性別"] = df_結婚人數.loc[:, ("不同性別",)].sum(axis=1)
+    df_結婚率["單身人數_不同性別"] = df_單身人數.loc[
+        :, (["未婚", "離婚_不同性別", "喪偶_不同性別"],)
+    ].sum(axis=1)
+    df_結婚率["結婚率_不同性別"] = df_結婚率["結婚人數_不同性別"] / df_結婚率["單身人數_不同性別"]
+    df_結婚率["結婚人數_相同性別"] = df_結婚人數.loc[:, ("相同性別",)].sum(axis=1)
+    df_結婚率["單身人數_相同性別"] = df_單身人數.loc[
+        :, (["未婚", "離婚_相同性別", "喪偶_相同性別"],)
+    ].sum(axis=1)
+    df_結婚率["結婚率_相同性別"] = df_結婚率["結婚人數_相同性別"] / df_結婚率["單身人數_相同性別"]
+    df_結婚率["結婚人數_相同性別_男"] = df_結婚人數.loc[:, ("相同性別", "男")]
+    df_結婚率["單身人數_相同性別_男"] = df_單身人數.loc[
+        :, (["未婚", "離婚_相同性別", "喪偶_相同性別"], "男")
+    ].sum(axis=1)
+    df_結婚率["結婚率_相同性別_男"] = (
+        df_結婚率["結婚人數_相同性別_男"] / df_結婚率["單身人數_相同性別_男"]
+    )
+    df_結婚率["結婚人數_相同性別_女"] = df_結婚人數.loc[:, ("相同性別", "女")]
+    df_結婚率["單身人數_相同性別_女"] = df_單身人數.loc[
+        :, (["未婚", "離婚_相同性別", "喪偶_相同性別"], "女")
+    ].sum(axis=1)
+    df_結婚率["結婚率_相同性別_女"] = (
+        df_結婚率["結婚人數_相同性別_女"] / df_結婚率["單身人數_相同性別_女"]
+    )
+
+    plots[f"{key}_結婚率"] = plot_line(
+        df_結婚率.filter(like="結婚率", axis="columns"),
+        f"{key}_結婚率 {df_結婚率.index[0]}~{df_結婚率.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 
     df_區域別 = df.pivot_table(
@@ -5061,6 +5111,93 @@ def plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育
     )
     plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
+    )
+
+    df_區域別_單身人數 = df_現住人口.pivot_table(
+        values="population",
+        index="statistic_yyy",
+        columns=["縣市", "marital_status", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+    df_區域別_結婚人數 = df.pivot_table(
+        values="number_of_marry",
+        index="year",
+        columns=["縣市", "marriage_type", "sex"],
+        aggfunc="sum",
+        sort=True,
+    )
+
+    regions = df["縣市"].unique().tolist()
+    df_區域別_結婚率 = pd.DataFrame()
+    for region in regions:
+        df_區域別_結婚率[f"{region}_結婚人數_不同性別"] = df_區域別_結婚人數.loc[
+            :,
+            (
+                region,
+                "不同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_單身人數_不同性別"] = df_區域別_單身人數.loc[
+            :,
+            (
+                region,
+                ["未婚", "離婚_不同性別", "喪偶_不同性別"],
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_結婚率_不同性別"] = (
+            df_區域別_結婚率[f"{region}_結婚人數_不同性別"]
+            / df_區域別_結婚率[f"{region}_單身人數_不同性別"]
+        )
+        df_區域別_結婚率[f"{region}_結婚人數_相同性別"] = df_區域別_結婚人數.loc[
+            :,
+            (
+                region,
+                "相同性別",
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_單身人數_相同性別"] = df_區域別_單身人數.loc[
+            :,
+            (
+                region,
+                ["未婚", "離婚_相同性別", "喪偶_相同性別"],
+                slice(None),
+            ),
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_結婚率_相同性別"] = (
+            df_區域別_結婚率[f"{region}_結婚人數_相同性別"]
+            / df_區域別_結婚率[f"{region}_單身人數_相同性別"]
+        )
+        df_區域別_結婚率[f"{region}_結婚人數_相同性別_男"] = df_區域別_結婚人數.loc[
+            :, (region, "相同性別", "男")
+        ]
+        df_區域別_結婚率[f"{region}_單身人數_相同性別_男"] = df_區域別_單身人數.loc[
+            :, (region, ["未婚", "離婚_相同性別", "喪偶_相同性別"], "男")
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_結婚率_相同性別_男"] = (
+            df_區域別_結婚率[f"{region}_結婚人數_相同性別_男"]
+            / df_區域別_結婚率[f"{region}_單身人數_相同性別_男"]
+        )
+        df_區域別_結婚率[f"{region}_結婚人數_相同性別_女"] = df_區域別_結婚人數.loc[
+            :, (region, "相同性別", "女")
+        ]
+        df_區域別_結婚率[f"{region}_單身人數_相同性別_女"] = df_區域別_單身人數.loc[
+            :, (region, ["未婚", "離婚_相同性別", "喪偶_相同性別"], "女")
+        ].sum(axis=1)
+        df_區域別_結婚率[f"{region}_結婚率_相同性別_女"] = (
+            df_區域別_結婚率[f"{region}_結婚人數_相同性別_女"]
+            / df_區域別_結婚率[f"{region}_單身人數_相同性別_女"]
+        )
+
+        df_區域別_結婚率 = df_區域別_結婚率.copy()
+
+    plots[f"{key}_區域別_結婚率"] = plot_line(
+        df_區域別_結婚率.filter(like="結婚率", axis="columns"),
+        f"{key}_區域別_結婚率 {df_區域別_結婚率.index[0]}~{df_區域別_結婚率.index[-1]}年",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 
     df_婚姻類型 = df.pivot_table(

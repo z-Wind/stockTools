@@ -2251,14 +2251,20 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
 
         data["年度"] = year
         data = data.rename(
-            columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
+            columns={
+                "鄉鎮市區": "縣市鄉鎮",
+                "\ufeff縣市別": "縣市鄉鎮",
+                "\ufeff鄉鎮市區": "縣市鄉鎮",
+            }
         )
         df.append(data)
         lastyear = year
 
     df = pd.concat(df, ignore_index=True, axis="index")
-    df["縣市別村里"] = df["縣市別"] + df["村里"]
-    split = df["縣市別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    df["縣市鄉鎮村里"] = df["縣市鄉鎮"] + df["村里"]
+    split = (
+        df["縣市鄉鎮"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+    )
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
 

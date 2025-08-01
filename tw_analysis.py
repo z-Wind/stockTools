@@ -3379,7 +3379,7 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
     sorted_column = "中位數"
     df_縣市別 = (
         df[df["年度"] == lastyear]
-        .set_index("縣市別村里")
+        .set_index("縣市鄉鎮村里")
         .sort_values(sorted_column, ascending=False)
     )
     data_list = []
@@ -3423,7 +3423,7 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
             "method": "restyle",
         },
     )
-    regions_detail = df["縣市別"].unique().tolist()
+    regions_detail = df["縣市鄉鎮"].unique().tolist()
     for region in regions_detail:
         arr = [region in index for index in df_縣市別.index]  # 依地區篩選
         buttons_regions_detail.append(
@@ -5704,7 +5704,7 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
 
     df_胎次 = df_嬰兒出生數按性別_胎次及生母年齡分_按登記()
     df_所得總額, _ = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
-    df_所得總額 = df_所得總額.rename(columns={"縣市別": "區域別", "年度": "統計年度"})
+    df_所得總額 = df_所得總額.rename(columns={"縣市鄉鎮": "區域別", "年度": "統計年度"})
     df_所得總額 = df_所得總額.pivot_table(
         values=["綜合所得總額", "納稅單位(戶)"],
         index=["區域別", "統計年度"],
@@ -5746,7 +5746,18 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
 
     df_胎次_所得平均數.columns = df_胎次_所得平均數.columns.astype(str)
     plots[f"{key}_平均數區間"] = plot_bar_group(
-        df_胎次_所得平均數, f"{key}_平均數區間(萬元) {years[0]}~{years[-1]}年"
+        df_胎次_所得平均數,
+        f"{key}_平均數區間(萬元) {years[0]}~{years[-1]}年",
+        additional_layout={"yaxis": {"title": {"text": "出生數"}}},
+    )
+
+    plots[f"{key}_平均數區間2"] = plot_bar_group(
+        df_胎次_所得平均數.T,
+        f"{key}_平均數區間(萬元) {years[0]}~{years[-1]}年",
+        additional_layout={
+            "barmode": "stack",
+            "yaxis": {"title": {"text": "出生數"}},
+        },
     )
 
     df_胎次_所得平均數_縣市 = df.pivot_table(

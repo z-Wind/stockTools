@@ -491,6 +491,10 @@ def df_國民所得統計_國民所得_儲蓄與投資_季():
     df = read_xml(url, xpath)
     df = df.fillna(0)
 
+    index_million = df["Item"].str.contains("百萬元") & (df["TYPE"] == "原始值")
+    df.loc[index_million, "Item_VALUE"] *= 1000000
+    df["Item"] = df["Item"].str.replace("百萬元", "元")
+
     return df
 
 
@@ -500,6 +504,11 @@ def df_國民所得統計_常用資料_季():
     xpath = "//Obs"
 
     df = read_xml(url, xpath)
+
+    index_million = df["Item"].str.contains("百萬") & (df["TYPE"] == "原始值")
+    df.loc[index_million, "Item_VALUE"] *= 1000000
+    df["Item"] = df["Item"].str.replace("百萬元", "元")
+    df["Item"] = df["Item"].str.replace("百萬美元", "美元")
 
     return df
 
@@ -2647,10 +2656,12 @@ def df_全國賦稅收入實徵淨額與預算數之比較():
 
     df = read_csv(url)
     df = df.replace("－", 0.0)
-    df[df.columns[1:]] = df[df.columns[1:]].astype(float)
+    df[df.columns[1:]] = df[df.columns[1:]].astype(float) * 1000
     split = df["項目別"].str.split("/", expand=True)
     df["時間"] = split[0].str.strip()
     df["類別"] = split[1].str.strip()
+
+    df.columns = df.columns.str.replace("(千元)", "")
 
     return df
 
@@ -2706,6 +2717,8 @@ def df_進口貿易值_按洲別_國別分():
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
+    df = df * 1000
+
     return df
 
 
@@ -2722,6 +2735,8 @@ def df_出口貿易值_按洲別_國別分():
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
+    df = df * 1000
+
     return df
 
 
@@ -2734,6 +2749,8 @@ def df_進出口貿易值_按國際商品統一分類制度_HS_及主要國別�
     df.columns = pd.MultiIndex.from_tuples(
         [[s.strip() for s in col.split("/")] for col in df.columns.str.replace("(千美元)", "")]
     )
+
+    df = df * 1000
 
     return df
 
@@ -2751,6 +2768,8 @@ def df_進口值_按主要貨品分():
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
+    df = df * 1000000
+
     return df
 
 
@@ -2766,6 +2785,8 @@ def df_出口值_按主要貨品分():
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
+
+    df = df * 1000000
 
     return df
 

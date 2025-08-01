@@ -1097,7 +1097,7 @@ def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
 
-    pat_filter = "當期價格(新臺幣百萬元)"
+    pat_filter = "當期價格(新臺幣元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_原始值_當期價格"] = plot_line(
@@ -1106,7 +1106,7 @@ def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
         {"hovermode": "x unified"},
     )
 
-    pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
+    pat_filter = "連鎖實質值(2021為參考年_新臺幣元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_原始值_連鎖實質值"] = plot_line(
@@ -1128,7 +1128,7 @@ def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
         index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False
     )
 
-    pat_filter = "當期價格(新臺幣百萬元)"
+    pat_filter = "當期價格(新臺幣元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_年增率_當期價格"] = plot_line(
@@ -1137,7 +1137,7 @@ def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
         {"yaxis": {"tickformat": ".2%"}},
     )
 
-    pat_filter = "連鎖實質值(2021為參考年_新臺幣百萬元)"
+    pat_filter = "連鎖實質值(2021為參考年_新臺幣元)"
     df_filter = pivot_df[[column for column in pivot_df.columns if pat_filter in column]]
     df_filter.columns = df_filter.columns.str.replace(f"{pat_filter}、", "")
     plots[f"{key}_年增率_連鎖實質值"] = plot_line(
@@ -3835,7 +3835,7 @@ def plot_進口貿易值_按洲別___國別分_CY2001__(plots):
         plots,
         key="進口貿易值_按洲別 ∕ 國別分(CY2001~)",
         df_get=df_進口貿易值_按洲別_國別分,
-        title_suffix="(千元 Unit: US$ Thousand)",
+        title_suffix="(美元)",
     )
 
 
@@ -3844,7 +3844,7 @@ def plot_出口貿易值_按洲別___國別分_CY2001__(plots):
         plots,
         key="出口貿易值_按洲別 ∕ 國別分(CY2001~)",
         df_get=df_出口貿易值_按洲別_國別分,
-        title_suffix="(千元 Unit: US$ Thousand)",
+        title_suffix="(美元)",
     )
 
 
@@ -3934,6 +3934,33 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
             },
         )
 
+    buttons_countries_exports = [
+        {
+            "args": [
+                {
+                    "visible": [True] * num_traces,
+                }
+            ],  # 顯示所有線條
+            "label": "全部國家進出口",
+            "method": "restyle",
+        }
+    ]
+    for country in countries:
+        for export in exports:
+            arr = [col[0] == country and col[1] == export for col in df.columns]
+
+            buttons_countries_exports.append(
+                {
+                    "args": [
+                        {
+                            "visible": arr,
+                        }
+                    ],
+                    "label": country + export,
+                    "method": "restyle",
+                },
+            )
+
     updatemenus = [
         {
             "x": 0.02,
@@ -3974,6 +4001,19 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
             "font": {"color": "#AAAAAA"},
             "name": "種類選擇",
         },
+        {
+            "x": 0.6,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_countries_exports,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "國家進出口選擇",
+        },
     ]
 
     df.columns = [f"{country}{export}{kind}" for country, export, kind in df.columns]
@@ -3981,14 +4021,14 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
     df_year = df.filter(regex=r"\d+年$", axis="index")
     plots[f"{key}_年"] = plot_line(
         df_year,
-        f"{key}_年(千美元) {df_year.index[0]}~{df_year.index[-1]}",
+        f"{key}_年(美元) {df_year.index[0]}~{df_year.index[-1]}",
         {"updatemenus": updatemenus},
     )
 
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
-        f"{key}_月(千美元) {df_month.index[0]}~{df_month.index[-1]}",
+        f"{key}_月(美元) {df_month.index[0]}~{df_month.index[-1]}",
         {"updatemenus": updatemenus},
     )
 
@@ -3998,7 +4038,7 @@ def plot_進口值_按主要貨品分(plots):
         plots,
         key="進口值_按主要貨品分",
         df_get=df_進口值_按主要貨品分,
-        title_suffix="按美元計算(百萬美元)",
+        title_suffix="按美元計算",
     )
 
 
@@ -4007,7 +4047,7 @@ def plot_出口值_按主要貨品分(plots):
         plots,
         key="出口值_按主要貨品分",
         df_get=df_出口值_按主要貨品分,
-        title_suffix="按美元計算(百萬美元)",
+        title_suffix="按美元計算",
     )
 
 

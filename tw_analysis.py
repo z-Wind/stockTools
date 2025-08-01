@@ -3373,6 +3373,9 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
     key = sanitize_filename(key)
     df, lastyear = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
 
+    df["下限"] = df["平均數"] - df["標準差"] * 3
+    df["上限"] = df["平均數"] + df["標準差"] * 3
+
     sorted_column = "中位數"
     df_縣市別 = (
         df[df["年度"] == lastyear]
@@ -3385,13 +3388,13 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
             "type": "box",
             "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
             "x": [name],
-            "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
-            "median": [df_縣市別.loc[name, "中位數"] * 1000],
-            "q3": [df_縣市別.loc[name, "第三分位數"] * 1000],
-            "mean": [df_縣市別.loc[name, "平均數"] * 1000],
-            # "sd": [df_縣市別.loc[name, "標準差"] * 1000],
-            # "lowerfence": [],
-            # "upperfence": [],
+            "q1": [df_縣市別.loc[name, "第一分位數"]],
+            "median": [df_縣市別.loc[name, "中位數"]],
+            "q3": [df_縣市別.loc[name, "第三分位數"]],
+            "mean": [df_縣市別.loc[name, "平均數"]],
+            "sd": [df_縣市別.loc[name, "標準差"]],
+            "lowerfence": [df_縣市別.loc[name, "下限"]],
+            "upperfence": [df_縣市別.loc[name, "上限"]],
             "visible": True if df_縣市別.loc[name, "村里"] == "合計" else False,
         }
         data_list.append(data)
@@ -5726,7 +5729,7 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
     df = df[~df["按照別"].isna()]
     df = df[~df["綜合所得總額"].isna()]
     df["所得平均數區間"] = pd.cut(
-        df["平均數"], [0] + list(range(500, 2001, 100)) + [3000, np.inf], right=False
+        df["平均數"] / 10000, [0] + list(range(50, 201, 10)) + [300, np.inf], right=False
     )
 
     years = sorted(df["統計年度"].unique().tolist())
@@ -5743,7 +5746,7 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
 
     df_胎次_所得平均數.columns = df_胎次_所得平均數.columns.astype(str)
     plots[f"{key}_平均數區間"] = plot_bar_group(
-        df_胎次_所得平均數, f"{key}_平均數區間(仟元) {years[0]}~{years[-1]}年"
+        df_胎次_所得平均數, f"{key}_平均數區間(萬元) {years[0]}~{years[-1]}年"
     )
 
     df_胎次_所得平均數_縣市 = df.pivot_table(
@@ -5801,7 +5804,7 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
     ]
     plots[f"{key}_平均數區間_縣市"] = plot_bar_group(
         df_胎次_所得平均數_縣市,
-        f"{key}_平均數區間(仟元)_縣市 {years[0]}~{years[-1]}年",
+        f"{key}_平均數區間(萬元)_縣市 {years[0]}~{years[-1]}年",
         additional_layout={"updatemenus": updatemenus},
     )
 

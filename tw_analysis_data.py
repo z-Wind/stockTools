@@ -2230,24 +2230,41 @@ def df_綜稅總所得各縣市申報統計分析表():
 def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
     key = sanitize_filename(key)
-    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
+    url_year = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
 
     df = []
-    lastyear = 110
-    for year in range(101, lastyear + 1):
+    lastyear = None
+    for year in range(101, datetime.today().year - 1911 + 1):
         path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
-        data = read_csv_with_cache(path, url.format(year=year))
+
+        _ensure_dir_exists(path)
+        if not path.is_file():
+            url = url_year.format(year=year)
+            r = session.get(url, verify=False)
+            if "error page!" in r.text:
+                break
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        data = pd.read_csv(path, compression="gzip")
+
         data["年度"] = year
         data = data.rename(
             columns={"鄉鎮市區": "縣市別", "\ufeff縣市別": "縣市別", "\ufeff鄉鎮市區": "縣市別"}
         )
         df.append(data)
+        lastyear = year
 
     df = pd.concat(df, ignore_index=True, axis="index")
     df["縣市別村里"] = df["縣市別"] + df["村里"]
     split = df["縣市別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
+
+    df.loc[
+        :, ["綜合所得總額", "平均數", "中位數", "第一分位數", "第三分位數", "標準差", "變異係數"]
+    ] *= 1000
 
     return df, lastyear
 

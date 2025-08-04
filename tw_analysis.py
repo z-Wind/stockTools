@@ -517,11 +517,19 @@ def 年月混合_plot(
     df_get: Callable[[], pd.DataFrame],
     title_suffix: str,
     additional_layout: Optional[Dict] = None,
+    sum_or_keep="sum",
 ):
     key = sanitize_filename(key)
     df = df_get()
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
+    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
+    current_year = datetime.today().year if index_year - 1911 > 0 else datetime.today().year - 1911
+    if index_year != current_year:
+        last_year = df.filter(regex=rf"^{current_year}年 *\d+月$", axis="index")
+        if sum_or_keep == "sum":
+            last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")}).T
+        df_year = pd.concat([df_year, last_year], axis="index")
     plots[f"{key}_年"] = plot_line(
         df_year,
         f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}",
@@ -568,7 +576,8 @@ def plot_人力資源調查失業率(plots):
     df = df_人力資源調查失業率()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index").dropna(axis="index", how="all")
-    if df_year.index[-1] != datetime.today().year:
+    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
+    if index_year != datetime.today().year:
         last_year = df.filter(regex=rf"^{datetime.today().year}M", axis="index")
         df_year = pd.concat([df_year, last_year])
 
@@ -592,7 +601,9 @@ def plot_人力資源調查縣市別失業率(plots):
     df = df_人力資源調查縣市別失業率()
 
     df_year = df.filter(regex=r"^\d{4}$", axis="index")
-    if df_year.index[-1] != datetime.today().year:
+    df_year = df_year.dropna(axis="index", how="all")
+    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
+    if index_year != datetime.today().year:
         last_year = df.filter(regex=rf"^{datetime.today().year}[a-zA-Z]", axis="index")
         df_year = pd.concat([df_year, last_year])
     plots[f"{key}_年"] = plot_line(
@@ -3759,6 +3770,10 @@ def plot_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分(
     df_all.columns = [f"{region}_{tax}" for region, tax in df_all.columns]
 
     df_all_year = df_all.filter(regex=r"\d+年$", axis="index")
+    if df_all_year.index[-1] != datetime.today().year - 1911:
+        last_year = df_all.filter(regex=rf"^{datetime.today().year-1911}年 *\d+月$", axis="index")
+        last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
+        df_all_year = pd.concat([df_all_year, last_year.T], axis="index")
     plots[f"{key}_年"] = plot_line(
         df_all_year,
         f"{key}_年 {df_all_year.index[0]}~{df_all_year.index[-1]}",
@@ -4022,6 +4037,12 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
     df.columns = [f"{country}{export}{kind}" for country, export, kind in df.columns]
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
+    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
+    current_year = datetime.today().year if index_year - 1911 > 0 else datetime.today().year - 1911
+    if index_year != current_year:
+        last_year = df.filter(regex=rf"^{current_year}年 *\d+月$", axis="index")
+        last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
+        df_year = pd.concat([df_year, last_year.T], axis="index")
     plots[f"{key}_年"] = plot_line(
         df_year,
         f"{key}_年(美元) {df_year.index[0]}~{df_year.index[-1]}",
@@ -4060,6 +4081,7 @@ def plot_貿易指數_進口單位價值指數(plots):
         key="貿易指數－進口單位價值指數",
         df_get=df_貿易指數_進口單位價值指數,
         title_suffix="(採連鎖法，參考年為110年)",
+        sum_or_keep="keep",
     )
 
 
@@ -4069,6 +4091,7 @@ def plot_貿易指數_出口單位價值指數(plots):
         key="貿易指數－出口單位價值指數",
         df_get=df_貿易指數_出口單位價值指數,
         title_suffix="(採連鎖法，參考年為110年)",
+        sum_or_keep="keep",
     )
 
 
@@ -4078,6 +4101,7 @@ def plot_貿易指數_進口數量指數(plots):
         key="貿易指數－進口數量指數",
         df_get=df_貿易指數_進口數量指數,
         title_suffix="(參考年為110年)",
+        sum_or_keep="keep",
     )
 
 
@@ -4087,6 +4111,7 @@ def plot_貿易指數_出口數量指數(plots):
         key="貿易指數－出口數量指數",
         df_get=df_貿易指數_出口數量指數,
         title_suffix="(參考年為110年)",
+        sum_or_keep="keep",
     )
 
 

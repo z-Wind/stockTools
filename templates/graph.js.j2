@@ -1,6 +1,13 @@
-var {{ key }} = {{ item | safe }};
+var element = document.getElementById("{{ key }}");
 
-Plotly.newPlot("{{key}}",
-    {{ key }}.data,
-    {{ key }}.layout || {},
-    {{ key }}.config);
+if (element.style.display != 'none') {
+    var {{ key }} = {{ item | safe }};
+
+    Plotly.newPlot("{{key}}",
+        {{ key }}.data,
+        {{ key }}.layout || {},
+        {{ key }}.config);
+} else {
+    // The element with the specified ID does not exist
+    console.log("style display is none => {{ key }}");
+}

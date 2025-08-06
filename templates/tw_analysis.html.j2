@@ -4,6 +4,10 @@
         <meta charset="UTF-8">
     </head>
     <body bgcolor="#000000">
+        <form method="GET">
+            <input type="text" name="filterDivID" placeholder="標題文字">
+            <button type="submit">Filter</button>
+        </form>
         <h1 style="color: white;text-align: center;">指數</h1>
         <div id=消費者物價基本分類指數_原始值></div>
         <div id=消費者物價基本分類指數_IRR></div>
@@ -439,6 +443,21 @@
         <div id=集保戶股權分散表_人數></div>
         <div id=集保戶股權分散表_股數></div>
         <div id=集保戶股權分散表_分級></div>
+
+        <script>
+            // Get the parameter from the URL
+            var urlParams = new URLSearchParams(window.location.search);
+            var filterDivID = urlParams.get('filterDivID');
+            
+            if (filterDivID && filterDivID.toLowerCase() != "all") {
+                var allDivs = document.querySelectorAll('div[id]'); // Select all divs with an ID
+                allDivs.forEach(div => {
+                    if (!div.id.includes(filterDivID)) {
+                        div.style.display = 'none';
+                    }
+                });
+            }
+        </script>
 
         <!-- Plotly.js -->
         <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>

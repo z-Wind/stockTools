@@ -4,7 +4,7 @@
 ## 範例
 * [TW_Report](https://z-wind.github.io/stockTools/TW_Report.html)
 * [US_Report](https://z-wind.github.io/stockTools/US_Report.html)
-* [TW_Analysis_Report](https://z-wind.github.io/stockTools/TW_Analysis_Report.html)
+* [TW_Analysis_Report](https://z-wind.github.io/stockTools/TW_Analysis_Report.html?filterDivID=all)
 
 ## 事前準備
 需安裝 rust

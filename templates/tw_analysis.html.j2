@@ -5,7 +5,7 @@
     </head>
     <body bgcolor="#000000">
         <form method="GET">
-            <input type="text" name="filterDivID" placeholder="標題文字">
+            <input type="text" name="filterDivID" placeholder="標題文字" list="plotlist">
             <button type="submit">Filter</button>
         </form>
         <h1 style="color: white;text-align: center;">指數</h1>
@@ -444,6 +444,12 @@
         <div id=集保戶股權分散表_股數></div>
         <div id=集保戶股權分散表_分級></div>
 
+        <datalist id="plotlist">
+            <option value="All"></option>
+            {% for key,item in plots.items() %}
+            <option value="{{key}}">
+            {%- endfor %} 
+        </datalist>
         <script>
             // Get the parameter from the URL
             var urlParams = new URLSearchParams(window.location.search);

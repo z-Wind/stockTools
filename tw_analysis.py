@@ -3647,8 +3647,10 @@ def plot_新制勞工退休基金歷年最近月份收益率(plots):
     df = df_新制勞工退休基金歷年最近月份收益率()
 
     df = df.pivot_table(values="最近月份收益率", index="年月別", sort=False) / 100
+    df.index = "20" + df.index
 
     df_year = df.filter(regex=r"-Dec", axis="index")
+    df_year.index = df_year.index.str.replace("-Dec", "")
     period = len(df_year)
     if "-Dec" not in df.index[-1]:
         df_year = pd.concat([df_year, df.iloc[[-1]]], axis="index")
@@ -3668,7 +3670,7 @@ def plot_新制勞工退休基金歷年最近月份收益率(plots):
 
     plots[f"{key}_年回報率"] = plot_bar_group(
         df_year,
-        f"{key}_年回報率 {df_year.index[0]}~{df_year.index[-1]} 總報酬率:{(total_return-1)*100:.2f}% 年化報酬率:{irr_return*100:.2f}%",
+        f"{key}_年回報率 {df.index[0]}~{df.index[-1]} 總報酬率:{(total_return-1)*100:.2f}% 年化報酬率:{irr_return*100:.2f}%",
         additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 

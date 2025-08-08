@@ -250,7 +250,7 @@ def df_人力資源調查重要指標():
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "地區別_District_or_region": "按地區別分_District_or_region",
@@ -325,7 +325,7 @@ def df_教育程度別失業率():
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "地區別_District_or_region": "按地區別分_District_or_region",
@@ -388,7 +388,7 @@ def df_年齡組別失業率():
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "地區別_District_or_region": "按地區別分_District_or_region",
@@ -438,7 +438,7 @@ def df_教育程度別失業率_按年齡分():
     df = []
     for year, url in urls.items():
         data = read_xml_with_cache(EXTRA_DATA_DIR / key / f"{year}.xml.gz", url, xpath)
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data[~data["項目別_Item"].str.contains("按")]
         df.append(data)
     df = pd.concat(df, ignore_index=True)
@@ -472,15 +472,32 @@ def df_就業率():
     url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=$mQvpHYEayTTt8pmhMjRvA@@"
     xpath = "//DataTable"
 
-    df = read_xml(url, xpath)
-    df["Period"] /= 100
-    df["Period"] = df["Period"].astype(int)
-    df = df.pivot_table(values="Val", columns=["Category1Title", "Category2Title"], index="Period")
-    df.columns = [f"{kind}_{edu}" for kind, edu in df.columns]
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
+    df_教育程度別 = read_xml(url, xpath)
+    df_教育程度別["Period"] /= 100
+    df_教育程度別["Period"] = df_教育程度別["Period"].astype(int)
+    df_教育程度別 = df_教育程度別.pivot_table(
+        values="Val", columns=["Category1Title", "Category2Title"], index="Period"
+    )
+    df_教育程度別.columns = [f"{kind}_{edu}" for kind, edu in df_教育程度別.columns]
+    df_教育程度別 = df_教育程度別.replace("-", np.nan)
+    df_教育程度別 = df_教育程度別.astype(float) / 100
+    df_教育程度別.index = df_教育程度別.index + 1911  # 轉西元
 
-    return df
+    url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=oa8xEQOEl3KZNyQ8EOJT3A@@"
+    xpath = "//DataTable"
+
+    df_年齡別 = read_xml(url, xpath)
+    df_年齡別["Period"] /= 100
+    df_年齡別["Period"] = df_年齡別["Period"].astype(int)
+    df_年齡別 = df_年齡別.pivot_table(
+        values="Val", columns=["Category1Title", "Category2Title"], index="Period"
+    )
+    df_年齡別.columns = [f"{kind}_{edu}" for kind, edu in df_年齡別.columns]
+    df_年齡別 = df_年齡別.replace("-", np.nan)
+    df_年齡別 = df_年齡別.astype(float) / 100
+    df_年齡別.index = df_年齡別.index + 1911  # 轉西元
+
+    return df_教育程度別, df_年齡別
 
 
 # https://data.gov.tw/dataset/44232 國民所得統計-國民所得、儲蓄與投資-季
@@ -1515,7 +1532,7 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
     key = "公開資訊觀測站_財務報告附註揭露之員工福利(薪資)資訊"
     key = sanitize_filename(key)
     url = "https://mopsov.twse.com.tw/mops/web/ajax_t100sb14"
-    last_year = 113
+    last_year = None
 
     def get_df(path, url, data):
         _ensure_dir_exists(path)
@@ -1548,7 +1565,7 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
         try:
             df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
             df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
-            last_year = year
+            last_year = year + 1911  # 轉西元
         except Exception as e:
             print(key)
             print("no data", year, url, e)
@@ -1614,7 +1631,7 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
     key = "公開資訊觀測站_非擔任主管職務之全時員工薪資資訊"
     key = sanitize_filename(key)
     url = "https://mopsov.twse.com.tw/mops/web/ajax_t100sb15"
-    last_year = 113
+    last_year = None
 
     def get_df(path, url, data):
         _ensure_dir_exists(path)
@@ -1650,7 +1667,7 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊():
         try:
             df_上市 = get_df(EXTRA_DATA_DIR / key / "上市" / f"{year}.html.gz", url, data_上市)
             df_上櫃 = get_df(EXTRA_DATA_DIR / key / "上櫃" / f"{year}.html.gz", url, data_上櫃)
-            last_year = year
+            last_year = year + 1911  # 轉西元
         except Exception as e:
             print(key)
             print("no data", year, url, e)
@@ -1806,7 +1823,7 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         data["值"] *= 10000
         data["統計"], data["性別教育程度"] = zip(*data["variable"])
         data = data.drop("variable", axis="columns")
-        data["年度"] = 112 - i
+        data["年度"] = 112 - i + 1911  # 轉西元
 
         df_按性別及教育程度分.append(data)
 
@@ -1847,7 +1864,7 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         data["值"] *= 10000
         data["統計"], data["年齡別"] = zip(*data["variable"])
         data = data.drop("variable", axis="columns")
-        data["年度"] = 112 - i
+        data["年度"] = 112 - i + 1911  # 轉西元
 
         df_按年齡別分.append(data)
 
@@ -1884,7 +1901,7 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         data["值"] *= 10000
         data["統計"], data["性別"] = zip(*data["variable"])
         data = data.drop("variable", axis="columns")
-        data["年度"] = 112 - i
+        data["年度"] = 112 - i + 1911  # 轉西元
 
         df_按員工特性.append(data)
 
@@ -1917,7 +1934,7 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         data["值"] *= 10000
         data["統計"], data["教育程度"] = zip(*data["variable"])
         data = data.drop("variable", axis="columns")
-        data["年度"] = 112 - i
+        data["年度"] = 112 - i + 1911  # 轉西元
 
         df_按年齡及教育程度分.append(data)
 
@@ -1959,7 +1976,7 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         data["值"] *= 10000
         data["統計"], data["年齡別"] = zip(*data["variable"])
         data = data.drop("variable", axis="columns")
-        data["年度"] = 112 - i
+        data["年度"] = 112 - i + 1911  # 轉西元
 
         df_按工作場所所在縣市別及年齡別分.append(data)
 
@@ -2038,7 +2055,7 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
     df.columns = df.columns.str.removesuffix("_新臺幣元").str.removesuffix("_金額")
     df = df.replace("-", np.nan).astype(float)
 
-    return df, lastyear
+    return df, lastyear + 1911  # 轉西元
 
 
 # https://data.gov.tw/dataset/32751 各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分
@@ -2059,7 +2076,7 @@ def df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行
     df = df.set_index("項目別")
     df = df.replace("-", np.nan).astype(float) / 100
 
-    return df, lastyear
+    return df, lastyear + 1911  # 轉西元
 
 
 # https://data.gov.tw/dataset/32749 各業廠商調升員工經常性薪資之廠商與員工人數比率－按行業分
@@ -2121,7 +2138,7 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
             url[year][1],
         )
         data[data.columns[1:]] = data[data.columns[1:]].replace("-", np.nan).astype(float) / 100
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "項目別_百分比": "項目別",
@@ -2130,7 +2147,7 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
         df.append(data)
     df = pd.concat(df, ignore_index=True)
 
-    return df, lastyear
+    return df
 
 
 # https://data.gov.tw/dataset/24274 公司合併報表董事酬金相關資訊上市
@@ -2165,6 +2182,9 @@ def df_公司合併報表董事酬金相關資訊():
     df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
 
+    df["出表日期"] = df["出表日期"].astype(int) + 19110000  # 轉西元
+    df["出表日期"] = df["出表日期"].astype(str)
+
     return df
 
 
@@ -2194,6 +2214,9 @@ def df_公司合併報表監察人酬金相關資訊():
     df.loc[:, "稅後純益"] = df.loc[:, "稅後純益"] * 1000
     df["公司"] = df["公司代號"].astype(str) + "_" + df["公司名稱"] + "_" + df["產業類別"]
 
+    df["出表日期"] = df["出表日期"].astype(int) + 19110000  # 轉西元
+    df["出表日期"] = df["出表日期"].astype(str)
+
     return df
 
 
@@ -2201,14 +2224,25 @@ def df_公司合併報表監察人酬金相關資訊():
 def df_綜稅總所得各縣市申報統計分析表():
     key = "綜稅總所得各縣市申報統計分析表"
     key = sanitize_filename(key)
-    url = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_8-1.csv"
+    url_year = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_8-1.csv"
 
     df = []
-    lastyear = 110
-    for year in range(101, lastyear + 1):
+    for year in range(101, datetime.today().year - 1911 + 1):
         path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
-        data = read_csv_with_cache(path, url.format(year=year))
-        data["年度"] = year
+
+        _ensure_dir_exists(path)
+        if not path.is_file():
+            url = url_year.format(year=year)
+            r = session.get(url, verify=False)
+            if "error page!" in r.text:
+                continue
+
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+
+        data = pd.read_csv(path, compression="gzip")
+
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "鄉鎮市區": "縣市別",
@@ -2222,7 +2256,11 @@ def df_綜稅總所得各縣市申報統計分析表():
     df = pd.concat(df, ignore_index=True, axis="index")
     df["納稅單位(戶)"] = df["納稅單位(戶)"].astype(int)
 
-    return df, lastyear
+    df.loc[
+        :, ["綜合所得總額", "平均數", "中位數", "第一分位數", "第三分位數", "標準差", "變異係數"]
+    ] *= 1000
+
+    return df
 
 
 # https://www.fia.gov.tw/WEB/fia/ias/ISA-index.html 綜合所得稅申報核定統計專冊
@@ -2233,7 +2271,6 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     url_year = "https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-9.csv"
 
     df = []
-    lastyear = None
     for year in range(101, datetime.today().year - 1911 + 1):
         path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
 
@@ -2249,7 +2286,7 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
 
         data = pd.read_csv(path, compression="gzip")
 
-        data["年度"] = year
+        data["年度"] = year + 1911  # 轉西元
         data = data.rename(
             columns={
                 "鄉鎮市區": "縣市鄉鎮",
@@ -2258,7 +2295,6 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
             }
         )
         df.append(data)
-        lastyear = year
 
     df = pd.concat(df, ignore_index=True, axis="index")
     df["縣市鄉鎮村里"] = df["縣市鄉鎮"] + df["村里"]
@@ -2271,8 +2307,9 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表():
     df.loc[
         :, ["綜合所得總額", "平均數", "中位數", "第一分位數", "第三分位數", "標準差", "變異係數"]
     ] *= 1000
+    df["年度"] = df["年度"].astype(str)
 
-    return df, lastyear
+    return df
 
 
 # https://www.mof.gov.tw/singlehtml/285?cntId=64525 財政部「財政統計年報」 -> 綜合所得稅結算申報－按淨所得級距別分
@@ -2393,7 +2430,7 @@ def df_財政統計年報_綜合所得稅結算申報_按淨所得級距別分()
     cols = [col for col in df.columns if col != "申報戶數"]
     df[cols] *= 1000
 
-    return df, last_year
+    return df, last_year + 1911  # 轉西元
 
 
 # https://data.gov.tw/dataset/102667 勞工退休金提繳統計年報-按地區、行業及規模別
@@ -2410,6 +2447,8 @@ def df_勞工退休金提繳統計年報_按地區_行業及規模別():
     ].astype(int)
 
     df["總提繳工資金額"] = df["平均提繳工資金額"] * df["月底人數"]
+
+    df["計費年度"] = df["計費年度"].astype(int) + 1911  # 轉西元
 
     return df
 
@@ -2444,8 +2483,8 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
         print(f"請更新 {key}")
 
     df = []
-    for filename, url in urls.items():
-        path = EXTRA_DATA_DIR / key / f"{filename}.csv.gz"
+    for year, url in urls.items():
+        path = EXTRA_DATA_DIR / key / f"{year}.csv.gz"
         _ensure_dir_exists(path)
 
         if not path.is_file():
@@ -2453,20 +2492,20 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
-        if filename in [111, 112, 113]:
+        if year in [111, 112, 113]:
             data = pd.read_csv(path, compression="gzip", skiprows=list(range(0, 6)), header=None)
             data = data.iloc[:23, [0, 4]]
-        elif filename in [97, 99]:
+        elif year in [97, 99]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
             )
             data = data.iloc[:28, [0, 3]]
-        elif filename in [100, 101]:
+        elif year in [100, 101]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
             )
             data = data.iloc[:23, [0, 3]]
-        elif filename in [96, 98]:
+        elif year in [96, 98]:
             data = pd.read_csv(
                 path,
                 compression="gzip",
@@ -2476,7 +2515,7 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
                 nrows=28,
             )
             data = data.iloc[:28, [0, 3]]
-        elif filename in [102]:
+        elif year in [102]:
             data = pd.read_csv(
                 path,
                 compression="gzip",
@@ -2485,24 +2524,24 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別():
                 encoding="BIG5",
             )
             data = data.iloc[:23, [0, 3]]
-        elif filename in [104, 106]:
+        elif year in [104, 106]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
             )
             data = data.iloc[:23, [0, 2]]
-        elif filename in [103, 105]:
+        elif year in [103, 105]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 9)), header=None, encoding="BIG5"
             )
             data = data.iloc[:23, [0, 2]]
-        elif filename in [107, 108, 109, 110]:
+        elif year in [107, 108, 109, 110]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 11)), header=None, encoding="BIG5"
             )
             data = data.iloc[:23, [0, 2]]
 
         data.columns = ["地區", "平均提繳工資"]
-        data["年度"] = filename
+        data["年度"] = year + 1911  # 轉西元
         data["地區"] = (
             data["地區"]
             .str.strip()
@@ -2534,6 +2573,9 @@ def df_勞工退休準備金專戶餘額統計():
     df["家數"] = df["家數"].astype(int)
     df["佔總數比率"] = df["佔總數比率"].astype(float)
 
+    df["年度"] = df["年度"].astype(int) + 191100  # 轉西元
+    df["年度"] = df["年度"].astype(str)
+
     return df
 
 
@@ -2549,6 +2591,9 @@ def df_勞工退休準備金提撥率統計():
 
     df["家數"] = df["家數"].astype(int)
     df["佔總數比率"] = df["佔總數比率"].astype(float)
+
+    df["年度"] = df["年度"].astype(int) + 191100  # 轉西元
+    df["年度"] = df["年度"].astype(str)
 
     return df
 
@@ -2667,8 +2712,10 @@ def df_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分():
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
 
     split = df["地區別"].str.split("/", expand=True)
-    df["時間"] = split[0].str.strip()
     df["地區"] = split[1].str.strip()
+
+    split_年 = split[0].str.split("年", expand=True)
+    df["時間"] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
 
     return df
 
@@ -2681,8 +2728,10 @@ def df_全國賦稅收入實徵淨額與預算數之比較():
     df = df.replace("－", 0.0)
     df[df.columns[1:]] = df[df.columns[1:]].astype(float) * 1000
     split = df["項目別"].str.split("/", expand=True)
-    df["時間"] = split[0].str.strip()
     df["類別"] = split[1].str.strip()
+
+    年 = split[0].str.removesuffix("年")
+    df["時間"] = (年.astype(int) + 1911).astype(str) + "年"  # 轉西元
 
     df.columns = df.columns.str.replace("(千元)", "")
 
@@ -2709,14 +2758,19 @@ def df_主計總處統計專區_家庭收支調查_統計表_常用資料():
 
     r = session.get(url_平均每人月消費, verify=False)
     df_平均每人月消費 = get_data(r.content, [0, 1], 1)
+    df_平均每人月消費["年別"] += 1911  # 轉西元
 
     r = session.get(url_可支配所得平均數, verify=False)
     df_平均每戶可支配所得 = get_data(r.content, [0, 2], 2)
+    df_平均每戶可支配所得["年別"] += 1911  # 轉西元
     df_平均每人可支配所得 = get_data(r.content, [1, 3], 2)
+    df_平均每人可支配所得["年別"] += 1911  # 轉西元
 
     r = session.get(url_可支配所得中位數, verify=False)
     df_每戶可支配所得中位數 = get_data(r.content, [0, 2], 2)
+    df_每戶可支配所得中位數["年別"] += 1911  # 轉西元
     df_每人可支配所得中位數 = get_data(r.content, [1, 3], 2)
+    df_每人可支配所得中位數["年別"] += 1911  # 轉西元
 
     return (
         df_平均每人月消費,
@@ -2768,6 +2822,10 @@ def df_進出口貿易值_按國際商品統一分類制度_HS_及主要國別�
     url = "https://web02.mof.gov.tw/njswww/webMain.aspx?sys=220&ym=9000&kind=21&type=4&funid=i9901&cycle=41&outmode=12&compmode=00&outkind=1&fldspc=0,1,3,4,&codlst0=11&codspc1=0,20,&utf=1"
 
     df = read_csv(url)
+
+    split_年 = df["國家別"].str.split("年", expand=True)
+    df["國家別"] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.set_index("國家別")
     df.columns = pd.MultiIndex.from_tuples(
         [[s.strip() for s in col.split("/")] for col in df.columns.str.replace("(千美元)", "")]
@@ -2786,6 +2844,10 @@ def df_進口值_按主要貨品分():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -2804,6 +2866,10 @@ def df_出口值_按主要貨品分():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -2822,6 +2888,10 @@ def df_貿易指數_進口單位價值指數():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -2838,6 +2908,10 @@ def df_貿易指數_出口單位價值指數():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -2854,6 +2928,10 @@ def df_貿易指數_進口數量指數():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -2870,6 +2948,10 @@ def df_貿易指數_出口數量指數():
     encoding = "utf-8"
 
     df = read_csv(url, encoding)
+
+    split_年 = df[index_col].str.split("年", expand=True)
+    df[index_col] = (split_年[0].astype(int) + 1911).astype(str) + "年" + split_年[1]  # 轉西元
+
     df = df.loc[(df[df.columns[1:]] != "－").any(axis=1)]
     df[df.columns[1:]] = df[df.columns[1:]].astype(float)
     df = df.set_index(index_col)
@@ -3167,7 +3249,9 @@ def df_村里戶數_單一年齡人口():
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
 
-    return df, year, month
+    df["統計年月"] = (df["統計年月"].astype(int) + 191100).astype(str)  # 轉西元
+
+    return df
 
 
 # https://data.gov.tw/dataset/117986 現住人口性別、年齡、婚姻狀況(含同婚)
@@ -3232,6 +3316,8 @@ def df_現住人口性別_年齡_婚姻狀況():
     )
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
+
+    df["statistic_yyy"] = (df["statistic_yyy"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 
@@ -3379,10 +3465,13 @@ def df_動態資料統計表():
                     df.append(data)
 
     df = pd.concat(df, ignore_index=True)
+
+    df["統計年月"] = (df["統計年月"].astype(int) + 191100).astype(str)  # 轉西元
+
     df = df.fillna(0)
     df[df.columns[4:]] = df[df.columns[4:]].astype(int)
     split = (
-        df["統計年月"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
+        df["統計年月"].str.replace("(^.{4})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     )
     df["年"] = split[0].str.strip()
     df["月"] = split[1].str.strip()
@@ -3452,6 +3541,8 @@ def df_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育�
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
 
+    df["year"] = (df["year"].astype(int) + 1911).astype(str)  # 轉西元
+
     return df
 
 
@@ -3481,6 +3572,9 @@ def df_結婚對數按婚姻類型_性別及年齡分_按登記():
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
+
+    df["統計年度"] = df["統計年度"].astype(str).str.removeprefix("\ufeff")
+    df["統計年度"] = (df["統計年度"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 
@@ -3550,6 +3644,8 @@ def df_嬰兒出生數按性別_生母原屬國籍_地區_年齡及教育程度�
     df["鄉鎮"] = split[1].str.strip()
     df["mother_age"] = df["mother_age"].str.replace("～", "~")
 
+    df["statistic_yyy"] = (df["statistic_yyy"].astype(int) + 1911).astype(str)  # 轉西元
+
     return df
 
 
@@ -3581,6 +3677,8 @@ def df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度�
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
     df["生父年齡"] = df["生父年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    df["統計年度"] = (df["統計年度"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 
@@ -3651,6 +3749,8 @@ def df_嬰兒出生數按嬰兒性別及生父母年齡分_按登記():
     df["mother_age"] = df["mother_age"].str.replace("～", "~")
     df["father_age"] = df["father_age"].str.replace("～", "~")
 
+    df["statistic_yyy"] = (df["statistic_yyy"].astype(int) + 1911).astype(str)  # 轉西元
+
     return df
 
 
@@ -3683,6 +3783,8 @@ def df_嬰兒出生數按生母年齡及出生身分分_按登記():
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
     df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
+
+    df["統計年度"] = (df["統計年度"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 
@@ -3718,6 +3820,8 @@ def df_嬰兒出生數按性別_胎次及生母年齡分_按登記():
     df["鄉鎮"] = split[1].str.strip()
     df["生母年齡"] = df["生母年齡"].str.replace("～", "~").str.replace(" ", "")
 
+    df["統計年度"] = (df["統計年度"].astype(int) + 1911).astype(str)  # 轉西元
+
     return df
 
 
@@ -3746,6 +3850,8 @@ def df_嬰兒出生數按嬰兒性別及出生胎別分_按登記():
     split = df["區域別"].str.replace("(^.{3})", r"\1|", regex=True).str.split("|", n=1, expand=True)
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
+
+    df["統計年"] = (df["統計年"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 
@@ -3798,6 +3904,8 @@ def df_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地�
     df["縣市"] = split[0].str.strip()
     df["鄉鎮"] = split[1].str.strip()
 
+    df["statistic_yyy"] = (df["statistic_yyy"].astype(int) + 1911).astype(str)  # 轉西元
+
     return df
 
 
@@ -3825,6 +3933,8 @@ def df_全國公立動物收容所收容處理情形統計表():
     df["認領養率_%"] = df["認領養率_%"].str.rstrip("%").astype("float") / 100.0
     df["人道處理率_%"] = df["人道處理率_%"].str.rstrip("%").astype("float") / 100.0
     df["所內死亡率_%"] = df["所內死亡率_%"].str.rstrip("%").astype("float") / 100.0
+
+    df["年度"] = (df["年度"].astype(int) + 1911).astype(str)  # 轉西元
 
     return df
 

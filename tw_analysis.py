@@ -523,6 +523,8 @@ def 年月混合_plot(
     df = df_get()
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
+    df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
+
     index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
     current_year = datetime.today().year if index_year - 1911 > 0 else datetime.today().year - 1911
     if index_year != current_year:
@@ -530,12 +532,12 @@ def 年月混合_plot(
         if sum_or_keep == "sum":
             last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")}).T
         df_year = pd.concat([df_year, last_year], axis="index")
+
     plots[f"{key}_年"] = plot_line(
         df_year,
-        f"{key}_年{title_suffix} {df_year.index[0]}~{df_year.index[-1]}",
+        f"{key}_年{title_suffix} {df_month.index[0]}~{df_year.index[-1]}",
         additional_layout,
     )
-    df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
     plots[f"{key}_月"] = plot_line(
         df_month,
         f"{key}_月{title_suffix} {df_month.index[0]}~{df_month.index[-1]}",
@@ -1073,28 +1075,17 @@ def plot_教育程度別失業率_按年齡分(plots):
 def plot_就業率(plots):
     key = "就業率"
     key = sanitize_filename(key)
-    df = df_就業率()
+    df_教育程度別, df_年齡別 = df_就業率()
 
     plots[f"{key}_教育程度別"] = plot_line(
-        df,
-        f"{key}_教育程度別 {df.index[0]}~{df.index[-1]}年",
+        df_教育程度別,
+        f"{key}_教育程度別 {df_教育程度別.index[0]}~{df_教育程度別.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
-    url = "https://www.gender.ey.gov.tw/GecDB/Common/OpenXML.ashx?sn=oa8xEQOEl3KZNyQ8EOJT3A@@"
-    xpath = "//DataTable"
-    key = sanitize_filename(key)
-
-    df = read_xml(url, xpath)
-    df["Period"] /= 100
-    df["Period"] = df["Period"].astype(int)
-    df = df.pivot_table(values="Val", columns=["Category1Title", "Category2Title"], index="Period")
-    df.columns = [f"{kind}_{edu}" for kind, edu in df.columns]
-    df = df.replace("-", np.nan)
-    df = df.astype(float) / 100
     plots[f"{key}_年齡別"] = plot_line(
-        df,
-        f"{key}_年齡別 {df.index[0]}~{df.index[-1]}年",
+        df_年齡別,
+        f"{key}_年齡別 {df_年齡別.index[0]}~{df_年齡別.index[-1]}年",
         additional_layout={"hovermode": "x", "yaxis": {"tickformat": ".2%"}},
     )
 
@@ -2853,20 +2844,12 @@ def plot_企業ESG資訊揭露彙總資料_人力發展(plots):
 
     year = df.iloc[0]["報告年度"]
     df = df.set_index("公司")
-    df_薪資 = df[
-        [
-            "非擔任主管職務之全時員工薪資平均數(仟元/人)",
-            "非擔任主管之全時員工薪資中位數(仟元/人)",
-        ]
-    ]
-    df_薪資 = (
-        df_薪資.rename(
-            columns={
-                "非擔任主管職務之全時員工薪資平均數(仟元/人)": "平均數",
-                "非擔任主管之全時員工薪資中位數(仟元/人)": "中位數",
-            }
-        )
-        * 1000
+
+    df_薪資 = df.rename(
+        columns={
+            "非擔任主管職務之全時員工薪資平均數": "平均數",
+            "非擔任主管之全時員工薪資中位數": "中位數",
+        }
     )
     plots[f"{key}_非擔任主管職務之全時員工薪資"] = plot_lines_bars(
         df_薪資,
@@ -3069,7 +3052,8 @@ def plot_各業廠商調升經常性薪資參考各項因素之廠商比率_按�
 def plot_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分(plots):
     key = "各業廠商調升員工經常性薪資之廠商與員工人數比率－按行業分"
     key = sanitize_filename(key)
-    df, lastyear = df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分()
+    df = df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分()
+    lastyear = df["年度"].max()
 
     df_lastyear = df[df["年度"] == lastyear].set_index("項目別")
 
@@ -3347,7 +3331,11 @@ def plot_公司合併報表監察人酬金相關資訊(plots):
 def plot_綜稅總所得各縣市申報統計分析表(plots):
     key = "綜稅總所得各縣市申報統計分析表"
     key = sanitize_filename(key)
-    df, lastyear = df_綜稅總所得各縣市申報統計分析表()
+    df = df_綜稅總所得各縣市申報統計分析表()
+    lastyear = df["年度"].max()
+
+    df["下限"] = df["平均數"] - df["標準差"]
+    df["上限"] = df["平均數"] + df["標準差"] * 3
 
     sorted_column = "中位數"
     df_縣市別 = (
@@ -3359,13 +3347,13 @@ def plot_綜稅總所得各縣市申報統計分析表(plots):
             "type": "box",
             "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
             "x": [name],
-            "q1": [df_縣市別.loc[name, "第一分位數"] * 1000],
-            "median": [df_縣市別.loc[name, "中位數"] * 1000],
-            "q3": [df_縣市別.loc[name, "第三分位數"] * 1000],
-            "mean": [df_縣市別.loc[name, "平均數"] * 1000],
-            "sd": [df_縣市別.loc[name, "標準差"] * 1000],
-            "lowerfence": [],
-            "upperfence": [],
+            "q1": [df_縣市別.loc[name, "第一分位數"]],
+            "median": [df_縣市別.loc[name, "中位數"]],
+            "q3": [df_縣市別.loc[name, "第三分位數"]],
+            "mean": [df_縣市別.loc[name, "平均數"]],
+            "sd": [df_縣市別.loc[name, "標準差"]],
+            "lowerfence": [df_縣市別.loc[name, "下限"]],
+            "upperfence": [df_縣市別.loc[name, "上限"]],
         }
         data_list.append(data)
 
@@ -3382,9 +3370,10 @@ def plot_綜稅總所得各縣市申報統計分析表(plots):
 def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plots):
     key = "綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表"
     key = sanitize_filename(key)
-    df, lastyear = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    df = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    lastyear = df["年度"].max()
 
-    df["下限"] = df["平均數"] - df["標準差"] * 3
+    df["下限"] = df["平均數"] - df["標準差"]
     df["上限"] = df["平均數"] + df["標準差"] * 3
 
     sorted_column = "中位數"
@@ -3772,8 +3761,8 @@ def plot_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分(
     df_all.columns = [f"{region}_{tax}" for region, tax in df_all.columns]
 
     df_all_year = df_all.filter(regex=r"\d+年$", axis="index")
-    if df_all_year.index[-1] != datetime.today().year - 1911:
-        last_year = df_all.filter(regex=rf"^{datetime.today().year-1911}年 *\d+月$", axis="index")
+    if df_all_year.index[-1] != datetime.today().year:
+        last_year = df_all.filter(regex=rf"^{datetime.today().year}年 *\d+月$", axis="index")
         last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
         df_all_year = pd.concat([df_all_year, last_year.T], axis="index")
     plots[f"{key}_年"] = plot_line(
@@ -4040,7 +4029,7 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
     index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
-    current_year = datetime.today().year if index_year - 1911 > 0 else datetime.today().year - 1911
+    current_year = datetime.today().year if index_year > 0 else datetime.today().year
     if index_year != current_year:
         last_year = df.filter(regex=rf"^{current_year}年 *\d+月$", axis="index")
         last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
@@ -4120,7 +4109,8 @@ def plot_貿易指數_出口數量指數(plots):
 def plot_村里戶數_單一年齡人口_新增區域代碼_(plots):
     key = "村里戶數、單一年齡人口（新增區域代碼）"
     key = sanitize_filename(key)
-    df, year, month = df_村里戶數_單一年齡人口()
+    df = df_村里戶數_單一年齡人口()
+    yearmonth = df["統計年月"].max()
 
     df_男_年齡_縣市 = df.pivot_table(
         values=df.columns[8 : 202 + 8 : 2],
@@ -4141,7 +4131,7 @@ def plot_村里戶數_單一年齡人口_新增區域代碼_(plots):
     df_女_年齡_縣市["總計"] = df_女_年齡_縣市.sum(axis="columns")
 
     plots[f"{key}_年齡_縣市"] = plot_pyramid(
-        f"{key}_年齡_縣市 {year}年{month}月",
+        f"{key}_年齡_縣市 {yearmonth}",
         df_男_年齡_縣市,
         df_女_年齡_縣市,
         regions=df_男_年齡_縣市.columns,
@@ -5730,7 +5720,7 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots):
     key = sanitize_filename(key)
 
     df_胎次 = df_嬰兒出生數按性別_胎次及生母年齡分_按登記()
-    df_所得總額, _ = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    df_所得總額 = df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
     df_所得總額 = df_所得總額.rename(columns={"縣市鄉鎮": "區域別", "年度": "統計年度"})
     df_所得總額 = df_所得總額.pivot_table(
         values=["綜合所得總額", "納稅單位(戶)"],

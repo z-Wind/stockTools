@@ -6130,11 +6130,12 @@ def plot_定期定額交易戶數統計排行月報表(plots):
         index="年月",
         columns="全名",
         values="交易戶數",
-        sort=True,
+        sort=False,
         aggfunc="sum",
     )
 
-    plots[f"{key}"] = plot_line(df, f"{key} {df.index[0]}~{df.index[-1]}")
+    df_sorted = df.sort_values(by=df.index[-1], axis="columns", ascending=False)
+    plots[f"{key}"] = plot_line(df_sorted, f"{key} {df_sorted.index[0]}~{df_sorted.index[-1]}")
 
 
 def plot_集保戶股權分散表(plots):

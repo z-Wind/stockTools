@@ -3376,132 +3376,132 @@ def plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plot
     df["下限"] = df["平均數"] - df["標準差"]
     df["上限"] = df["平均數"] + df["標準差"] * 3
 
-    sorted_column = "中位數"
-    df_縣市別 = (
-        df[df["年度"] == lastyear]
-        .set_index("縣市鄉鎮村里")
-        .sort_values(sorted_column, ascending=False)
-    )
-    data_list = []
-    for name in df_縣市別.index:
-        data = {
-            "type": "box",
-            "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
-            "x": [name],
-            "q1": [df_縣市別.loc[name, "第一分位數"]],
-            "median": [df_縣市別.loc[name, "中位數"]],
-            "q3": [df_縣市別.loc[name, "第三分位數"]],
-            "mean": [df_縣市別.loc[name, "平均數"]],
-            "sd": [df_縣市別.loc[name, "標準差"]],
-            "lowerfence": [df_縣市別.loc[name, "下限"]],
-            "upperfence": [df_縣市別.loc[name, "上限"]],
-            "visible": True if df_縣市別.loc[name, "村里"] == "合計" else False,
-        }
-        data_list.append(data)
+    for sorted_column in ["中位數", "上限", "標準差"]:
+        df_縣市別 = (
+            df[df["年度"] == lastyear]
+            .set_index("縣市鄉鎮村里")
+            .sort_values(sorted_column, ascending=False)
+        )
+        data_list = []
+        for name in df_縣市別.index:
+            data = {
+                "type": "box",
+                "name": f"{name}_{df_縣市別.loc[name, "納稅單位(戶)"]}戶",
+                "x": [name],
+                "q1": [df_縣市別.loc[name, "第一分位數"]],
+                "median": [df_縣市別.loc[name, "中位數"]],
+                "q3": [df_縣市別.loc[name, "第三分位數"]],
+                "mean": [df_縣市別.loc[name, "平均數"]],
+                "sd": [df_縣市別.loc[name, "標準差"]],
+                "lowerfence": [df_縣市別.loc[name, "下限"]],
+                "upperfence": [df_縣市別.loc[name, "上限"]],
+                "visible": True if df_縣市別.loc[name, "村里"] == "合計" else False,
+            }
+            data_list.append(data)
 
-    buttons_regions_detail = [
-        {
-            "args": [
-                {
-                    "visible": [True] * len(df_縣市別.index),
-                }
-            ],  # 顯示所有線條
-            "label": "全部地區",
-            "method": "restyle",
-        }
-    ]
-    buttons_regions_detail.append(
-        {
-            "args": [
-                {
-                    "visible": [
-                        df_縣市別.loc[index, "村里"] == "合計" for index in df_縣市別.index
-                    ],
-                }
-            ],
-            "label": "合計",
-            "method": "restyle",
-        },
-    )
-    regions_detail = df["縣市鄉鎮"].unique().tolist()
-    for region in regions_detail:
-        arr = [region in index for index in df_縣市別.index]  # 依地區篩選
+        buttons_regions_detail = [
+            {
+                "args": [
+                    {
+                        "visible": [True] * len(df_縣市別.index),
+                    }
+                ],  # 顯示所有線條
+                "label": "全部地區",
+                "method": "restyle",
+            }
+        ]
         buttons_regions_detail.append(
             {
                 "args": [
                     {
-                        "visible": arr,
+                        "visible": [
+                            df_縣市別.loc[index, "村里"] == "合計" for index in df_縣市別.index
+                        ],
                     }
                 ],
-                "label": region,
+                "label": "合計",
                 "method": "restyle",
             },
         )
-
-    buttons_regions = [
-        {
-            "args": [
+        regions_detail = df["縣市鄉鎮"].unique().tolist()
+        for region in regions_detail:
+            arr = [region in index for index in df_縣市別.index]  # 依地區篩選
+            buttons_regions_detail.append(
                 {
-                    "visible": [True] * len(df_縣市別.index),
-                }
-            ],  # 顯示所有線條
-            "label": "全部地區",
-            "method": "restyle",
-        }
-    ]
-    regions = df["縣市"].unique().tolist()
-    for region in regions:
-        arr = [region in index for index in df_縣市別.index]  # 依地區篩選
-        buttons_regions.append(
+                    "args": [
+                        {
+                            "visible": arr,
+                        }
+                    ],
+                    "label": region,
+                    "method": "restyle",
+                },
+            )
+
+        buttons_regions = [
             {
                 "args": [
                     {
-                        "visible": arr,
+                        "visible": [True] * len(df_縣市別.index),
                     }
-                ],
-                "label": region,
+                ],  # 顯示所有線條
+                "label": "全部地區",
                 "method": "restyle",
+            }
+        ]
+        regions = df["縣市"].unique().tolist()
+        for region in regions:
+            arr = [region in index for index in df_縣市別.index]  # 依地區篩選
+            buttons_regions.append(
+                {
+                    "args": [
+                        {
+                            "visible": arr,
+                        }
+                    ],
+                    "label": region,
+                    "method": "restyle",
+                },
+            )
+
+        updatemenus = [
+            {
+                "x": 0.6,
+                "y": 1.03,
+                "xanchor": "left",
+                "yanchor": "bottom",
+                "pad": {"r": 10, "t": 10},
+                "buttons": buttons_regions,
+                "type": "dropdown",
+                "direction": "down",
+                "active": 0,
+                "font": {"color": "#AAAAAA"},
+                "name": "地區選擇",
             },
-        )
+            {
+                "x": 0.7,
+                "y": 1.03,
+                "xanchor": "left",
+                "yanchor": "bottom",
+                "pad": {"r": 10, "t": 10},
+                "buttons": buttons_regions_detail,
+                "type": "dropdown",
+                "direction": "down",
+                "active": 1,
+                "font": {"color": "#AAAAAA"},
+                "name": "地區選擇",
+            },
+        ]
 
-    updatemenus = [
-        {
-            "x": 0.6,
-            "y": 1.03,
-            "xanchor": "left",
-            "yanchor": "bottom",
-            "pad": {"r": 10, "t": 10},
-            "buttons": buttons_regions,
-            "type": "dropdown",
-            "direction": "down",
-            "active": 0,
-            "font": {"color": "#AAAAAA"},
-            "name": "地區選擇",
-        },
-        {
-            "x": 0.7,
-            "y": 1.03,
-            "xanchor": "left",
-            "yanchor": "bottom",
-            "pad": {"r": 10, "t": 10},
-            "buttons": buttons_regions_detail,
-            "type": "dropdown",
-            "direction": "down",
-            "active": 1,
-            "font": {"color": "#AAAAAA"},
-            "name": "地區選擇",
-        },
-    ]
+        layout = {
+            "title": {"text": f"{key} {sorted_column}排序 {lastyear}年"},
+            "hovermode": "x",
+            "updatemenus": updatemenus,
+        }
+        graph = {"data": data_list, "layout": layout}
+        graph = merge_dict(copy.deepcopy(default_template), graph)
 
-    layout = {
-        "title": {"text": f"{key} {sorted_column}排序 {lastyear}年"},
-        "hovermode": "x",
-        "updatemenus": updatemenus,
-    }
-    graph = {"data": data_list, "layout": layout}
-    graph = merge_dict(copy.deepcopy(default_template), graph)
-
-    plots[f"{key}"] = plotly_json_dump(graph)
+        plots[f"{key}_{sorted_column}"] = plotly_json_dump(graph)
 
 
 def plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(plots):

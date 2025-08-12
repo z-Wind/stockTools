@@ -1777,7 +1777,23 @@ def df_歷年受僱員工每人每月總薪資平均數():
     df["年月別_Year_and_month"] = df["年月別_Year_and_month"].str.replace("[^0-9]", "", regex=True)
     df = df.set_index("年月別_Year_and_month")
     splits = df.columns.str.split("_", n=1, expand=True)
-    df.columns = [split[0] for split in splits]
+    df.columns = [split[0].strip() for split in splits]
+
+    df = df.rename(columns={"index": "年月"})
+
+    def rename(s: str):
+        n = 0
+        if s in ["工業及服務業"]:
+            return s
+        n += 1
+
+        if s in ["男性", "女性", "工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df.columns = [rename(col) for col in df.columns]
 
     return df
 
@@ -1791,6 +1807,20 @@ def df_歷年受僱員工每人每月經常性薪資平均數():
     df = df.set_index("年月別_Year_and_month")
     splits = df.columns.str.split("_", n=1, expand=True)
     df.columns = [split[0] for split in splits]
+
+    def rename(s: str):
+        n = 0
+        if s in ["工業及服務業"]:
+            return s
+        n += 1
+
+        if s in ["男性", "女性", "工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df.columns = [rename(col) for col in df.columns]
 
     return df
 
@@ -1984,6 +2014,21 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         df_按工作場所所在縣市別及年齡別分[::-1], axis="index", ignore_index=True
     )
 
+    def rename(s: str):
+        n = 0
+        if s in ["工業及服務業", "全體"]:
+            return s
+        n += 1
+
+        if s in ["工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df_按性別及教育程度分["行業"] = df_按性別及教育程度分["行業"].apply(rename)
+    df_按年齡別分["行業"] = df_按年齡別分["行業"].apply(rename)
+
     return (
         df_按性別及教育程度分,
         df_按年齡別分,
@@ -2033,6 +2078,23 @@ def df_受僱員工每人每月工時():
 
     df = df.sort_values(["年", "月"])
 
+    def rename(s: str):
+        if s in ["年月", "年", "月"]:
+            return s
+
+        n = 0
+        if "工業及服務業" in s:
+            return s
+        n += 1
+
+        if "部門" in s:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df.columns = [rename(col) for col in df.columns]
+
     return df
 
 
@@ -2055,6 +2117,23 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
     df.columns = df.columns.str.removesuffix("_新臺幣元").str.removesuffix("_金額")
     df = df.replace("-", np.nan).astype(float)
 
+    def rename(s: str):
+        if s == "":
+            s = "服務業"
+
+        n = 0
+        if s in ["工業及服務業", "全體"]:
+            return s
+        n += 1
+
+        if s in ["工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df.columns = [rename(col) for col in df.columns]
+
     return df, lastyear + 1911  # 轉西元
 
 
@@ -2075,6 +2154,20 @@ def df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行
     )
     df = df.set_index("項目別")
     df = df.replace("-", np.nan).astype(float) / 100
+
+    def rename(s: str):
+        n = 0
+        if s in ["工業及服務業"]:
+            return s
+        n += 1
+
+        if s in ["工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df.index = [rename(col) for col in df.index]
 
     return df, lastyear + 1911  # 轉西元
 
@@ -2146,6 +2239,20 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
         )
         df.append(data)
     df = pd.concat(df, ignore_index=True)
+
+    def rename(s: str):
+        n = 0
+        if s in ["工業及服務業"]:
+            return s
+        n += 1
+
+        if s in ["工業", "服務業"]:
+            return " " * n + s
+        n += 1
+
+        return " " * n + s
+
+    df["項目別"] = df["項目別"].apply(rename)
 
     return df
 

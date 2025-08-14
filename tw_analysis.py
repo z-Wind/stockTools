@@ -6169,6 +6169,80 @@ def plot_集保戶股權分散表(plots):
     )
 
 
+def plot_投信投顧公會基金費用比率(plots):
+    key = "投信投顧公會基金費用比率"
+    key = sanitize_filename(key)
+
+    df = df_投信投顧公會基金費用比率()
+
+    # https://www.sitca.org.tw/ROC/Industry/IN2002.aspx?PGMID=IN0202 統計資料 > 境內基金各項資料 > 明細資料 > 類型代號說明
+    類型代號 = df["類型代號"].unique().tolist()
+    類型代號.sort()
+    name_map = {}
+    for _, x in df.iterrows():
+        name_map[x["基金統編"]] = (x["基金名稱"].split(" (", 1)[0], x["類型代號"])
+
+    df_總費用率 = df.pivot_table(values="合計_比率", index="年度", columns="基金統編")
+    df_總費用率 = -df_總費用率
+    df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns", ascending=False)
+    # 移除最後一年為空的資料
+    df_總費用率 = df_總費用率.dropna(axis="columns", subset=df_總費用率.index[-1])
+
+    buttons_kinds = [
+        {
+            "args": [
+                {
+                    "visible": [True] * len(df_總費用率.columns),
+                }
+            ],  # 顯示所有線條
+            "label": "全部類型",
+            "method": "restyle",
+        }
+    ]
+    for kind in 類型代號:
+        arr = [name_map[統編][1] == kind for 統編 in df_總費用率.columns]
+        if all(not i for i in arr):
+            continue
+
+        buttons_kinds.append(
+            {
+                "args": [
+                    {
+                        "visible": arr,
+                    }
+                ],
+                "label": kind,
+                "method": "restyle",
+            },
+        )
+    updatemenus = [
+        {
+            "x": 0.5,
+            "y": 1.0,
+            "xanchor": "center",
+            "yanchor": "bottom",
+            "pad": {"r": 10, "t": 10},
+            "buttons": buttons_kinds,
+            "type": "dropdown",
+            "direction": "down",
+            "active": 0,
+            "font": {"color": "#AAAAAA"},
+            "name": "類型選擇",
+        },
+    ]
+
+    df_總費用率.columns = df_總費用率.columns.map(lambda x: name_map[x][0]).str.strip()
+    plots[f"{key}"] = plot_line(
+        df_總費用率,
+        f"{key} {df_總費用率.index[0]}~{df_總費用率.index[-1]}",
+        additional_layout={
+            "yaxis": {"tickformat": ".2%"},
+            "updatemenus": updatemenus,
+            "showlegend": True,
+        },
+    )
+
+
 def main():
     plots: Dict[str, str] = {}  # Stores Plotly JSON strings
     items: Dict[str, Any] = {}  # Stores other items like column lists for templates
@@ -6325,6 +6399,7 @@ def main():
 
     plot_定期定額交易戶數統計排行月報表(plots)
     plot_集保戶股權分散表(plots)
+    plot_投信投顧公會基金費用比率(plots)
     # ========================================================================
 
     prefix = "TW_Analysis"

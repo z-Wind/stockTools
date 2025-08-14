@@ -9,7 +9,9 @@ import pandas as pd
 import io
 import requests
 import warnings
+from pyquery import PyQuery
 
+from pandas.api.types import is_integer_dtype
 from requests.adapters import HTTPAdapter
 import urllib3
 from urllib3.util import Retry
@@ -4214,6 +4216,103 @@ def df_銀行間市場新臺幣對美元收盤匯率():
     return df
 
 
+# https://www.sitca.org.tw 統計資料 > 境內基金各項資料 > 明細資料 > 各項費用比率 (月、季、年)
+def df_投信投顧公會基金費用比率():
+    key = "投信投顧公會基金費用比率"
+    key = sanitize_filename(key)
+
+    url = "https://www.sitca.org.tw/ROC/Industry/IN2211.aspx?pid=IN2222_01"
+
+    with session.get(url) as resp:
+        dom = PyQuery(resp.text)
+
+        __VIEWSTATE = dom(r"#__VIEWSTATE").val()
+        __VIEWSTATEGENERATOR = dom(r"#__VIEWSTATEGENERATOR").val()
+        __EVENTVALIDATION = dom(r"#__EVENTVALIDATION").val()
+
+        data = {
+            "__VIEWSTATE": __VIEWSTATE,
+            "__VIEWSTATEGENERATOR": __VIEWSTATEGENERATOR,
+            "__EVENTVALIDATION": __EVENTVALIDATION,
+            "ctl00$ContentPlaceHolder1$ddlQ_Y": 2025,
+            "ctl00$ContentPlaceHolder1$ddlQ_M": "Year",
+            "ctl00$ContentPlaceHolder1$ddlQ_Comid": "",
+            "ctl00$ContentPlaceHolder1$ddlQ_Fund": "",
+            "ctl00$ContentPlaceHolder1$BtnQuery": "查詢",
+        }
+
+    df = []
+    for year in range(2001, datetime.today().year + 1):
+        path = EXTRA_DATA_DIR / key / f"{year}.csv"
+        _ensure_dir_exists(path)
+
+        if not path.is_file() or year == datetime.today().year:
+            time.sleep(5)
+            data["ctl00$ContentPlaceHolder1$ddlQ_Y"] = year
+            r = session.post(url, data)
+
+            dom = PyQuery(r.text)
+            data_df = pd.read_html(io.StringIO(dom("table#GlobalTable table").html()), skiprows=3)[
+                0
+            ]
+
+            if 2001 <= year and year <= 2004:
+                費用項目 = ["手續費", "交易稅", "經理費", "保管費", "其他項費用", "合計"]
+            elif year <= 2021:
+                費用項目 = ["手續費", "交易稅", "經理費", "保管費", "保證費", "其他項費用", "合計"]
+            else:
+                費用項目 = [
+                    "手續費",
+                    "交易稅",
+                    "股票ETF及指數型基金申購/買回交易費",
+                    "經理費",
+                    "保管費",
+                    "保證費",
+                    "其他項費用",
+                    "合計",
+                ]
+
+            data_df.columns = [
+                "類型代號",
+                "基金統編",
+                "基金名稱",
+            ] + [
+                f"{x}_{y}"
+                for x, y in itertools.product(
+                    費用項目,
+                    ["累積金額", "比率"],
+                )
+            ]
+
+            if is_integer_dtype(data_df["基金統編"]):
+                data_df["基金統編"] = data_df["基金統編"].astype(str)
+            else:
+                data_df["基金統編"] = (
+                    data_df["基金統編"].str.replace(r"^0+", "", regex=True).astype(str)
+                )
+
+            data_df.to_csv(path, index=False)
+
+        data_df = pd.read_csv(path)
+        data_df["年度"] = year
+        data_df["基金統編"] = data_df["基金統編"].astype(str)
+        data_df["類型代號"] = data_df["類型代號"].astype(str)
+
+        df.append(data_df)
+
+    df = pd.concat(df, ignore_index=True)
+    df = df.fillna(np.nan)
+
+    比率_cols = [col for col in df.columns if "比率" in col]
+
+    df[比率_cols] = (
+        df[比率_cols].map(lambda s: s.replace("%", "") if isinstance(s, str) else s).astype(float)
+        / 100
+    )
+
+    return df
+
+
 def update():
     df_銀行間市場新臺幣對美元收盤匯率()
 
@@ -4228,6 +4327,7 @@ def update():
     df_定期定額交易戶數統計排行月報表()
     df_綜稅總所得各縣市申報統計分析表()
     df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表()
+    df_投信投顧公會基金費用比率()
 
     df_人力資源調查重要指標()
     df_教育程度別失業率()

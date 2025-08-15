@@ -1,4 +1,3 @@
-from datetime import datetime
 import gzip
 import itertools
 import json
@@ -9,8 +8,10 @@ import pandas as pd
 import io
 import requests
 import warnings
-from pyquery import PyQuery
+import sys
 
+from datetime import datetime
+from pyquery import PyQuery
 from pandas.api.types import is_integer_dtype
 from requests.adapters import HTTPAdapter
 import urllib3
@@ -44,9 +45,20 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 
 # create a new session object
 session = requests.Session()
-session.headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; rv:57.0) " "Gecko/20100101 Firefox/57.0",
-}
+if sys.platform.startswith("linux"):
+    session.headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://www.google.com/",
+    }
+else:
+    session.headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://www.google.com/",
+    }
 session.mount("http://", adapter)
 session.mount("https://", adapter)
 
@@ -4252,46 +4264,62 @@ def df_投信投顧公會基金費用比率():
             r = session.post(url, data)
 
             dom = PyQuery(r.text)
-            data_df = pd.read_html(io.StringIO(dom("table#GlobalTable table").html()), skiprows=3)[
-                0
-            ]
+            try:
+                data_df = pd.read_html(
+                    io.StringIO(dom("table#GlobalTable table").html()), skiprows=3
+                )[0]
 
-            if 2001 <= year and year <= 2004:
-                費用項目 = ["手續費", "交易稅", "經理費", "保管費", "其他項費用", "合計"]
-            elif year <= 2021:
-                費用項目 = ["手續費", "交易稅", "經理費", "保管費", "保證費", "其他項費用", "合計"]
-            else:
-                費用項目 = [
-                    "手續費",
-                    "交易稅",
-                    "股票ETF及指數型基金申購/買回交易費",
-                    "經理費",
-                    "保管費",
-                    "保證費",
-                    "其他項費用",
-                    "合計",
+                if 2001 <= year and year <= 2004:
+                    費用項目 = ["手續費", "交易稅", "經理費", "保管費", "其他項費用", "合計"]
+                elif year <= 2021:
+                    費用項目 = [
+                        "手續費",
+                        "交易稅",
+                        "經理費",
+                        "保管費",
+                        "保證費",
+                        "其他項費用",
+                        "合計",
+                    ]
+                else:
+                    費用項目 = [
+                        "手續費",
+                        "交易稅",
+                        "股票ETF及指數型基金申購/買回交易費",
+                        "經理費",
+                        "保管費",
+                        "保證費",
+                        "其他項費用",
+                        "合計",
+                    ]
+
+                data_df.columns = [
+                    "類型代號",
+                    "基金統編",
+                    "基金名稱",
+                ] + [
+                    f"{x}_{y}"
+                    for x, y in itertools.product(
+                        費用項目,
+                        ["累積金額", "比率"],
+                    )
                 ]
 
-            data_df.columns = [
-                "類型代號",
-                "基金統編",
-                "基金名稱",
-            ] + [
-                f"{x}_{y}"
-                for x, y in itertools.product(
-                    費用項目,
-                    ["累積金額", "比率"],
-                )
-            ]
+                if is_integer_dtype(data_df["基金統編"]):
+                    data_df["基金統編"] = data_df["基金統編"].astype(str)
+                else:
+                    data_df["基金統編"] = (
+                        data_df["基金統編"].str.replace(r"^0+", "", regex=True).astype(str)
+                    )
 
-            if is_integer_dtype(data_df["基金統編"]):
-                data_df["基金統編"] = data_df["基金統編"].astype(str)
-            else:
-                data_df["基金統編"] = (
-                    data_df["基金統編"].str.replace(r"^0+", "", regex=True).astype(str)
-                )
+                data_df.to_csv(path, index=False)
 
-            data_df.to_csv(path, index=False)
+            except Exception as e:
+                print("投信投顧公會基金費用比率", year)
+                print(e)
+
+                if not path.is_file():
+                    continue
 
         data_df = pd.read_csv(path)
         data_df["年度"] = year

@@ -6187,6 +6187,7 @@ def plot_投信投顧公會基金費用比率(plots):
     df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns", ascending=False)
     # 移除最後一年為空的資料
     df_總費用率 = df_總費用率.dropna(axis="columns", subset=df_總費用率.index[-1])
+    最大_總費用率 = df_總費用率.min(axis="index")
 
     buttons_kinds = [
         {
@@ -6197,7 +6198,52 @@ def plot_投信投顧公會基金費用比率(plots):
             ],  # 顯示所有線條
             "label": "全部類型",
             "method": "restyle",
-        }
+        },
+        {
+            "args": [
+                {
+                    "visible": [-費用 > 10 / 100 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "最大總費用率 > 10%",
+            "method": "restyle",
+        },
+        {
+            "args": [
+                {
+                    "visible": [10 / 100 >= -費用 and -費用 > 5 / 100 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "10% ≥ 最大總費用率 > 5%",
+            "method": "restyle",
+        },
+        {
+            "args": [
+                {
+                    "visible": [5 / 100 >= -費用 and -費用 > 1 / 100 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "5% ≥ 最大總費用率 > 1%",
+            "method": "restyle",
+        },
+        {
+            "args": [
+                {
+                    "visible": [1 / 100 >= -費用 and -費用 > 0.5 / 100 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "1% ≥ 最大總費用率 > 0.5%",
+            "method": "restyle",
+        },
+        {
+            "args": [
+                {
+                    "visible": [0.5 / 100 >= -費用 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "0.5% ≥ 最大總費用率",
+            "method": "restyle",
+        },
     ]
     for kind in 類型代號:
         arr = [name_map[統編][1] == kind for 統編 in df_總費用率.columns]

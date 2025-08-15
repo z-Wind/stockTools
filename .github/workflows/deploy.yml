@@ -26,7 +26,7 @@ jobs:
       - run: python get_extraData.py
       - run: python get_extraData_fund.py
       - run: python tw_analysis_data.py
-        continue-on-error: true
+        # continue-on-error: true
       - name: Update master
         run: |
           git config --global user.name 'z-Wind'
@@ -63,7 +63,7 @@ jobs:
         run: python stock.py
       - name: TW Analysis
         run: python tw_analysis.py
-        continue-on-error: true
+        # continue-on-error: true
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:

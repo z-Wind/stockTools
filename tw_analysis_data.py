@@ -4304,7 +4304,10 @@ def df_投信投顧公會基金費用比率():
                 dom = PyQuery(resp.text)
                 try:
                     data_df = pd.read_html(
-                        io.StringIO(dom("table#GlobalTable table").html()), skiprows=3
+                        io.StringIO(
+                            dom("table#GlobalTable > tbody > tr > td > table").outer_html()
+                        ),
+                        skiprows=3,
                     )[0]
 
                     if 2001 <= year and year <= 2004:

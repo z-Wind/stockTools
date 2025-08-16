@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "pandas==2.2.2" "requests==2.32.4" "pyquery==2.0.0" "numpy==2.1.0" "python-calamine==0.3.2" "lxml==5.3.0" "html5lib==1.1" "beautifulsoup4==4.12.3" "aiohttp==3.12.14"
+          pip install "pandas==2.2.2" "requests==2.32.4" "pyquery==2.0.1" "numpy==2.1.0" "python-calamine==0.3.2" "lxml==5.3.0" "html5lib==1.1" "beautifulsoup4==4.12.3" "aiohttp==3.12.14"
       - name: Set console encoding to UTF-8 on Windows
         if: matrix.os == 'windows-latest'
         shell: bash
@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "yfinance>=0.2,<0.3" "pandas==2.2.2" "pyquery==2.0.0" "flask==3.0.3" "plotly==5.23.0" "requests==2.32.4" "numpy==2.1.0" "maturin==1.7.0" "pyxirr==0.10.5" "python-calamine==0.3.2" "lxml==5.3.0" "html5lib==1.1" "beautifulsoup4==4.12.3"
+          pip install "yfinance>=0.2,<0.3" "pandas==2.2.2" "pyquery==2.0.1" "flask==3.0.3" "plotly==5.23.0" "requests==2.32.4" "numpy==2.1.0" "maturin==1.7.0" "pyxirr==0.10.5" "python-calamine==0.3.2" "lxml==5.3.0" "html5lib==1.1" "beautifulsoup4==4.12.3"
 
       - working-directory: ./FFI/rust_pyo3
         run: |

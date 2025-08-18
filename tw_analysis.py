@@ -1090,6 +1090,28 @@ def plot_就業率(plots):
     )
 
 
+def plot_主要國家零歲平均餘命(plots):
+    key = "主要國家零歲平均餘命"
+    key = sanitize_filename(key)
+    df = df_主要國家零歲平均餘命()
+
+    df = copy.deepcopy(df)
+    df.columns = [f"{國別}_{性別}" for 國別, 性別 in df.columns]
+
+    plots[f"{key}_歷年"] = plot_line(
+        df,
+        f"{key}(歲) {df.index[0]}~{df.index[-1]}年",
+    )
+
+    df_實際值 = df.loc[df.index <= datetime.today().year]
+    df_當年度 = df_實際值.loc[[df_實際值.index[-1]]]
+    df_當年度 = df_當年度.sort_values(by=df_實際值.index[-1], axis="columns", ascending=False)
+    plots[f"{key}_當年度"] = plot_bar_group(
+        df_當年度,
+        f"{key}(歲) {df_實際值.index[-1]}年",
+    )
+
+
 def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
     key = "國民所得統計-國民所得、儲蓄與投資-季"
     key = sanitize_filename(key)
@@ -6307,6 +6329,7 @@ def main():
     plot_年齡組別失業率(plots)
     plot_教育程度別失業率_按年齡分(plots)
     plot_就業率(plots)
+    plot_主要國家零歲平均餘命(plots)
 
     plot_國民所得統計_國民所得_儲蓄與投資_季(plots)
     plot_國民所得統計_常用資料_季(plots)

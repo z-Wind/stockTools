@@ -514,6 +514,24 @@ def df_就業率():
     return df_教育程度別, df_年齡別
 
 
+# https://data.gov.tw/dataset/39495 主要國家零歲平均餘命
+def df_主要國家零歲平均餘命():
+    url = "https://ws.ndc.gov.tw/001/administrator/10/relfile/0/13729/ce34adb0-b1c0-4b55-a271-9b95b817811e.csv"
+
+    df = read_csv(url)
+
+    df = df.rename(columns={"男性零歲平均餘命(歲)": "男", "女性零歲平均餘命(歲)": "女"})
+
+    df[["男", "女"]] = df[["男", "女"]].replace("-", np.nan).astype(float)
+
+    df = df.pivot_table(values=["男", "女"], columns="國別", index="西元年")
+
+    df = df.swaplevel(axis="columns")
+    df = df.sort_index(axis="columns")
+
+    return df
+
+
 # https://data.gov.tw/dataset/44232 國民所得統計-國民所得、儲蓄與投資-季
 def df_國民所得統計_國民所得_儲蓄與投資_季():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8201a1q.xml"

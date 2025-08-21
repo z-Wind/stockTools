@@ -5372,26 +5372,26 @@ def plot_結婚對數按婚姻類型_性別及年齡分_按登記_(plots, items)
         df_女 = df.pivot_table(
             values="結婚對數",
             index="女方年齡或配偶一方年齡",
-            columns="男方年齡或配偶另一方年齡",
+            columns=["婚姻類型", "男方年齡或配偶另一方年齡"],
             aggfunc="sum",
             sort=False,
         )
         plots[f"{key}_女_{kind}"] = plot_line(
-            df_女,
-            f"{key}_女_{kind} {years[0]}~{years[-1]}年",
+            df_女.loc[:, (kind,)],
+            f"{key}_{kind}_登記為女方 {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
         )
 
         df_男 = df.pivot_table(
             values="結婚對數",
             index="男方年齡或配偶另一方年齡",
-            columns="女方年齡或配偶一方年齡",
+            columns=["婚姻類型", "女方年齡或配偶一方年齡"],
             aggfunc="sum",
             sort=False,
         )
         plots[f"{key}_男_{kind}"] = plot_line(
-            df_男,
-            f"{key}_男_{kind} {years[0]}~{years[-1]}年",
+            df_男.loc[:, (kind,)],
+            f"{key}_{kind}_登記為男方 {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},
         )
 

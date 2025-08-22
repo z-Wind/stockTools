@@ -5376,7 +5376,7 @@ def plot_結婚對數按婚姻類型_性別及年齡分_按登記_(plots, items)
             aggfunc="sum",
             sort=False,
         )
-        plots[f"{key}_女_{kind}"] = plot_line(
+        plots[f"{key}_{kind}_登記為女方"] = plot_line(
             df_女.loc[:, (kind,)],
             f"{key}_{kind}_登記為女方 {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "女方年齡或配偶一方年齡"}}},
@@ -5389,7 +5389,7 @@ def plot_結婚對數按婚姻類型_性別及年齡分_按登記_(plots, items)
             aggfunc="sum",
             sort=False,
         )
-        plots[f"{key}_男_{kind}"] = plot_line(
+        plots[f"{key}_{kind}_登記為男方"] = plot_line(
             df_男.loc[:, (kind,)],
             f"{key}_{kind}_登記為男方 {years[0]}~{years[-1]}年",
             {"xaxis": {"title": {"text": "男方年齡或配偶另一方年齡"}}},

@@ -7,6 +7,7 @@ import copy
 import warnings
 
 
+from jsmin import jsmin
 from datetime import datetime
 from typing import Callable, Optional, Dict, Any
 from pathlib import Path
@@ -6481,9 +6482,7 @@ def main():
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)
             with open(jsfolder / f"{key}.js", "w", encoding="UTF-8") as f:
-                minified_graph = minify_html.minify(
-                    graph, keep_comments=False, keep_html_and_head_opening_tags=False
-                )
+                minified_graph = jsmin(graph)
                 f.write(minified_graph)
 
         html = render_template(

@@ -4066,6 +4066,12 @@ def df_全國公立動物收容所收容處理情形統計表():
             "end_rate": "人道處理率_%",
             "dead_num": "所內死亡數_隻",
             "dead_rate": "所內死亡率_%",
+            #
+            "rpt_county": "縣市名",
+            "accept_count": "收容隻數_隻",
+            "adopt_count": "認領養數_隻",
+            "end_count": "人道處理數_隻",
+            "dead_count": "所內死亡數_隻",
         },
     )
     df = df.drop(["ID", "縣市代碼"], axis=1)

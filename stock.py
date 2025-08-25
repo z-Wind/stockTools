@@ -8,6 +8,7 @@ import time
 import json
 import plotly
 
+from jsmin import jsmin
 from datetime import datetime
 from pyxirr import xirr
 from pyquery import PyQuery
@@ -1678,9 +1679,7 @@ def report(
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)
             with open(os.path.join(path, f"{jsfolder}/{key}.js"), "w", encoding="UTF-8") as f:
-                minified_graph = minify_html.minify(
-                    graph, keep_comments=False, keep_html_and_head_opening_tags=False
-                )
+                minified_graph = jsmin(graph)
                 f.write(minified_graph)
 
         html = render_template(

@@ -6474,7 +6474,7 @@ def main():
     prefix = "TW_Analysis"
     report_dir = Path("report")
     with app.app_context():
-        jsfolder = Path("report") / prefix
+        jsfolder = report_dir / prefix
         jsfolder.mkdir(parents=True, exist_ok=True)
 
         for key, item in plots.items():

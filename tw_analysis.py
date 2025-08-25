@@ -1,4 +1,5 @@
 import json
+import minify_html
 import numpy as np
 import pandas as pd
 import plotly
@@ -6480,7 +6481,10 @@ def main():
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)
             with open(jsfolder / f"{key}.js", "w", encoding="UTF-8") as f:
-                f.write(graph)
+                minified_graph = minify_html.minify(
+                    graph, keep_comments=False, keep_html_and_head_opening_tags=False
+                )
+                f.write(minified_graph)
 
         html = render_template(
             "tw_analysis.html.j2",
@@ -6490,7 +6494,10 @@ def main():
             items=items,
         )
         with open(report_dir / f"{prefix}_Report.html", "w", encoding="UTF-8") as f:
-            f.write(html)
+            minified_html = minify_html.minify(
+                html, keep_comments=False, keep_html_and_head_opening_tags=False
+            )
+            f.write(minified_html)
 
 
 if __name__ == "__main__":

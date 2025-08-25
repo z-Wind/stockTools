@@ -1,6 +1,7 @@
 import copy
 import os
 import re
+import minify_html
 import yfinance as yf
 import pandas as pd
 import time
@@ -1677,13 +1678,19 @@ def report(
         for key, item in plots.items():
             graph = render_template("graph.js.j2", key=key, item=item)
             with open(os.path.join(path, f"{jsfolder}/{key}.js"), "w", encoding="UTF-8") as f:
-                f.write(graph)
+                minified_graph = minify_html.minify(
+                    graph, keep_comments=False, keep_html_and_head_opening_tags=False
+                )
+                f.write(minified_graph)
 
         html = render_template(
             "compare.html.j2", plots=plots, jsfolder=jsfolder, title=f"{prefix} Report"
         )
         with open(os.path.join(path, f"{prefix}_Report.html"), "w", encoding="UTF-8") as f:
-            f.write(html)
+            minified_html = minify_html.minify(
+                html, keep_comments=False, keep_html_and_head_opening_tags=False
+            )
+            f.write(minified_html)
 
 
 if __name__ == "__main__":

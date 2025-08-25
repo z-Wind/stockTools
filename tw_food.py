@@ -1,4 +1,7 @@
+import io
+import zipfile
 import pandas as pd
+import requests
 import minify_html
 
 from flask import Flask, render_template

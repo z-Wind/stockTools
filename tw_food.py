@@ -1,4 +1,7 @@
+import io
+import zipfile
 import pandas as pd
+import requests
 import minify_html
 
 from flask import Flask, render_template
@@ -87,13 +90,13 @@ def main():
 
 
 def get_data() -> pd.DataFrame:
-    data = pd.read_csv(r"C:\Users\chihchieh.sun\Downloads\20_2.csv")
-    # # https://data.gov.tw/dataset/8543
-    # url = "https://data.fda.gov.tw/opendata/exportDataList.do?method=ExportData&InfoId=20&logType=2"
-    # response = requests.get(url)
-    # with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-    #     with z.open("20_2.csv") as f:
-    #         data = pd.read_csv(f)
+    # data = pd.read_csv(r"C:\Users\chihchieh.sun\Downloads\20_2.csv")
+    # https://data.gov.tw/dataset/8543
+    url = "https://data.fda.gov.tw/opendata/exportDataList.do?method=ExportData&InfoId=20&logType=2"
+    response = requests.get(url)
+    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+        with z.open("20_2.csv") as f:
+            data = pd.read_csv(f)
 
     data = data.fillna(value={"俗名": ""})
     data = data.fillna(0)

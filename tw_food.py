@@ -40,24 +40,22 @@ def main():
 
             df = df.sort_values(col, ascending=False)
 
-            # 移到第一行
-            new_df = df.copy()
-            column_to_move = new_df.pop(col)
-            new_df.insert(0, col, column_to_move)
+            # 關注項移到第一行
+            new_df = pd.concat([df[[col]], df.drop(columns=col)], axis="columns")
 
+            df_全部 = new_df.reset_index()
+            df_全部.index += 1
             tables = {
-                "全部": new_df.reset_index().to_html(
+                "全部": df_全部.to_html(
                     classes=["table", "table-dark", "table-striped", "table-hover"],
                 )
             }
 
             for 食品大類 in 食品種類:
-                tables[食品大類] = (
-                    new_df.loc[食品大類]
-                    .reset_index()
-                    .to_html(
-                        classes=["table", "table-dark", "table-striped", "table-hover"],
-                    )
+                df_食品大類 = new_df.loc[食品大類].reset_index()
+                df_食品大類.index += 1
+                tables[食品大類] = df_食品大類.to_html(
+                    classes=["table", "table-dark", "table-striped", "table-hover"],
                 )
 
             html = render_template(

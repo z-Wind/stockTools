@@ -1284,8 +1284,8 @@ def df_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別
 # https://www.stat.gov.tw/cp.aspx?n=3913 主計總處統計專區 -> 家庭收支調查 -> 統計表 -> 性別指標
 def df_家庭收支調查_所得收入者人數按性別及可支配所得組別分():
     key = "家庭收支調查-所得收入者人數按性別及可支配所得組別分"
-    url = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2015/gender112.xls"
-    year = 112
+    year = 113
+    url = f"https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2015/gender{year}.xls"
 
     df = read_excel_with_cache(
         EXTRA_DATA_DIR / key / f"{year}.xlsx.gz",
@@ -4439,6 +4439,7 @@ def update():
     df_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況()
     df_勞工退休金平均提繳工資_按行業別()
     df_勞工退休金平均提繳工資_按年齡組別()
+    df_家庭收支調查_所得收入者人數按性別及可支配所得組別分()
 
 
 if __name__ == "__main__":

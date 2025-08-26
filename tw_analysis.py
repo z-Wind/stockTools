@@ -5347,17 +5347,42 @@ def plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
-        values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
+        values="number_of_marry",
+        index="age",
+        columns=["edu", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
     )
+    df_女_年齡_教育.columns = ["_".join(col) for col in df_女_年齡_教育.columns]
     plots[f"{key}_女_年齡_教育"] = plot_line(
         df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
-        values="number_of_marry", index="age", columns="edu", aggfunc="sum", sort=False
+        values="number_of_marry",
+        index="age",
+        columns=["edu", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
     )
+    df_男_年齡_教育.columns = ["_".join(col) for col in df_男_年齡_教育.columns]
     plots[f"{key}_男_年齡_教育"] = plot_line(
         df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}年"
+    )
+
+    df_男女_年齡_婚姻類型 = df.pivot_table(
+        values="number_of_marry",
+        index="age",
+        columns=["sex", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_男女_年齡_婚姻類型"] = plot_pyramid(
+        f"{key}_男女_年齡_婚姻類型 {years[0]}~{years[-1]}年",
+        df_男女_年齡_婚姻類型["男"],
+        df_男女_年齡_婚姻類型["女"],
+        df_男女_年齡_婚姻類型["男"].columns,
+        df_男女_年齡_婚姻類型["男"].index,
     )
 
 
@@ -6064,10 +6089,14 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
     )
 
     df_性別 = df.pivot_table(
-        values="divorce_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
+        values="divorce_count",
+        index=["statistic_yyy", "sex"],
+        columns="marriage_type",
+        aggfunc="sum",
+        sort=False,
     )
-    plots[f"{key}_性別"] = plot_line(
-        df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
+    plots[f"{key}_性別"] = plot_bar_stack_multi_index(
+        df_性別, f"{key}_性別 {years[0]}~{years[-1]}年"
     )
 
     df_原屬國籍 = df.pivot_table(
@@ -6106,17 +6135,42 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
     )
 
     df_女_年齡_教育 = df[df["sex"] == "女"].pivot_table(
-        values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="age",
+        columns=["edu", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
     )
+    df_女_年齡_教育.columns = ["_".join(col) for col in df_女_年齡_教育.columns]
     plots[f"{key}_女_年齡_教育"] = plot_line(
         df_女_年齡_教育, f"{key}_女_年齡_教育 {years[0]}~{years[-1]}年"
     )
 
     df_男_年齡_教育 = df[df["sex"] == "男"].pivot_table(
-        values="divorce_count", index="age", columns="edu", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="age",
+        columns=["edu", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
     )
+    df_男_年齡_教育.columns = ["_".join(col) for col in df_男_年齡_教育.columns]
     plots[f"{key}_男_年齡_教育"] = plot_line(
         df_男_年齡_教育, f"{key}_男_年齡_教育 {years[0]}~{years[-1]}年"
+    )
+
+    df_男女_年齡_婚姻類型 = df.pivot_table(
+        values="divorce_count",
+        index="age",
+        columns=["sex", "marriage_type"],
+        aggfunc="sum",
+        sort=False,
+    )
+    plots[f"{key}_男女_年齡_婚姻類型"] = plot_pyramid(
+        f"{key}_男女_年齡_婚姻類型 {years[0]}~{years[-1]}年",
+        df_男女_年齡_婚姻類型["男"],
+        df_男女_年齡_婚姻類型["女"],
+        df_男女_年齡_婚姻類型["男"].columns,
+        df_男女_年齡_婚姻類型["男"].index,
     )
 
 

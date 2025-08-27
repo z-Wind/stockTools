@@ -28,6 +28,13 @@ def main():
     營養素種類 = df.columns
     食品種類 = data["食品分類"].unique()
 
+    ranks_df = df.rank(axis="index", method="max", na_option="bottom", ascending=False)
+    for col in df.columns:
+        s = ranks_df[col].astype(int).astype(str) + "/" + str(len(df))
+        s.name = (col[0], col[1], "排名")
+        df = pd.concat([df, s], axis="columns")
+    df = df.sort_index(axis="columns")
+
     prefix = "TW_Food"
     report_dir = Path("report")
     with app.app_context():
@@ -38,10 +45,24 @@ def main():
         for 分析項分類, 分析項, 含量單位 in 營養素種類:
             col = (分析項分類, 分析項, 含量單位)
 
-            df = df.sort_values(col, ascending=False)
+            df = df.sort_values(
+                col,
+                ascending=False,
+            )
 
             # 關注項移到第一行
-            new_df = pd.concat([df[[col]], df.drop(columns=col)], axis="columns")
+            new_df = pd.concat(
+                [
+                    df[[col]],
+                    df.drop(
+                        columns=(
+                            分析項分類,
+                            分析項,
+                        )
+                    ),
+                ],
+                axis="columns",
+            )
 
             df_全部 = new_df.reset_index()
             df_全部.index += 1

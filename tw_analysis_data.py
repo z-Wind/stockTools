@@ -3,6 +3,7 @@ import itertools
 import json
 import re
 import time
+import zipfile
 import numpy as np
 import pandas as pd
 import io
@@ -4402,6 +4403,131 @@ def df_投信投顧公會基金費用比率():
         df[比率_cols].map(lambda s: s.replace("%", "") if isinstance(s, str) else s).astype(float)
         / 100
     )
+
+    return df
+
+
+def df_基金績效評比():
+    key = "基金績效評比"
+    key = sanitize_filename(key)
+
+    url_year_month = (
+        "https://members.sitca.org.tw/OPF/K0000/files/F/02/{year}-{month:02d}基金績效評比表.zip"
+    )
+
+    def get_data(year, month) -> pd.DataFrame:
+        path = EXTRA_DATA_DIR / key / f"{year}{month:02d}.zip"
+        _ensure_dir_exists(path)
+
+        if not path.is_file():
+            url = url_year_month.format(year=year - 1911, month=month)
+            time.sleep(1)
+            r = session.get(url)
+
+            if r.status_code == 404:
+                return None
+
+            with open(path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
+        data: pd.DataFrame
+        with zipfile.ZipFile(path, "r") as zf:
+            with zf.open(zf.namelist()[0]) as excel_file:
+                data = pd.read_excel(
+                    excel_file,
+                    engine="calamine",
+                )
+                if year < 2014 or (year == 2014 and month <= 9):
+                    subset = ["Unnamed: 0", "Unnamed: 1"]
+                    data = data.dropna(subset=subset)
+
+                    agg_fun = {f"{col}": ["first", "last"] for col in data.columns[1:]}
+                    data = data.groupby("Unnamed: 0").agg(agg_fun).reset_index()
+                    data.columns = [f"{b}_{a}" for a, b in data.columns]
+                    data = data.rename(
+                        # 只更新有意義的 columns，一些欄位在不同年份有變化，但不重要
+                        # 因像 保誠高科技 可能位在 國內股市 和 科技類，導致一些數值不同
+                        columns={
+                            "_Unnamed: 0": "基金名稱",
+                            "first_Unnamed: 1": "一個月_報酬率",
+                            "first_Unnamed: 3": "三個月_報酬率",
+                            "first_Unnamed: 5": "六個月_報酬率",
+                            "first_Unnamed: 7": "一年_報酬率",
+                            "first_Unnamed: 9": "二年_報酬率",
+                            "first_Unnamed: 11": "三年_報酬率",
+                            "first_Unnamed: 13": "五年_報酬率",
+                            "first_Unnamed: 15": "自今年以來_報酬率",
+                            "last_Unnamed: 1": "最佳_三個月報酬",
+                            "last_Unnamed: 3": "最差_三個月報酬",
+                            "last_Unnamed: 5": "十年報酬",
+                            "last_Unnamed: 7": "自成立日_報酬率",
+                            "last_Unnamed: 9": "基金成立日",
+                        }
+                    )
+                    data = data[[col for col in data.columns if "Unnamed" not in col]]
+
+                else:
+                    subset = ["Unnamed: 0", "Unnamed: 2"]
+                    data = data.dropna(subset=subset)
+
+                    agg_fun = {f"{col}": ["first", "last"] for col in data.columns[1:]}
+                    data = data.groupby("Unnamed: 0").agg(agg_fun).reset_index()
+                    data.columns = [f"{b}_{a}" for a, b in data.columns]
+                    data = data.rename(
+                        # 只更新有意義的 columns，因像 保誠高科技 可能位在 國內股市 和 科技類，導致一些數值不同
+                        columns={
+                            "_Unnamed: 0": "基金名稱",
+                            "first_Unnamed: 2": "三個月_報酬率",
+                            "first_Unnamed: 4": "六個月_報酬率",
+                            "first_Unnamed: 6": "一年_報酬率",
+                            "first_Unnamed: 8": "二年_報酬率",
+                            "first_Unnamed: 10": "三年_報酬率",
+                            "first_Unnamed: 12": "五年_報酬率",
+                            "first_Unnamed: 14": "自今年以來_報酬率",
+                            "last_Unnamed: 2": "最佳_三個月報酬",
+                            "last_Unnamed: 4": "最差_三個月報酬",
+                            "last_Unnamed: 6": "十年報酬",
+                            "last_Unnamed: 8": "自成立日_報酬率",
+                            "last_Unnamed: 10": "基金成立日",
+                            "last_Unnamed: 34": "基金統編",
+                        }
+                    )
+                    data = data[[col for col in data.columns if "Unnamed" not in col]]
+
+                    if is_integer_dtype(data["基金統編"]):
+                        data["基金統編"] = data["基金統編"].astype(str)
+                    else:
+                        data["基金統編"] = (
+                            data["基金統編"].str.replace(r"^0+", "", regex=True).astype(str)
+                        )
+
+        data["基金成立日"] = data["基金成立日"].astype(str)
+        isdate = data["基金成立日"].str.contains(r"^\d{4}", regex=True) == True
+        data = data[isdate]
+        data["基金成立日"] = pd.to_datetime(data["基金成立日"])
+
+        return data
+
+    df = []
+    for year in range(2004, datetime.today().year + 1):
+        for month in range(1, 12 + 1):
+            if year == datetime.today().year and month >= datetime.today().month:
+                continue
+            year = 2004
+            month = 6
+            data = get_data(year, month)
+            if data is None:
+                continue
+
+            data = data.dropna()
+            data["年度"] = year
+            data["月份"] = month
+
+            df.append(data)
+
+    df = pd.concat(df, ignore_index=True)
 
     return df
 

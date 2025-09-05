@@ -381,6 +381,31 @@ def plot_pyramid(title: str, df_男: pd.DataFrame, df_女: pd.DataFrame, regions
     return plotly_json_dump(graph)
 
 
+def plot_histogram(
+    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+) -> str:
+    data_list = []
+    for idx in df.index:
+        data = {
+            "type": "histogram",
+            "name": idx,
+            "x": df.loc[idx],
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "barmode": "stack",
+    }
+    if additional_layout:
+        layout = merge_dict(layout, additional_layout)
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    return plotly_json_dump(graph)
+
+
 # --- Specific Data Processing and Plotting Functions ---
 
 
@@ -6261,6 +6286,14 @@ def plot_投信投顧公會基金費用比率(plots):
         name_map[x["基金統編"]] = (x["基金名稱"].split(" (", 1)[0], x["類型代號"])
 
     df_總費用率 = df.pivot_table(values="合計_比率", index="年度", columns="基金統編")
+    plots[f"{key}_統計"] = plot_histogram(
+        df_總費用率,
+        f"{key}_統計 {df_總費用率.index[0]}~{df_總費用率.index[-1]}",
+        additional_layout={
+            "xaxis": {"tickformat": ".2%"},
+        },
+    )
+
     df_總費用率 = -df_總費用率
     df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns", ascending=False)
     # 移除最後一年為空的資料
@@ -6316,10 +6349,19 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [0.5 / 100 >= -費用 for 費用 in 最大_總費用率],
+                    "visible": [0.5 / 100 >= -費用 and -費用 > 0.1 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
-            "label": "0.5% ≥ 最大總費用率",
+            "label": "0.5% ≥ 最大總費用率 > 0.1%",
+            "method": "restyle",
+        },
+        {
+            "args": [
+                {
+                    "visible": [0.1 / 100 >= -費用 for 費用 in 最大_總費用率],
+                }
+            ],  # 顯示所有線條
+            "label": "0.1% ≥ 最大總費用率",
             "method": "restyle",
         },
     ]
@@ -6365,6 +6407,15 @@ def plot_投信投顧公會基金費用比率(plots):
             "showlegend": True,
         },
     )
+
+
+def plot_基金績效評比(plots):
+    key = "基金績效評比"
+    key = sanitize_filename(key)
+
+    df = df_基金績效評比()
+
+    print(df.columns)
 
 
 def main():
@@ -6525,6 +6576,7 @@ def main():
     plot_定期定額交易戶數統計排行月報表(plots)
     plot_集保戶股權分散表(plots)
     plot_投信投顧公會基金費用比率(plots)
+    plot_基金績效評比(plots)
     # ========================================================================
 
     prefix = "TW_Analysis"

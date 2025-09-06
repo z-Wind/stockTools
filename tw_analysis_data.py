@@ -4461,12 +4461,27 @@ def df_基金績效評比():
                             "first_Unnamed: 15": "自今年以來_報酬率",
                             "last_Unnamed: 1": "最佳_三個月報酬",
                             "last_Unnamed: 3": "最差_三個月報酬",
-                            "last_Unnamed: 5": "十年報酬",
+                            "last_Unnamed: 5": "十年_報酬率",
                             "last_Unnamed: 7": "自成立日_報酬率",
                             "last_Unnamed: 9": "基金成立日",
                         }
                     )
                     data = data[[col for col in data.columns if "Unnamed" not in col]]
+
+                    percent_index = [
+                        "一個月_報酬率",
+                        "三個月_報酬率",
+                        "六個月_報酬率",
+                        "一年_報酬率",
+                        "二年_報酬率",
+                        "三年_報酬率",
+                        "五年_報酬率",
+                        "十年_報酬率",
+                        "自今年以來_報酬率",
+                        "自成立日_報酬率",
+                        "最佳_三個月報酬",
+                        "最差_三個月報酬",
+                    ]
 
                 else:
                     subset = ["Unnamed: 0", "Unnamed: 2"]
@@ -4488,13 +4503,27 @@ def df_基金績效評比():
                             "first_Unnamed: 14": "自今年以來_報酬率",
                             "last_Unnamed: 2": "最佳_三個月報酬",
                             "last_Unnamed: 4": "最差_三個月報酬",
-                            "last_Unnamed: 6": "十年報酬",
+                            "last_Unnamed: 6": "十年_報酬率",
                             "last_Unnamed: 8": "自成立日_報酬率",
                             "last_Unnamed: 10": "基金成立日",
                             "last_Unnamed: 34": "基金統編",
                         }
                     )
                     data = data[[col for col in data.columns if "Unnamed" not in col]]
+
+                    percent_index = [
+                        "三個月_報酬率",
+                        "六個月_報酬率",
+                        "一年_報酬率",
+                        "二年_報酬率",
+                        "三年_報酬率",
+                        "五年_報酬率",
+                        "十年_報酬率",
+                        "自今年以來_報酬率",
+                        "自成立日_報酬率",
+                        "最佳_三個月報酬",
+                        "最差_三個月報酬",
+                    ]
 
                     if is_integer_dtype(data["基金統編"]):
                         data["基金統編"] = data["基金統編"].astype(str)
@@ -4507,6 +4536,8 @@ def df_基金績效評比():
         isdate = data["基金成立日"].str.contains(r"^\d{4}", regex=True) == True
         data = data[isdate]
         data["基金成立日"] = pd.to_datetime(data["基金成立日"])
+        data[percent_index] = data[percent_index].replace("-", np.nan)
+        data[percent_index] = data[percent_index].astype(float) / 100
 
         return data
 
@@ -4515,19 +4546,55 @@ def df_基金績效評比():
         for month in range(1, 12 + 1):
             if year == datetime.today().year and month >= datetime.today().month:
                 continue
-            year = 2004
-            month = 6
+
             data = get_data(year, month)
             if data is None:
                 continue
 
-            data = data.dropna()
             data["年度"] = year
             data["月份"] = month
 
             df.append(data)
 
     df = pd.concat(df, ignore_index=True)
+    df = df.replace("nan", np.nan)
+
+    df["資料日期"] = pd.to_datetime(
+        df["年度"].astype(str) + "-" + df["月份"].astype(str) + "-01"
+    ) + pd.offsets.MonthEnd(0)
+
+    # 依日期降冪排序，這樣每個基金分組後的第一筆就是最新的資料
+    df_sorted = df.sort_values(by="資料日期", ascending=False)
+    # 找出每個基金統編對應的「最新名稱」和「最早成立日」
+    # .first() 會因為上面的排序而取到最新的名稱
+    latest_names = df_sorted.groupby("基金統編")["基金名稱"].first()
+    # .min() 則會取到最早的成立日期
+    earliest_dates = df.groupby("基金統編")["基金成立日"].min()
+    # 將這兩份資訊組合成一個對照表 (mapping_df)
+    mapping_df = pd.DataFrame(
+        {"最後_基金名稱": latest_names, "最早_基金成立日": earliest_dates}
+    ).reset_index()
+    mapping_df = mapping_df.dropna(subset=["基金統編"])
+
+    # 將對照表的資訊合併回原始 df
+    df = pd.merge(df, mapping_df, on="基金統編", how="left")
+    df["最早_基金成立日"] = pd.to_datetime(df["最早_基金成立日"])
+
+    for s, year in [
+        ("一年", 1),
+        ("二年", 2),
+        ("三年", 3),
+        ("五年", 5),
+        ("十年", 10),
+        ("自成立日", None),
+    ]:
+        if year is None:
+            df[f"{s}_年化報酬率"] = (
+                (1 + df[f"{s}_報酬率"])
+                ** (1 / ((df["資料日期"] - df["最早_基金成立日"]).dt.days / 365.25))
+            ) - 1
+        else:
+            df[f"{s}_年化報酬率"] = ((1 + df[f"{s}_報酬率"]) ** (1 / year)) - 1
 
     return df
 

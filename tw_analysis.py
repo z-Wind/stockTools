@@ -6492,7 +6492,7 @@ def plot_基金績效評比(plots, items):
         ]
 
         plots[f"{key}_{col}"] = plot_line(
-            df_報酬率.sort_index(axis="columns"),
+            df_報酬率,
             f"{key}_{col}_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
             additional_layout={
                 "yaxis": {"tickformat": ".2%"},
@@ -6725,7 +6725,7 @@ def main():
     plot_定期定額交易戶數統計排行月報表(plots)
     plot_集保戶股權分散表(plots)
     plot_投信投顧公會基金費用比率(plots)
-    plot_基金績效評比(plots)
+    plot_基金績效評比(plots, items)
     # ========================================================================
 
     prefix = "TW_Analysis"

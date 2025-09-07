@@ -18,6 +18,7 @@ from requests.adapters import HTTPAdapter
 import urllib3
 from urllib3.util import Retry
 from pathlib import Path
+from thefuzz import fuzz
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -4579,6 +4580,18 @@ def df_基金績效評比():
     # 將對照表的資訊合併回原始 df
     df = pd.merge(df, mapping_df, on="基金統編", how="left")
     df["最早_基金成立日"] = pd.to_datetime(df["最早_基金成立日"])
+
+    for index, row in mapping_df.iterrows():
+        idx = df["基金名稱"] == row["最後_基金名稱"]
+
+        if not pd.isna(df.loc[idx, "基金統編"].iloc[0]):
+            continue
+
+        df.loc[idx, ["最後_基金名稱", "最早_基金成立日", "基金統編"]] = [
+            row["最後_基金名稱"],
+            row["最早_基金成立日"],
+            row["基金統編"],
+        ]
 
     for s, year in [
         ("一年", 1),

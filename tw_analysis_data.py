@@ -4559,39 +4559,61 @@ def df_基金績效評比():
 
     df = pd.concat(df, ignore_index=True)
     df = df.replace("nan", np.nan)
+    df["基金名稱"] = (
+        df["基金名稱"]
+        .str.removesuffix("#")
+        .str.removesuffix("*")
+        .str.removesuffix("＊")
+        .str.removesuffix("K")
+        .str.strip()
+    )
 
     df["資料日期"] = pd.to_datetime(
         df["年度"].astype(str) + "-" + df["月份"].astype(str) + "-01"
     ) + pd.offsets.MonthEnd(0)
 
+    # 訂正不同名字，但其實是同一個基金的狀況
+    df_unique = (
+        df[["基金成立日", "基金名稱", "基金統編"]]
+        .drop_duplicates()
+        .sort_values("基金統編", na_position="last")
+    )
+    df_unique.loc[:, "訂正_基金名稱"] = df_unique["基金名稱"]
+    df_unique.loc[:, "分數"] = np.nan
+    check = set()
+    for index, row in df_unique.iterrows():
+        key = (row["基金成立日"], row["基金名稱"], row["基金統編"])
+        if key not in check:
+            for date, name, number in check:
+                if date != row["基金成立日"]:
+                    continue
+
+                if not pd.isna(number) and not pd.isna(row["基金統編"]):
+                    if number != row["基金統編"] and (
+                        str.removesuffix(number, "A") != str.removesuffix(row["基金統編"], "A")
+                    ):
+                        continue
+                    else:
+                        df_unique.loc[index, "訂正_基金名稱"] = name
+                        df_unique.loc[index, "分數"] = "統編一致"
+
+                score = fuzz.partial_ratio(name, row["基金名稱"])
+                if score > 85:
+                    df_unique.loc[index, "訂正_基金名稱"] = name
+                    df_unique.loc[index, "分數"] = score
+                    break
+            else:
+                check.add(key)
+    df = pd.merge(df, df_unique, on=["基金成立日", "基金名稱", "基金統編"], how="left")
+
     # 依日期降冪排序，這樣每個基金分組後的第一筆就是最新的資料
     df_sorted = df.sort_values(by="資料日期", ascending=False)
-    # 找出每個基金統編對應的「最新名稱」和「最早成立日」
-    # .first() 會因為上面的排序而取到最新的名稱
-    latest_names = df_sorted.groupby("基金統編")["基金名稱"].first()
-    # .min() 則會取到最早的成立日期
-    earliest_dates = df.groupby("基金統編")["基金成立日"].min()
-    # 將這兩份資訊組合成一個對照表 (mapping_df)
-    mapping_df = pd.DataFrame(
-        {"最後_基金名稱": latest_names, "最早_基金成立日": earliest_dates}
-    ).reset_index()
-    mapping_df = mapping_df.dropna(subset=["基金統編"])
+    latest_number = df_sorted.groupby("訂正_基金名稱")["基金統編"].first()
+    # 將這份資訊組合成一個對照表 (mapping_df)
+    mapping_df = pd.DataFrame({"最新_基金統編": latest_number}).reset_index()
 
     # 將對照表的資訊合併回原始 df
-    df = pd.merge(df, mapping_df, on="基金統編", how="left")
-    df["最早_基金成立日"] = pd.to_datetime(df["最早_基金成立日"])
-
-    for index, row in mapping_df.iterrows():
-        idx = df["基金名稱"] == row["最後_基金名稱"]
-
-        if not pd.isna(df.loc[idx, "基金統編"].iloc[0]):
-            continue
-
-        df.loc[idx, ["最後_基金名稱", "最早_基金成立日", "基金統編"]] = [
-            row["最後_基金名稱"],
-            row["最早_基金成立日"],
-            row["基金統編"],
-        ]
+    df = pd.merge(df, mapping_df, on="訂正_基金名稱", how="left")
 
     for s, year in [
         ("一年", 1),
@@ -4604,11 +4626,12 @@ def df_基金績效評比():
         if year is None:
             df[f"{s}_年化報酬率"] = (
                 (1 + df[f"{s}_報酬率"])
-                ** (1 / ((df["資料日期"] - df["最早_基金成立日"]).dt.days / 365.25))
+                ** (1 / ((df["資料日期"] - df["基金成立日"]).dt.days / 365.25))
             ) - 1
         else:
             df[f"{s}_年化報酬率"] = ((1 + df[f"{s}_報酬率"]) ** (1 / year)) - 1
 
+    # df.to_csv("tt.csv")
     return df
 
 

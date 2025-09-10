@@ -6414,7 +6414,7 @@ def plot_基金績效評比(plots, items):
     df = df_基金績效評比()
 
     n = 3
-    idx = (df["資料日期"] - df["最早_基金成立日"]).dt.days > 365.25 * n
+    idx = (datetime.now() - df["基金成立日"]).dt.days > 365.25 * n
     val_cols = [
         "一年_年化報酬率",
         "二年_年化報酬率",
@@ -6427,7 +6427,7 @@ def plot_基金績效評比(plots, items):
     df_各報酬率 = df[idx].pivot_table(
         values=val_cols,
         index="資料日期",
-        columns=["基金統編", "最早_基金成立日", "最後_基金名稱"],
+        columns=["最新_基金統編", "基金成立日", "訂正_基金名稱"],
         sort=False,
     )
     df_各報酬率.index = df_各報酬率.index.date

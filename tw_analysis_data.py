@@ -627,7 +627,7 @@ def df_家庭收支調查_所得收入者人數與按年齡組別及性別之分
 
 # https://data.gov.tw/dataset/24140 家庭收支調查-戶內人數別平均每戶所得總額
 def df_家庭收支調查_戶內人數別平均每戶所得總額():
-    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/037-%E6%88%B6%E5%85%A7%E4%BA%BA%E6%95%B8%E5%88%A5%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%88%B6%E6%89%80%E5%BE%97%E7%B8%BD%E9%A1%8D.csv"
+    url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/037-平均每戶所得總額按戶內人數別分.csv"
     columns_remove_patt = "-元"
     index_col = "年"
 

@@ -112,7 +112,10 @@ def plotly_json_dump(graph_dict: Dict) -> str:
 
 
 def plot_line(
-    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    mode="lines",
 ) -> str:
     data_list = []
     for name in df.columns:
@@ -121,7 +124,7 @@ def plot_line(
             "name": name,
             "x": df.index.tolist(),  # Ensure x-axis is list for JSON
             "y": df[name].tolist(),  # 若有錯，通常是 name 有重覆
-            "mode": "lines",
+            "mode": mode,
         }
         data_list.append(data)
 
@@ -6435,10 +6438,12 @@ def plot_基金績效評比(plots, items):
     kinds = ["元大", "國泰", "富邦", "債券", "高股息"]
     for col in val_cols:
         df_報酬率 = df_各報酬率[col]
-        平均報酬率 = df_報酬率.mean().sort_values(ascending=False)
-        df_報酬率 = df_報酬率.reindex(平均報酬率.index, axis="columns")
+        df_報酬率_排名 = df_報酬率.rank(axis="columns", ascending=False)
+        報酬率排名中位數 = df_報酬率_排名.median().sort_values()
+        df_報酬率 = df_報酬率.reindex(報酬率排名中位數.index, axis="columns")
+        df_報酬率_排名 = df_報酬率_排名.reindex(報酬率排名中位數.index, axis="columns")
 
-        total_n = len(平均報酬率)
+        total_n = len(報酬率排名中位數)
         new_columns = []
         counts = {}
         for i, (統編, 成立日, 名稱) in enumerate(df_報酬率.columns, start=1):
@@ -6501,23 +6506,21 @@ def plot_基金績效評比(plots, items):
             },
         )
 
-        df_平均報酬率 = pd.DataFrame({"平均報酬率": 平均報酬率}).T
         new_columns = []
         counts = {}
-        for i, (統編, 成立日, 名稱) in enumerate(df_平均報酬率.columns, start=1):
+        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率_排名.columns, start=1):
             counts[名稱] = counts.get(名稱, 0) + 1
             if counts[名稱] > 1:
                 名稱 += str(counts[名稱])
 
             new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
-
-        df_平均報酬率.columns = new_columns
+        df_報酬率_排名.columns = new_columns
 
         buttons_kinds = [
             {
                 "args": [
                     {
-                        "visible": [True] * len(df_平均報酬率.columns),
+                        "visible": [True] * len(df_報酬率_排名.columns),
                     }
                 ],  # 顯示所有線條
                 "label": "全部類型",
@@ -6526,7 +6529,7 @@ def plot_基金績效評比(plots, items):
         ]
 
         for kind in kinds:
-            arr = [kind in name for name in df_平均報酬率.columns]
+            arr = [kind in name for name in df_報酬率_排名.columns]
 
             buttons_kinds.append(
                 {
@@ -6555,14 +6558,78 @@ def plot_基金績效評比(plots, items):
             },
         ]
 
-        plots[f"{key}_{col}_平均報酬排名"] = plot_bar(
-            df_平均報酬率,
-            f"{key}_{col}_平均報酬排名_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
+        plots[f"{key}_{col}_報酬率排名"] = plot_line(
+            -df_報酬率_排名,
+            f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率_排名.index[0]}~{df_報酬率_排名.index[-1]}",
             additional_layout={
-                "xaxis": {"showticklabels": False},
-                "yaxis": {"tickformat": ".2%"},
                 "updatemenus": updatemenus,
                 "showlegend": True,
+            },
+            mode="lines+markers",
+        )
+
+        df_報酬率排名中位數 = pd.DataFrame({"報酬率排名中位數": 報酬率排名中位數}).T
+        new_columns = []
+        counts = {}
+        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率排名中位數.columns, start=1):
+            counts[名稱] = counts.get(名稱, 0) + 1
+            if counts[名稱] > 1:
+                名稱 += str(counts[名稱])
+
+            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
+
+        df_報酬率排名中位數.columns = new_columns
+
+        buttons_kinds = [
+            {
+                "args": [
+                    {
+                        "visible": [True] * len(df_報酬率排名中位數.columns),
+                    }
+                ],  # 顯示所有線條
+                "label": "全部類型",
+                "method": "restyle",
+            },
+        ]
+
+        for kind in kinds:
+            arr = [kind in name for name in df_報酬率排名中位數.columns]
+
+            buttons_kinds.append(
+                {
+                    "args": [
+                        {
+                            "visible": arr,
+                        }
+                    ],
+                    "label": kind,
+                    "method": "restyle",
+                },
+            )
+        updatemenus = [
+            {
+                "x": 0.5,
+                "y": 1.0,
+                "xanchor": "center",
+                "yanchor": "top",
+                "pad": {"r": 10, "t": 10},
+                "buttons": buttons_kinds,
+                "type": "dropdown",
+                "direction": "down",
+                "active": 0,
+                "font": {"color": "#AAAAAA"},
+                "name": "類型選擇",
+            },
+        ]
+
+        plots[f"{key}_{col}_報酬率排名中位數"] = plot_bar(
+            df_報酬率排名中位數,
+            f"{key}_{col}_報酬率排名中位數_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
+            additional_layout={
+                "xaxis": {"showticklabels": False},
+                "updatemenus": updatemenus,
+                "showlegend": True,
+                "yaxis": {"tickformat": None},
             },
         )
 

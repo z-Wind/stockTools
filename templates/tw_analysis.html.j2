@@ -454,8 +454,8 @@
 
         {% for item in items.get("基金績效評比", []) %}
         <div id=基金績效評比_{{ item }}></div>
-        <div id=基金績效評比_{{ item }}_報酬率排名></div>
-        <div id=基金績效評比_{{ item }}_報酬率排名中位數></div>
+        <div id=基金績效評比_{{ item }}_報酬率排名點線圖></div>
+        <div id=基金績效評比_{{ item }}_報酬率排名箱型圖></div>
         {%- endfor %}
 
         <datalist id="plotlist">

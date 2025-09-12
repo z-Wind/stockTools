@@ -4575,11 +4575,10 @@ def df_基金績效評比():
     ) + pd.offsets.MonthEnd(0)
 
     # 訂正不同名字，但其實是同一個基金的狀況
-    df_unique = (
-        df[["基金成立日", "基金名稱", "基金統編"]]
-        .drop_duplicates()
-        .sort_values("基金統編", na_position="last")
+    df_unique = df.drop_duplicates(subset=["基金成立日", "基金名稱", "基金統編"]).sort_values(
+        ["資料日期", "基金統編"], ascending=False, na_position="last"
     )
+    df_unique = df_unique[["基金成立日", "基金名稱", "基金統編"]]
     df_unique.loc[:, "訂正_基金名稱"] = df_unique["基金名稱"]
     df_unique.loc[:, "分數"] = np.nan
     check = set()

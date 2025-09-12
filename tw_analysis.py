@@ -6326,11 +6326,10 @@ def plot_投信投顧公會基金費用比率(plots):
         },
     )
 
-    df_總費用率 = -df_總費用率
-    df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns", ascending=False)
+    df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns")
     # 移除最後一年為空的資料
     df_總費用率 = df_總費用率.dropna(axis="columns", subset=df_總費用率.index[-1])
-    最大_總費用率 = df_總費用率.min(axis="index")
+    最大_總費用率 = df_總費用率.max(axis="index")
 
     buttons_kinds = [
         {
@@ -6345,7 +6344,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [-費用 > 10 / 100 for 費用 in 最大_總費用率],
+                    "visible": [費用 > 10 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "最大總費用率 > 10%",
@@ -6354,7 +6353,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [10 / 100 >= -費用 and -費用 > 5 / 100 for 費用 in 最大_總費用率],
+                    "visible": [10 / 100 >= 費用 and 費用 > 5 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "10% ≥ 最大總費用率 > 5%",
@@ -6363,7 +6362,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [5 / 100 >= -費用 and -費用 > 1 / 100 for 費用 in 最大_總費用率],
+                    "visible": [5 / 100 >= 費用 and 費用 > 1 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "5% ≥ 最大總費用率 > 1%",
@@ -6372,7 +6371,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [1 / 100 >= -費用 and -費用 > 0.5 / 100 for 費用 in 最大_總費用率],
+                    "visible": [1 / 100 >= 費用 and 費用 > 0.5 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "1% ≥ 最大總費用率 > 0.5%",
@@ -6381,7 +6380,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [0.5 / 100 >= -費用 and -費用 > 0.1 / 100 for 費用 in 最大_總費用率],
+                    "visible": [0.5 / 100 >= 費用 and 費用 > 0.1 / 100 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "0.5% ≥ 最大總費用率 > 0.1%",
@@ -6390,7 +6389,7 @@ def plot_投信投顧公會基金費用比率(plots):
         {
             "args": [
                 {
-                    "visible": [0.1 / 100 >= -費用 for 費用 in 最大_總費用率],
+                    "visible": [0.1 / 100 >= 費用 for 費用 in 最大_總費用率],
                 }
             ],  # 顯示所有線條
             "label": "0.1% ≥ 最大總費用率",
@@ -6415,9 +6414,9 @@ def plot_投信投顧公會基金費用比率(plots):
         )
     updatemenus = [
         {
-            "x": 0.5,
-            "y": 1.0,
-            "xanchor": "center",
+            "x": 1.0,
+            "y": 1.05,
+            "xanchor": "left",
             "yanchor": "bottom",
             "pad": {"r": 10, "t": 10},
             "buttons": buttons_kinds,
@@ -6434,10 +6433,11 @@ def plot_投信投顧公會基金費用比率(plots):
         df_總費用率,
         f"{key} {df_總費用率.index[0]}~{df_總費用率.index[-1]}",
         additional_layout={
-            "yaxis": {"tickformat": ".2%"},
+            "yaxis": {"tickformat": ".2%", "autorange": "reversed"},
             "updatemenus": updatemenus,
             "showlegend": True,
         },
+        mode="lines+markers",
     )
 
 
@@ -6466,7 +6466,14 @@ def plot_基金績效評比(plots, items):
     df_各報酬率 = df_各報酬率.loc[:, df_各報酬率.iloc[-1].notna()]
     df_各報酬率.index = df_各報酬率.index.date
 
-    kinds = ["元大", "國泰", "富邦", "債券", "高股息"]
+    # https://www.sitca.org.tw/ROC/Industry/IN2002.aspx?PGMID=IN0202 統計資料 > 境內基金各項資料 > 明細資料 > 類型代號說明
+    df_代碼 = df_投信投顧公會基金費用比率()
+    類型代號 = df_代碼["類型代號"].unique().tolist()
+    類型代號.sort()
+    name_map = {}
+    for _, x in df_代碼.iterrows():
+        name_map[x["基金統編"]] = x["類型代號"]
+
     for col in val_cols:
         df_報酬率 = df_各報酬率[col]
         df_報酬率_排名 = df_報酬率.rank(axis="columns", ascending=False)
@@ -6475,15 +6482,6 @@ def plot_基金績效評比(plots, items):
         df_報酬率_排名 = df_報酬率_排名.reindex(報酬率排名中位數.index, axis="columns")
 
         total_n = len(報酬率排名中位數)
-        new_columns = []
-        counts = {}
-        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率.columns, start=1):
-            counts[名稱] = counts.get(名稱, 0) + 1
-            if counts[名稱] > 1:
-                名稱 += str(counts[名稱])
-
-            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
-        df_報酬率.columns = new_columns
 
         buttons_kinds = [
             {
@@ -6506,8 +6504,13 @@ def plot_基金績效評比(plots, items):
             },
         ]
 
-        for kind in kinds:
-            arr = [kind in name for name in df_報酬率.columns]
+        for kind in 類型代號:
+            arr = [
+                name_map.get(統編) == kind
+                for 統編 in df_報酬率.columns.get_level_values("最新_基金統編")
+            ]
+            if all(not i for i in arr):
+                continue
 
             buttons_kinds.append(
                 {
@@ -6536,6 +6539,16 @@ def plot_基金績效評比(plots, items):
             },
         ]
 
+        new_columns = []
+        counts = {}
+        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率.columns, start=1):
+            counts[名稱] = counts.get(名稱, 0) + 1
+            if counts[名稱] > 1:
+                名稱 += str(counts[名稱])
+
+            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
+        df_報酬率.columns = new_columns
+
         plots[f"{key}_{col}"] = plot_line(
             df_報酬率,
             f"{key}_{col}_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
@@ -6549,16 +6562,6 @@ def plot_基金績效評比(plots, items):
                 for key, show in zip(df_報酬率.columns, buttons_kinds[1]["args"][0]["visible"])
             },
         )
-
-        new_columns = []
-        counts = {}
-        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率_排名.columns, start=1):
-            counts[名稱] = counts.get(名稱, 0) + 1
-            if counts[名稱] > 1:
-                名稱 += str(counts[名稱])
-
-            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
-        df_報酬率_排名.columns = new_columns
 
         buttons_kinds = [
             {
@@ -6581,8 +6584,13 @@ def plot_基金績效評比(plots, items):
             },
         ]
 
-        for kind in kinds:
-            arr = [kind in name for name in df_報酬率_排名.columns]
+        for kind in 類型代號:
+            arr = [
+                name_map.get(統編) == kind
+                for 統編 in df_報酬率_排名.columns.get_level_values("最新_基金統編")
+            ]
+            if all(not i for i in arr):
+                continue
 
             buttons_kinds.append(
                 {
@@ -6611,12 +6619,23 @@ def plot_基金績效評比(plots, items):
             },
         ]
 
-        plots[f"{key}_{col}_報酬率排名"] = plot_line(
-            -df_報酬率_排名,
+        new_columns = []
+        counts = {}
+        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率_排名.columns, start=1):
+            counts[名稱] = counts.get(名稱, 0) + 1
+            if counts[名稱] > 1:
+                名稱 += str(counts[名稱])
+
+            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
+        df_報酬率_排名.columns = new_columns
+
+        plots[f"{key}_{col}_報酬率排名點線圖"] = plot_line(
+            df_報酬率_排名,
             f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率_排名.index[0]}~{df_報酬率_排名.index[-1]}",
             additional_layout={
                 "updatemenus": updatemenus,
                 "showlegend": True,
+                "yaxis": {"autorange": "reversed"},
             },
             mode="lines+markers",
             visible={
@@ -6625,13 +6644,14 @@ def plot_基金績效評比(plots, items):
             },
         )
 
-        plots[f"{key}_{col}_報酬率排名中位數"] = plot_box(
-            -df_報酬率_排名,
+        plots[f"{key}_{col}_報酬率排名箱型圖"] = plot_box(
+            df_報酬率_排名,
             f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
             additional_layout={
                 "xaxis": {"showticklabels": False},
                 "updatemenus": updatemenus,
                 "showlegend": True,
+                "yaxis": {"autorange": "reversed"},
             },
             visible={
                 key: show

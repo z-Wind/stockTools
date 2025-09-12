@@ -116,6 +116,7 @@ def plot_line(
     title: Optional[str] = None,
     additional_layout: Optional[Dict] = None,
     mode="lines",
+    visible={},
 ) -> str:
     data_list = []
     for name in df.columns:
@@ -125,6 +126,7 @@ def plot_line(
             "x": df.index.tolist(),  # Ensure x-axis is list for JSON
             "y": df[name].tolist(),  # 若有錯，通常是 name 有重覆
             "mode": mode,
+            "visible": visible.get(name, True),
         }
         data_list.append(data)
 
@@ -145,7 +147,10 @@ def plot_line(
 
 
 def plot_bar(
-    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    visible={},
 ) -> str:
     data_list = []
     for name in df.columns:
@@ -154,13 +159,13 @@ def plot_bar(
             "name": name,
             "x": [name],
             "y": df[name].tolist(),
+            "visible": visible.get(name, True),
         }
         data_list.append(data)
 
     layout = {
         "title": {"text": title},
         "hovermode": "x",  # "closest" might be better for bar charts
-        "yaxis": {"tickformat": ".2%"},  # Default, can be overridden by additional_layout
     }
     if additional_layout:
         layout = merge_dict(layout, additional_layout)
@@ -409,6 +414,35 @@ def plot_histogram(
     return plotly_json_dump(graph)
 
 
+def plot_box(
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    visible={},
+) -> str:
+    data_list = []
+    for name in df.columns:
+        data = {
+            "type": "box",
+            "name": name,
+            "y": df[name].tolist(),
+            "visible": visible.get(name, True),
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",  # "closest" might be better for bar charts
+    }
+    if additional_layout:
+        layout = merge_dict(layout, additional_layout)
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    return plotly_json_dump(graph)
+
+
 # --- Specific Data Processing and Plotting Functions ---
 
 
@@ -510,7 +544,7 @@ def index_原始值_年增率_plot(
     plots[f"{key}_IRR"] = plot_bar(
         irr_df,
         f"{key} IRR(%) {title_suffix} {date_range}",
-        additional_layout,
+        additional_layout | {"yaxis": {"tickformat": ".2%"}},
     )
 
     pivot_df = df[df["TYPE"] == "年增率(%)"].pivot_table(
@@ -6253,14 +6287,10 @@ def plot_集保戶股權分散表(plots):
     df_合計 = df[df["持股分級"] == 17].set_index("全名")
 
     df_人數 = df_合計.sort_values(by="人數", ascending=False)[["人數"]].T
-    plots[f"{key}_人數"] = plot_bar(
-        df_人數, f"{key}_人數 {date}", additional_layout={"yaxis": {"tickformat": None}}
-    )
+    plots[f"{key}_人數"] = plot_bar(df_人數, f"{key}_人數 {date}")
 
     df_股數 = df_合計.sort_values(by="股數", ascending=False)[["股數"]].T
-    plots[f"{key}_股數"] = plot_bar(
-        df_股數, f"{key}_股數 {date}", additional_layout={"yaxis": {"tickformat": None}}
-    )
+    plots[f"{key}_股數"] = plot_bar(df_股數, f"{key}_股數 {date}")
 
     df_分級 = df[df["持股分級"].isin(range(1, 16))].pivot_table(
         values="人數", index="持股分級說明", columns="全名", aggfunc="sum", sort=False
@@ -6433,6 +6463,7 @@ def plot_基金績效評比(plots, items):
         columns=["最新_基金統編", "基金成立日", "訂正_基金名稱"],
         sort=False,
     )
+    df_各報酬率 = df_各報酬率.loc[:, df_各報酬率.iloc[-1].notna()]
     df_各報酬率.index = df_各報酬率.index.date
 
     kinds = ["元大", "國泰", "富邦", "債券", "高股息"]
@@ -6464,6 +6495,15 @@ def plot_基金績效評比(plots, items):
                 "label": "全部類型",
                 "method": "restyle",
             },
+            {
+                "args": [
+                    {
+                        "visible": [True] * 10 + [False] * (len(df_報酬率.columns) - 10),
+                    }
+                ],  # 顯示所有線條
+                "label": "前十名",
+                "method": "restyle",
+            },
         ]
 
         for kind in kinds:
@@ -6482,15 +6522,15 @@ def plot_基金績效評比(plots, items):
             )
         updatemenus = [
             {
-                "x": 0.5,
-                "y": 1.0,
-                "xanchor": "center",
-                "yanchor": "top",
+                "x": 1.0,
+                "y": 1.05,
+                "xanchor": "left",
+                "yanchor": "bottom",
                 "pad": {"r": 10, "t": 10},
                 "buttons": buttons_kinds,
                 "type": "dropdown",
                 "direction": "down",
-                "active": 0,
+                "active": 1,
                 "font": {"color": "#AAAAAA"},
                 "name": "類型選擇",
             },
@@ -6503,6 +6543,10 @@ def plot_基金績效評比(plots, items):
                 "yaxis": {"tickformat": ".2%"},
                 "updatemenus": updatemenus,
                 "showlegend": True,
+            },
+            visible={
+                key: show
+                for key, show in zip(df_報酬率.columns, buttons_kinds[1]["args"][0]["visible"])
             },
         )
 
@@ -6526,6 +6570,15 @@ def plot_基金績效評比(plots, items):
                 "label": "全部類型",
                 "method": "restyle",
             },
+            {
+                "args": [
+                    {
+                        "visible": [True] * 10 + [False] * (len(df_報酬率.columns) - 10),
+                    }
+                ],  # 顯示所有線條
+                "label": "前十名",
+                "method": "restyle",
+            },
         ]
 
         for kind in kinds:
@@ -6544,15 +6597,15 @@ def plot_基金績效評比(plots, items):
             )
         updatemenus = [
             {
-                "x": 0.5,
-                "y": 1.0,
-                "xanchor": "center",
-                "yanchor": "top",
+                "x": 1.0,
+                "y": 1.05,
+                "xanchor": "left",
+                "yanchor": "bottom",
                 "pad": {"r": 10, "t": 10},
                 "buttons": buttons_kinds,
                 "type": "dropdown",
                 "direction": "down",
-                "active": 0,
+                "active": 1,
                 "font": {"color": "#AAAAAA"},
                 "name": "類型選擇",
             },
@@ -6566,70 +6619,23 @@ def plot_基金績效評比(plots, items):
                 "showlegend": True,
             },
             mode="lines+markers",
+            visible={
+                key: show
+                for key, show in zip(df_報酬率_排名.columns, buttons_kinds[1]["args"][0]["visible"])
+            },
         )
 
-        df_報酬率排名中位數 = pd.DataFrame({"報酬率排名中位數": 報酬率排名中位數}).T
-        new_columns = []
-        counts = {}
-        for i, (統編, 成立日, 名稱) in enumerate(df_報酬率排名中位數.columns, start=1):
-            counts[名稱] = counts.get(名稱, 0) + 1
-            if counts[名稱] > 1:
-                名稱 += str(counts[名稱])
-
-            new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
-
-        df_報酬率排名中位數.columns = new_columns
-
-        buttons_kinds = [
-            {
-                "args": [
-                    {
-                        "visible": [True] * len(df_報酬率排名中位數.columns),
-                    }
-                ],  # 顯示所有線條
-                "label": "全部類型",
-                "method": "restyle",
-            },
-        ]
-
-        for kind in kinds:
-            arr = [kind in name for name in df_報酬率排名中位數.columns]
-
-            buttons_kinds.append(
-                {
-                    "args": [
-                        {
-                            "visible": arr,
-                        }
-                    ],
-                    "label": kind,
-                    "method": "restyle",
-                },
-            )
-        updatemenus = [
-            {
-                "x": 0.5,
-                "y": 1.0,
-                "xanchor": "center",
-                "yanchor": "top",
-                "pad": {"r": 10, "t": 10},
-                "buttons": buttons_kinds,
-                "type": "dropdown",
-                "direction": "down",
-                "active": 0,
-                "font": {"color": "#AAAAAA"},
-                "name": "類型選擇",
-            },
-        ]
-
-        plots[f"{key}_{col}_報酬率排名中位數"] = plot_bar(
-            df_報酬率排名中位數,
-            f"{key}_{col}_報酬率排名中位數_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
+        plots[f"{key}_{col}_報酬率排名中位數"] = plot_box(
+            -df_報酬率_排名,
+            f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
             additional_layout={
                 "xaxis": {"showticklabels": False},
                 "updatemenus": updatemenus,
                 "showlegend": True,
-                "yaxis": {"tickformat": None},
+            },
+            visible={
+                key: show
+                for key, show in zip(df_報酬率_排名.columns, buttons_kinds[1]["args"][0]["visible"])
             },
         )
 

@@ -453,9 +453,10 @@
         <div id=投信投顧公會基金費用比率_統計></div>
 
         {% for item in items.get("基金績效評比", []) %}
-        <div id=基金績效評比_{{ item }}></div>
-        <div id=基金績效評比_{{ item }}_報酬率排名點線圖></div>
-        <div id=基金績效評比_{{ item }}_報酬率排名箱型圖></div>
+        <div id=基金績效評比_{{ item }}_折線圖></div>
+        <div id=基金績效評比_{{ item }}_小提琴圖></div>
+        <div id=基金績效評比_{{ item }}_排名點線圖></div>
+        <div id=基金績效評比_{{ item }}_排名箱型圖></div>
         {%- endfor %}
 
         <datalist id="plotlist">

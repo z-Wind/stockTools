@@ -177,7 +177,10 @@ def plot_bar(
 
 
 def plot_bar_group(
-    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    visible={},
 ) -> str:
     data_list = []
     for name in df.columns:
@@ -186,6 +189,7 @@ def plot_bar_group(
             "name": name,
             "x": df.index.tolist(),
             "y": df[name].tolist(),
+            "visible": visible.get(name, True),
         }
         data_list.append(data)
 
@@ -204,7 +208,10 @@ def plot_bar_group(
 
 
 def plot_bar_stack_multi_index(
-    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    visible={},
 ) -> str:
     data_list = []
     for name in df.columns:
@@ -213,6 +220,7 @@ def plot_bar_stack_multi_index(
             "name": name,
             "x": list(zip(*df.index.tolist())),
             "y": df[name].tolist(),
+            "visible": visible.get(name, True),
         }
         data_list.append(data)
 
@@ -234,12 +242,14 @@ def plot_lines_bars(
     df: pd.DataFrame,
     lines_left_axis: list[str] = [],
     lines_right_axis: list[str] = [],
+    lines_mode="lines",
     bars_left_axis: list[str] = [],
     bars_right_axis: list[str] = [],
     title: Optional[str] = None,
     additional_layout: Optional[Dict] = None,
     legendgroup: bool = False,
     sort: bool = False,
+    visible={},
 ):
     data_list = []
     for name in lines_left_axis:
@@ -248,7 +258,8 @@ def plot_lines_bars(
             "name": name,
             "x": df.index.tolist(),
             "y": df[name].tolist(),
-            "mode": "lines",
+            "mode": lines_mode,
+            "visible": visible.get(name, True),
         }
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
@@ -260,8 +271,9 @@ def plot_lines_bars(
             "name": name,
             "x": df.index.tolist(),
             "y": df[name].tolist(),
-            "mode": "lines",
+            "mode": lines_mode,
             "yaxis": "y2",
+            "visible": visible.get(name, True),
         }
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
@@ -273,6 +285,7 @@ def plot_lines_bars(
             "name": name,
             "x": df.index.tolist(),
             "y": df[name].tolist(),
+            "visible": visible.get(name, True),
         }
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
@@ -285,6 +298,7 @@ def plot_lines_bars(
             "x": df.index.tolist(),
             "y": df[name].tolist(),
             "yaxis": "y2",
+            "visible": visible.get(name, True),
         }
         if legendgroup:
             data["legendgroup"] = str.rsplit(name, "_", 1)[1]
@@ -433,6 +447,46 @@ def plot_box(
     layout = {
         "title": {"text": title},
         "hovermode": "x",  # "closest" might be better for bar charts
+    }
+    if additional_layout:
+        layout = merge_dict(layout, additional_layout)
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    return plotly_json_dump(graph)
+
+
+def plot_violin(
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
+    visible={},
+) -> str:
+    data_list = []
+    for name in df.columns:
+        data = {
+            "type": "violin",
+            "name": name,
+            "y": df[name].tolist(),  # 若有錯，通常是 name 有重覆
+            "points": "suspectedoutliers",
+            "meanline": {
+                "visible": True,
+            },
+            "box": {
+                "visible": True,
+            },
+            "boxpoints": False,
+            "visible": visible.get(name, True),
+        }
+        data_list.append(data)
+
+    layout = {
+        "title": {"text": title},
+        "hovermode": "x",
+        "xaxis": {
+            "type": "category"
+        },  # Ensure x-axis type is category for discrete values if needed
     }
     if additional_layout:
         layout = merge_dict(layout, additional_layout)
@@ -6549,10 +6603,25 @@ def plot_基金績效評比(plots, items):
             new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
         df_報酬率.columns = new_columns
 
-        plots[f"{key}_{col}"] = plot_line(
+        plots[f"{key}_{col}_折線圖"] = plot_line(
             df_報酬率,
             f"{key}_{col}_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
             additional_layout={
+                "yaxis": {"tickformat": ".2%"},
+                "updatemenus": updatemenus,
+                "showlegend": True,
+            },
+            visible={
+                key: show
+                for key, show in zip(df_報酬率.columns, buttons_kinds[1]["args"][0]["visible"])
+            },
+        )
+
+        plots[f"{key}_{col}_小提琴圖"] = plot_violin(
+            df_報酬率,
+            f"{key}_{col}_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
+            additional_layout={
+                "xaxis": {"showticklabels": False},
                 "yaxis": {"tickformat": ".2%"},
                 "updatemenus": updatemenus,
                 "showlegend": True,
@@ -6629,9 +6698,9 @@ def plot_基金績效評比(plots, items):
             new_columns.append(f"{i:2d}/{total_n}_{名稱}_{成立日.date()}")
         df_報酬率_排名.columns = new_columns
 
-        plots[f"{key}_{col}_報酬率排名點線圖"] = plot_line(
+        plots[f"{key}_{col}_排名點線圖"] = plot_line(
             df_報酬率_排名,
-            f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率_排名.index[0]}~{df_報酬率_排名.index[-1]}",
+            f"{key}_{col}_排名_成立時間超過 {n} 年 {df_報酬率_排名.index[0]}~{df_報酬率_排名.index[-1]}",
             additional_layout={
                 "updatemenus": updatemenus,
                 "showlegend": True,
@@ -6644,9 +6713,9 @@ def plot_基金績效評比(plots, items):
             },
         )
 
-        plots[f"{key}_{col}_報酬率排名箱型圖"] = plot_box(
+        plots[f"{key}_{col}_排名箱型圖"] = plot_box(
             df_報酬率_排名,
-            f"{key}_{col}_報酬率排名_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
+            f"{key}_{col}_排名_成立時間超過 {n} 年 {df_報酬率.index[0]}~{df_報酬率.index[-1]}",
             additional_layout={
                 "xaxis": {"showticklabels": False},
                 "updatemenus": updatemenus,

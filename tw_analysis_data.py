@@ -4442,7 +4442,7 @@ def df_基金績效評比():
                     excel_file,
                     engine="calamine",
                 )
-                if year < 2014 or (year == 2014 and month <= 9):
+                if year < 2013 or (year == 2013 and month <= 2):  # 一個月_報酬率 & 無統編
                     subset = ["Unnamed: 0", "Unnamed: 1"]
                     data = data.dropna(subset=subset)
 
@@ -4473,6 +4473,47 @@ def df_基金績效評比():
 
                     percent_index = [
                         "一個月_報酬率",
+                        "三個月_報酬率",
+                        "六個月_報酬率",
+                        "一年_報酬率",
+                        "二年_報酬率",
+                        "三年_報酬率",
+                        "五年_報酬率",
+                        "十年_報酬率",
+                        "自今年以來_報酬率",
+                        "自成立日_報酬率",
+                        "最佳_三個月報酬",
+                        "最差_三個月報酬",
+                    ]
+
+                elif year < 2014 or (year == 2014 and month <= 9):  # 無統編
+                    subset = ["Unnamed: 0", "Unnamed: 2"]
+                    data = data.dropna(subset=subset)
+
+                    agg_fun = {f"{col}": ["first", "last"] for col in data.columns[1:]}
+                    data = data.groupby("Unnamed: 0").agg(agg_fun).reset_index()
+                    data.columns = [f"{b}_{a}" for a, b in data.columns]
+                    data = data.rename(
+                        # 只更新有意義的 columns，因像 保誠高科技 可能位在 國內股市 和 科技類，導致一些數值不同
+                        columns={
+                            "_Unnamed: 0": "基金名稱",
+                            "first_Unnamed: 2": "三個月_報酬率",
+                            "first_Unnamed: 4": "六個月_報酬率",
+                            "first_Unnamed: 6": "一年_報酬率",
+                            "first_Unnamed: 8": "二年_報酬率",
+                            "first_Unnamed: 10": "三年_報酬率",
+                            "first_Unnamed: 12": "五年_報酬率",
+                            "first_Unnamed: 14": "自今年以來_報酬率",
+                            "last_Unnamed: 2": "最佳_三個月報酬",
+                            "last_Unnamed: 4": "最差_三個月報酬",
+                            "last_Unnamed: 6": "十年_報酬率",
+                            "last_Unnamed: 8": "自成立日_報酬率",
+                            "last_Unnamed: 10": "基金成立日",
+                        }
+                    )
+                    data = data[[col for col in data.columns if "Unnamed" not in col]]
+
+                    percent_index = [
                         "三個月_報酬率",
                         "六個月_報酬率",
                         "一年_報酬率",
@@ -4563,6 +4604,7 @@ def df_基金績效評比():
     df = df.replace("nan", np.nan)
     df["基金名稱"] = (
         df["基金名稱"]
+        .str.strip()
         .str.removesuffix("#")
         .str.removesuffix("*")
         .str.removesuffix("＊")
@@ -4597,6 +4639,7 @@ def df_基金績效評比():
                     else:
                         df_unique.loc[index, "訂正_基金名稱"] = name
                         df_unique.loc[index, "分數"] = "統編一致"
+                        break
 
                 score = fuzz.partial_ratio(name, row["基金名稱"])
                 if score > 85:

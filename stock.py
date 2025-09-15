@@ -233,13 +233,17 @@ class Stock:
 
     def set_end_datetime(self, end):
         self.end = end
-        index = self.history["Date"].dt.date <= self.end.date()
-        self.history = self.history[index]
+        index = (self.start.date() <= self.rawData["Date"].dt.date) & (
+            self.rawData["Date"].dt.date <= self.end.date()
+        )
+        self.history = self.rawData[index]
 
     def set_start_datetime(self, start):
         self.start = start
-        index = self.start.date() <= self.history["Date"].dt.date
-        self.history = self.history[index]
+        index = (self.start.date() <= self.rawData["Date"].dt.date) & (
+            self.rawData["Date"].dt.date <= self.end.date()
+        )
+        self.history = self.rawData[index]
 
     def _calAdjClose(self, df):
         div = df[["Dividends"]].copy()
@@ -1470,18 +1474,54 @@ class Figure:
 
         return total_return, annual_return
 
+    def growth_separate(self, init_money):
+        data = []
+        start = self.stocks[0].start
+        for st in self.stocks:
+            df = st.retire(
+                st.start.year, st.end.year, init_money, init_expense=0, inflation_percent=0
+            )
+            data.append(df)
+            start = min(start, st.start)
+
+        df = pd.concat(data, axis="columns")
+        df = df.sort_index()
+        start = start.strftime("%Y-%m-%d")
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(f"<b>Growth Separate of {init_money}<b><br>" f"<i>{start} ~ {end}<i>"),
+            filename=f"Growth_Separate_of_{init_money}_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
     def retire_separate_graph(self):
         init_money = 10000000
         init_expense = 400000
         inflation_percent = 3
         data = []
+        start = self.stocks[0].start
         for st in self.stocks:
             df = st.retire(st.start.year, st.end.year, init_money, init_expense, inflation_percent)
             data.append(df)
+            start = min(start, st.start)
 
         df = pd.concat(data, axis="columns")
         df = df.sort_index()
-        start = df.index[0]
+        start = start.strftime("%Y-%m-%d")
         end = df.index[-1]
         df = df.T.sort_values(by=[end], ascending=False).T
 
@@ -1514,15 +1554,17 @@ class Figure:
         init_expense = 400000
         inflation_percent = 3
         data = []
+        start = self.stocks[0].start
         for st in self.stocks:
             df = st.retire_adj(
                 st.start.year, st.end.year, init_money, init_expense, inflation_percent
             )
             data.append(df)
+            start = min(start, st.start)
 
         df = pd.concat(data, axis="columns")
         df = df.sort_index()
-        start = df.index[0]
+        start = start.strftime("%Y-%m-%d")
         end = df.index[-1]
         df = df.T.sort_values(by=[end], ascending=False).T
 
@@ -1550,6 +1592,42 @@ class Figure:
 
         return lines
 
+    def growth(self, init_money):
+        df = self.intersection_history()
+        start = df.index[0]
+        end = df.index[-1]
+
+        data = []
+        for st in self.stocks:
+            tmp = st.start
+            st.set_start_datetime(start)
+            df = st.retire(start.year, end.year, init_money, init_expense=0, inflation_percent=0)
+            data.append(df)
+            st.set_start_datetime(tmp)
+
+        df = pd.concat(data, axis="columns")
+        start = start.strftime("%Y-%m-%d")
+        end = df.index[-1]
+        df = df.T.sort_values(by=[end], ascending=False).T
+
+        lines = self._plotLine_without_markers(
+            df,
+            title=(f"<b>Growth of {init_money}<b><br>" f"<i>{start} ~ {end}<i>"),
+            filename=f"Growth_of_{init_money}_{start}~{end}",
+            additional_layout={"xaxis": {"type": "category"}},
+        )
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        lines = json.dumps(lines)
+
+        return lines
+
     def retire_graph(self):
         df = self.intersection_history()
         start = df.index[0]
@@ -1560,11 +1638,14 @@ class Figure:
         inflation_percent = 3
         data = []
         for st in self.stocks:
+            tmp = st.start
+            st.set_start_datetime(start)
             df = st.retire(start.year, end.year, init_money, init_expense, inflation_percent)
             data.append(df)
+            st.set_start_datetime(tmp)
 
         df = pd.concat(data, axis="columns")
-        start = df.index[0]
+        start = start.strftime("%Y-%m-%d")
         end = df.index[-1]
         df = df.T.sort_values(by=[end], ascending=False).T
 
@@ -1602,11 +1683,14 @@ class Figure:
         inflation_percent = 3
         data = []
         for st in self.stocks:
+            tmp = st.start
+            st.set_start_datetime(start)
             df = st.retire_adj(start.year, end.year, init_money, init_expense, inflation_percent)
             data.append(df)
+            st.set_start_datetime(tmp)
 
         df = pd.concat(data, axis="columns")
-        start = df.index[0]
+        start = start.strftime("%Y-%m-%d")
         end = df.index[-1]
         df = df.T.sort_values(by=[end], ascending=False).T
 
@@ -1667,6 +1751,8 @@ def report(
     plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
+    plots["growth_of_10000"] = fig.growth(10000)
+    plots["growth_of_10000_separate"] = fig.growth_separate(10000)
     plots["retire"] = fig.retire_graph()
     plots["retire_separate"] = fig.retire_separate_graph()
     plots["retire_adj"] = fig.retire_adj_graph()
@@ -1829,6 +1915,12 @@ if __name__ == "__main__":
         # =================================================================================
         {"name": "^GSPC", "remark": "S&P500指數", "groups": ["美股", "美大型股"]},
         {"name": "^SP500TR", "remark": "S&P500報酬指數", "groups": ["美股", "美大型股"]},
+        {
+            "name": "^SP500TR",
+            "remark": "S&P500報酬指數_日正2",
+            "daily_return_mul": 2,
+            "groups": ["美股", "美大型股", "日正"],
+        },
         {"name": "FXAIX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
         {"name": "FLCPX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
         {"name": "FNILX", "remark": "Fidelity 大型股 指數基金", "groups": ["美股", "美大型股"]},
@@ -1866,6 +1958,12 @@ if __name__ == "__main__":
         },
         # =================================================================================
         {"name": "^NDX", "remark": "那斯達克100指數", "groups": ["美股", "那斯達克"]},
+        {
+            "name": "^NDX",
+            "remark": "那斯達克100指數_日正2",
+            "daily_return_mul": 2,
+            "groups": ["美股", "那斯達克", "日正"],
+        },
         {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
         {"name": "QQQM", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
         {

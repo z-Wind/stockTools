@@ -6372,6 +6372,10 @@ def plot_投信投顧公會基金費用比率(plots):
         name_map[x["基金統編"]] = (x["基金名稱"].split(" (", 1)[0], x["類型代號"])
 
     df_總費用率 = df.pivot_table(values="合計_比率", index="年度", columns="基金統編")
+    df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns")
+    # 移除最後一年為空的資料
+    # df_總費用率 = df_總費用率.dropna(axis="columns", subset=df_總費用率.index[-1])
+
     plots[f"{key}_統計"] = plot_histogram(
         df_總費用率,
         f"{key}_統計 {df_總費用率.index[0]}~{df_總費用率.index[-1]}",
@@ -6380,9 +6384,6 @@ def plot_投信投顧公會基金費用比率(plots):
         },
     )
 
-    df_總費用率 = df_總費用率.sort_values(by=df_總費用率.index[-1], axis="columns")
-    # 移除最後一年為空的資料
-    df_總費用率 = df_總費用率.dropna(axis="columns", subset=df_總費用率.index[-1])
     最大_總費用率 = df_總費用率.max(axis="index")
 
     buttons_kinds = [
@@ -6476,7 +6477,7 @@ def plot_投信投顧公會基金費用比率(plots):
             "buttons": buttons_kinds,
             "type": "dropdown",
             "direction": "down",
-            "active": 0,
+            "active": 1,
             "font": {"color": "#AAAAAA"},
             "name": "類型選擇",
         },
@@ -6492,6 +6493,10 @@ def plot_投信投顧公會基金費用比率(plots):
             "showlegend": True,
         },
         mode="lines+markers",
+        visible={
+            key: show
+            for key, show in zip(df_總費用率.columns, buttons_kinds[1]["args"][0]["visible"])
+        },
     )
 
 

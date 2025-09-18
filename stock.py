@@ -1778,7 +1778,7 @@ def report(
             f.write(minified_html)
 
 
-if __name__ == "__main__":
+def tw_stock():
     symbols = [
         {
             "name": "^TAIEX",
@@ -1892,6 +1892,8 @@ if __name__ == "__main__":
     ]
     report(symbols, start="1911-1-1", prefix="TW", iYear=5, name_width=12)
 
+
+def us_stock():
     symbols = [
         {
             "name": "VT",
@@ -2040,6 +2042,9 @@ if __name__ == "__main__":
             "remark": "Vanguard 美小型價值股 指數基金",
             "groups": ["美股", "美小型價值股", "Vanguard"],
         },
+        # =================================================================================
+        {"name": "VYM", "remark": "Vanguard 高股利收益ETF", "groups": ["Vanguard", "高股息"]},
+        {"name": "VIG", "remark": "Vanguard 股利增值", "groups": ["Vanguard", "高股息"]},
         # =================================================================================
         {"name": "EFA", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
         {"name": "IDEV", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
@@ -2288,3 +2293,8 @@ if __name__ == "__main__":
         },
     ]
     report(symbols, prefix="US", iYear=2, name_width=6)
+
+
+if __name__ == "__main__":
+    tw_stock()
+    us_stock()

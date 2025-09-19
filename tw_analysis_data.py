@@ -570,6 +570,9 @@ def df_家庭收支調查_家庭收支重要指標():
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
 
     df = df.set_index(index_col)
 
@@ -583,6 +586,9 @@ def df_家庭收支調查_所得總額按來源別分():
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
 
     億元_columns = [col for col in df.columns if "億元" in col]
     df[億元_columns] = df[億元_columns] * 100000000
@@ -616,6 +622,9 @@ def df_家庭收支調查_所得收入者人數與按年齡組別及性別之分
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
 
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace("-百分比", "", regex=True)
@@ -907,6 +916,9 @@ def df_家庭收支調查_戶數五等分位組之平均每戶人口數():
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
@@ -920,6 +932,9 @@ def df_家庭收支調查_戶數五等分位組之平均每戶就業人數():
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
     df = df.set_index(index_col)
     df.columns = df.columns.str.replace(columns_remove_patt, "", regex=True)
 
@@ -1262,6 +1277,9 @@ def df_家庭收支調查_性別統計指標_戶數與結構按經濟戶長性�
     index_col = "年"
 
     df = read_csv(url)
+    df = df.dropna()
+
+    df[index_col] = df[index_col].astype(int)
     df = df.set_index(index_col)
 
     df["男性經濟戶長比率"] = df["男性經濟戶長比率"] / 100
@@ -1801,6 +1819,10 @@ def df_企業ESG資訊揭露彙總資料_人力發展():
         ]
         * 1000
     )
+
+    df["報告年度"] += 1911  # 轉西元
+    df["出表日期"] = df["出表日期"].astype(int) + 19110000  # 轉西元
+    df["出表日期"] = df["出表日期"].astype(str)
 
     return df
 

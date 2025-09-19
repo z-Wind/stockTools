@@ -4211,7 +4211,7 @@ def plot_貿易指數_進口單位價值指數(plots):
         plots,
         key="貿易指數－進口單位價值指數",
         df_get=df_貿易指數_進口單位價值指數,
-        title_suffix="(採連鎖法，參考年為110年)",
+        title_suffix="(採連鎖法，參考年為2021年)",
         sum_or_keep="keep",
     )
 
@@ -4221,7 +4221,7 @@ def plot_貿易指數_出口單位價值指數(plots):
         plots,
         key="貿易指數－出口單位價值指數",
         df_get=df_貿易指數_出口單位價值指數,
-        title_suffix="(採連鎖法，參考年為110年)",
+        title_suffix="(採連鎖法，參考年為2021年)",
         sum_or_keep="keep",
     )
 
@@ -4231,7 +4231,7 @@ def plot_貿易指數_進口數量指數(plots):
         plots,
         key="貿易指數－進口數量指數",
         df_get=df_貿易指數_進口數量指數,
-        title_suffix="(參考年為110年)",
+        title_suffix="(參考年為2021年)",
         sum_or_keep="keep",
     )
 
@@ -4241,7 +4241,7 @@ def plot_貿易指數_出口數量指數(plots):
         plots,
         key="貿易指數－出口數量指數",
         df_get=df_貿易指數_出口數量指數,
-        title_suffix="(參考年為110年)",
+        title_suffix="(參考年為2021年)",
         sum_or_keep="keep",
     )
 

@@ -51,6 +51,7 @@ class Stock:
         name_width=7,
         daily_return_mul=None,
         name_suffix="",
+        calAdjClose=True,
     ):
         """
         symbol: 代碼
@@ -82,6 +83,7 @@ class Stock:
         self.replaceDiv = self._getDiv_TW() if replaceDiv else {}
         self.extraSplit = extraSplit
         self.daily_return_mul = daily_return_mul
+        self.calAdjClose = calAdjClose
 
         self.dateDuplcatedCombine = dateDuplcatedCombine
         self.history = self._getHistory(fromPath)
@@ -303,14 +305,15 @@ class Stock:
             if index.any():
                 data.loc[index, "Adj Ratio"] *= splitVal
 
-        for i, row in div.iterrows():
-            divDate = row.Date
-            divVal = row["Dividends"]
-            if data["Date"][data["Date"] >= divDate].empty:
-                continue
-            index = data["Date"] < divDate
-            if index.any():
-                data.loc[index, "Adj Ratio"] *= 1 - divVal / data.loc[index, "Close"].iloc[-1]
+        if self.calAdjClose:
+            for i, row in div.iterrows():
+                divDate = row.Date
+                divVal = row["Dividends"]
+                if data["Date"][data["Date"] >= divDate].empty:
+                    continue
+                index = data["Date"] < divDate
+                if index.any():
+                    data.loc[index, "Adj Ratio"] *= 1 - divVal / data.loc[index, "Close"].iloc[-1]
 
         data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
 
@@ -560,6 +563,7 @@ class Figure:
                     name_width=name_width,
                     daily_return_mul=symbol.get("daily_return_mul", None),
                     name_suffix=symbol.get("name_suffix", ""),
+                    calAdjClose=symbol.get("calAdjClose", True),
                 )
             )
             # except Exception as error:
@@ -1865,6 +1869,13 @@ def tw_stock():
         {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True, "groups": ["ETF"]},
         {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True, "groups": ["ETF"]},
         {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True, "groups": ["ETF"]},
+        {
+            "name": "0056.TW",
+            "remark": "元大高股息_股息不投入",
+            "replaceDiv": True,
+            "groups": ["ETF"],
+            "calAdjClose": False,
+        },
         # =================================================================================
         {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True, "groups": ["個股"]},

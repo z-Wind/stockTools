@@ -3162,6 +3162,20 @@ def plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_�
         f"{key} {lastyear}年",
     )
 
+    df_stacked = df.stack().reset_index()
+    df_stacked.columns = ["產業_園區", "項目別", "月平均最低薪資"]
+    df_stacked["資料標籤"] = (
+        df_stacked["產業_園區"].str.strip() + "_" + df_stacked["項目別"].str.strip()
+    )
+    df_final = df_stacked.dropna(subset=["月平均最低薪資"]).sort_values(
+        by="月平均最低薪資", ascending=False
+    )
+    df_output = df_final[["資料標籤", "月平均最低薪資"]].set_index("資料標籤")
+    plots[f"{key}_排列"] = plot_bar_group(
+        df_output.T,
+        f"{key}_排列 {lastyear}年",
+    )
+
 
 def plot_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分(plots):
     key = "各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分"

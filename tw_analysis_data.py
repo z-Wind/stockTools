@@ -19,6 +19,7 @@ import urllib3
 from urllib3.util import Retry
 from pathlib import Path
 from thefuzz import fuzz
+from dateutil.relativedelta import relativedelta
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -4444,10 +4445,16 @@ def df_基金績效評比():
         path = EXTRA_DATA_DIR / key / f"{year}{month:02d}.zip"
         _ensure_dir_exists(path)
 
-        if not path.is_file():
+        if not path.is_file() or datetime.today() < datetime(year, month, 1) + relativedelta(
+            months=3
+        ):
             url = url_year_month.format(year=year - 1911, month=month)
             time.sleep(1)
-            r = session.get(url)
+            try:
+                r = session.get(url)
+            except Exception as e:
+                print(url, e)
+                return None
 
             if r.status_code == 404:
                 return None

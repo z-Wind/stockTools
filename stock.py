@@ -469,6 +469,32 @@ class Stock:
 
         return df
 
+    def dollar_cost_averaging(self):
+        money = 10000
+        check = set()
+        shares = 0
+        cost = 0
+        result = {"date": [], "cost": [], "profit": []}
+
+        for _, data in self.history.iterrows():
+            price = data["Adj Close Cal"]
+            date = data["Date"]
+            year = date.year
+
+            if year not in check:
+                shares += money / price
+                cost += money
+                check.add(year)
+
+            result["date"].append(date)
+            result["cost"].append(cost)
+            result["profit"].append(shares * price - cost)
+
+        df = pd.DataFrame(result)
+        df = df.set_index("date")
+
+        return df
+
 
 class Figure:
     theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
@@ -930,7 +956,7 @@ class Figure:
     def _plotDailyReturn(self, data):
         dataList = []
         buttons = []
-        for i, (symbol, df_daily, df_rollback) in enumerate(data):
+        for i, (symbol, df_daily, df_rollback, df_dollar_cost_averaging) in enumerate(data):
             start = df_daily["Start"].iat[0].strftime("%Y-%m-%d")
             end = df_daily["End"].iat[-1].strftime("%Y-%m-%d")
             df_daily = df_daily.sort_values(by=["Return"])
@@ -947,6 +973,7 @@ class Figure:
                 "x": x,
                 "y": df_daily["Return"],
                 "visible": i == 0,
+                "showlegend": False,
             }
 
             histogram_dailyreturn = {
@@ -956,6 +983,7 @@ class Figure:
                 "visible": i == 0,
                 "xaxis": "x2",
                 "yaxis": "y2",
+                "showlegend": False,
             }
 
             cumgains = df_daily["Return"].map(lambda x: 1 + x).cumprod() - 1.0
@@ -966,6 +994,7 @@ class Figure:
                 "visible": i == 0,
                 "xaxis": "x3",
                 "yaxis": "y3",
+                "showlegend": False,
             }
 
             cumlosses = df_daily["Return"].iloc[::-1].map(lambda x: 1 + x).cumprod() - 1.0
@@ -976,6 +1005,7 @@ class Figure:
                 "visible": i == 0,
                 "xaxis": "x3",
                 "yaxis": "y4",
+                "showlegend": False,
             }
 
             histogram_rollback = {
@@ -985,7 +1015,32 @@ class Figure:
                 "visible": i == 0,
                 "xaxis": "x5",
                 "yaxis": "y5",
+                "showlegend": False,
             }
+
+            cost_vs_profit = [
+                {
+                    "name": "Cost",
+                    "visible": i == 0,
+                    "xaxis": "x6",
+                    "yaxis": "y6",
+                    "x": df_dollar_cost_averaging.index,
+                    "y": df_dollar_cost_averaging["cost"],
+                    "stackgroup": "one",
+                    "groupnorm": "percent",
+                    "showlegend": True,
+                },
+                {
+                    "name": "Profit",
+                    "visible": i == 0,
+                    "xaxis": "x6",
+                    "yaxis": "y6",
+                    "x": df_dollar_cost_averaging.index,
+                    "y": df_dollar_cost_averaging["profit"],
+                    "stackgroup": "one",
+                    "showlegend": True,
+                },
+            ]
 
             graphs = [
                 missedgains,
@@ -993,6 +1048,8 @@ class Figure:
                 histogram_dailyreturn,
                 histogram_rollback,
                 dailyreturn,
+                cost_vs_profit[0],
+                cost_vs_profit[1],
             ]
             dataList.extend(graphs)
 
@@ -1033,7 +1090,7 @@ class Figure:
             "height": "1300",
             "updatemenus": [
                 {
-                    "x": 0.6,
+                    "x": 0,
                     "y": 1.03,
                     "xanchor": "left",
                     "yanchor": "bottom",
@@ -1048,14 +1105,14 @@ class Figure:
                 "rows": graphs_num,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x3y3"], ["x3y4"], ["x2y2"], ["x5y5"], ["xy"]],
+                "subplots": [["x6y6"], ["x3y3"], ["x3y4"], ["x2y2"], ["x5y5"], ["xy"]],
             },
             "yaxis": {"tickformat": ".2%", "range": range_init_daily},
             "yaxis3": {"tickformat": ".2%"},
             "yaxis4": {"tickformat": ".2%"},
+            "yaxis6": {"ticksuffix": "%"},
             "xaxis2": {"tickformat": ".2%", "range": range_init_daily},
             "xaxis5": {"tickformat": ".2%", "range": range_init_rollback},
-            "showlegend": False,
             "annotations": [
                 {
                     "text": "<b>Missed Gains<b>",
@@ -1107,6 +1164,17 @@ class Figure:
                     "showarrow": False,
                     "xref": "x domain",
                     "yref": "y domain",
+                    "x": 0.5,
+                    "y": 1.05,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
+                },
+                {
+                    "text": f"<b>Cost vs. Profit of Investing Once a Year<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x6 domain",
+                    "yref": "y6 domain",
                     "x": 0.5,
                     "y": 1.05,
                     "xanchor": "center",
@@ -1382,7 +1450,8 @@ class Figure:
         for st in self.stocks:
             df_daily = st.dailyReturn
             df_rollback = st.rollback(self.iYear)
-            data.append((st.name, df_daily, df_rollback[st.name]))
+            df_dollar_cost_averaging = st.dollar_cost_averaging()
+            data.append((st.name, df_daily, df_rollback[st.name], df_dollar_cost_averaging))
 
         return self._plotDailyReturn(data)
 

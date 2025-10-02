@@ -4168,6 +4168,8 @@ def df_定期定額交易戶數統計排行月報表():
 # https://data.gov.tw/dataset/11452 集保戶股權分散表
 # https://schema.nat.gov.tw/gsp/frontstage/resource.download/9f7d9184-20a0-49eb-b7dd-96e23686c4ef
 def df_集保戶股權分散表():
+    key = "集保戶股權分散表"
+    key = sanitize_filename(key)
     url = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
 
     df = read_csv(url)
@@ -4223,6 +4225,12 @@ def df_集保戶股權分散表():
             return symbol
 
     df["全名"] = df["證券代號"].apply(全名)
+
+    date = df["資料日期"].iloc[0]
+    path = EXTRA_DATA_DIR / key / f"{date}.csv.gz"
+    _ensure_dir_exists(path)
+    if not path.is_file():
+        df.to_csv(path, index=False, compression="gzip")
 
     return df
 

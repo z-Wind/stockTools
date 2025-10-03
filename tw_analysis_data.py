@@ -565,6 +565,36 @@ def df_房價所得比():
     return df
 
 
+# https://pip.moi.gov.tw/Publicize/Info/E2010 貸款負擔率
+def df_貸款負擔率():
+    url = "https://pip.moi.gov.tw/Publicize/Info/E2010Data"
+
+    r = session.get(
+        url,
+        params={
+            "dataGroup": "group04",
+            "f01": "091Q1",
+            "f02": f"{datetime.today().year-1911}Q4",
+            "f03": "TAIWAN|全國,F|新北市,A|台北市,H|桃園市,B|台中市,D|台南市,E|高雄市,G|宜蘭縣,J|新竹縣,K|苗栗縣,N|彰化縣,M|南投縣,P|雲林縣,Q|嘉義縣,T|屏東縣,V|台東縣,U|花蓮縣,X|澎湖縣,C|基隆市,O|新竹市,I|嘉義市,",
+        },
+    )
+    json_data = json.loads(r.content)
+
+    columns = json_data["resultTable"][0]
+    narrays = np.array(json_data["resultTable"][1:])
+
+    df = pd.DataFrame(narrays, columns=columns)
+
+    split_年 = df["年度季別"].str.split("Q", expand=True)
+    df["年度季別"] = (split_年[0].astype(int) + 1911).astype(str) + "Q" + split_年[1]  # 轉西元
+
+    df = df.set_index("年度季別")
+    df = df.sort_index()
+    df = df.astype(float) / 100
+
+    return df
+
+
 # https://data.gov.tw/dataset/44232 國民所得統計-國民所得、儲蓄與投資-季
 def df_國民所得統計_國民所得_儲蓄與投資_季():
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8201a1q.xml"

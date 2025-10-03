@@ -1237,7 +1237,19 @@ def plot_房價所得比(plots):
 
     plots[f"{key}"] = plot_line(
         df,
-        f"{key}=中位數住宅價格/中位數家戶可支配所得 {df.index[0]}~{df.index[-1]}",
+        f"{key} = 中位數住宅價格/中位數家戶可支配所得 {df.index[0]}~{df.index[-1]}",
+    )
+
+
+def plot_貸款負擔率(plots):
+    key = "貸款負擔率"
+    key = sanitize_filename(key)
+    df = df_貸款負擔率()
+
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key} = 中位數房價貸款月攤還額/家戶月可支配所得中位數 {df.index[0]}~{df.index[-1]}",
+        additional_layout={"yaxis": {"tickformat": ".2%"}},
     )
 
 
@@ -6860,6 +6872,7 @@ def main():
     plot_就業率(plots)
     plot_主要國家零歲平均餘命(plots)
     plot_房價所得比(plots)
+    plot_貸款負擔率(plots)
 
     plot_國民所得統計_國民所得_儲蓄與投資_季(plots)
     plot_國民所得統計_常用資料_季(plots)

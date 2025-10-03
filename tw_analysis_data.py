@@ -537,60 +537,80 @@ def df_主要國家零歲平均餘命():
 
 # https://pip.moi.gov.tw/Publicize/Info/E2010 房價所得比
 def df_房價所得比():
+    key = "房價所得比"
+    key = sanitize_filename(key)
     url = "https://pip.moi.gov.tw/Publicize/Info/E2010Data"
 
-    r = session.get(
-        url,
-        params={
-            "dataGroup": "group03",
-            "f01": "091Q1",
-            "f02": f"{datetime.today().year-1911}Q4",
-            "f03": "TAIWAN|全國,F|新北市,A|台北市,H|桃園市,B|台中市,D|台南市,E|高雄市,G|宜蘭縣,J|新竹縣,K|苗栗縣,N|彰化縣,M|南投縣,P|雲林縣,Q|嘉義縣,T|屏東縣,V|台東縣,U|花蓮縣,X|澎湖縣,C|基隆市,O|新竹市,I|嘉義市,",
-        },
-    )
-    json_data = json.loads(r.content)
+    path = EXTRA_DATA_DIR / f"{key}.csv.gz"
+    _ensure_dir_exists(path)
 
-    columns = json_data["resultTable"][0]
-    narrays = np.array(json_data["resultTable"][1:])
+    if not path.is_file():
+        r = session.get(
+            url,
+            params={
+                "dataGroup": "group03",
+                "f01": "091Q1",
+                "f02": f"{datetime.today().year-1911}Q4",
+                "f03": "TAIWAN|全國,F|新北市,A|台北市,H|桃園市,B|台中市,D|台南市,E|高雄市,G|宜蘭縣,J|新竹縣,K|苗栗縣,N|彰化縣,M|南投縣,P|雲林縣,Q|嘉義縣,T|屏東縣,V|台東縣,U|花蓮縣,X|澎湖縣,C|基隆市,O|新竹市,I|嘉義市,",
+            },
+        )
+        json_data = json.loads(r.content)
 
-    df = pd.DataFrame(narrays, columns=columns)
+        columns = json_data["resultTable"][0]
+        narrays = np.array(json_data["resultTable"][1:])
 
-    split_年 = df["年度季別"].str.split("Q", expand=True)
-    df["年度季別"] = (split_年[0].astype(int) + 1911).astype(str) + "Q" + split_年[1]  # 轉西元
+        df = pd.DataFrame(narrays, columns=columns)
 
-    df = df.set_index("年度季別")
-    df = df.sort_index()
-    df = df.astype(float)
+        split_年 = df["年度季別"].str.split("Q", expand=True)
+        df["年度季別"] = (split_年[0].astype(int) + 1911).astype(str) + "Q" + split_年[1]  # 轉西元
+
+        df = df.set_index("年度季別")
+        df = df.sort_index()
+        df = df.astype(float)
+
+        df.to_csv(path, compression="gzip")
+    else:
+        df = pd.read_csv(path, index_col="年度季別", compression="gzip")
 
     return df
 
 
 # https://pip.moi.gov.tw/Publicize/Info/E2010 貸款負擔率
 def df_貸款負擔率():
+    key = "貸款負擔率"
+    key = sanitize_filename(key)
     url = "https://pip.moi.gov.tw/Publicize/Info/E2010Data"
 
-    r = session.get(
-        url,
-        params={
-            "dataGroup": "group04",
-            "f01": "091Q1",
-            "f02": f"{datetime.today().year-1911}Q4",
-            "f03": "TAIWAN|全國,F|新北市,A|台北市,H|桃園市,B|台中市,D|台南市,E|高雄市,G|宜蘭縣,J|新竹縣,K|苗栗縣,N|彰化縣,M|南投縣,P|雲林縣,Q|嘉義縣,T|屏東縣,V|台東縣,U|花蓮縣,X|澎湖縣,C|基隆市,O|新竹市,I|嘉義市,",
-        },
-    )
-    json_data = json.loads(r.content)
+    path = EXTRA_DATA_DIR / f"{key}.csv.gz"
+    _ensure_dir_exists(path)
 
-    columns = json_data["resultTable"][0]
-    narrays = np.array(json_data["resultTable"][1:])
+    if not path.is_file():
+        r = session.get(
+            url,
+            params={
+                "dataGroup": "group04",
+                "f01": "091Q1",
+                "f02": f"{datetime.today().year-1911}Q4",
+                "f03": "TAIWAN|全國,F|新北市,A|台北市,H|桃園市,B|台中市,D|台南市,E|高雄市,G|宜蘭縣,J|新竹縣,K|苗栗縣,N|彰化縣,M|南投縣,P|雲林縣,Q|嘉義縣,T|屏東縣,V|台東縣,U|花蓮縣,X|澎湖縣,C|基隆市,O|新竹市,I|嘉義市,",
+            },
+        )
+        json_data = json.loads(r.content)
 
-    df = pd.DataFrame(narrays, columns=columns)
+        columns = json_data["resultTable"][0]
+        narrays = np.array(json_data["resultTable"][1:])
 
-    split_年 = df["年度季別"].str.split("Q", expand=True)
-    df["年度季別"] = (split_年[0].astype(int) + 1911).astype(str) + "Q" + split_年[1]  # 轉西元
+        df = pd.DataFrame(narrays, columns=columns)
 
-    df = df.set_index("年度季別")
-    df = df.sort_index()
-    df = df.astype(float) / 100
+        split_年 = df["年度季別"].str.split("Q", expand=True)
+        df["年度季別"] = (split_年[0].astype(int) + 1911).astype(str) + "Q" + split_年[1]  # 轉西元
+
+        df = df.set_index("年度季別")
+        df = df.sort_index()
+        df = df.astype(float) / 100
+
+        df.to_csv(path, compression="gzip")
+    else:
+        df = pd.read_csv(path, index_col="年度季別", compression="gzip")
 
     return df
 

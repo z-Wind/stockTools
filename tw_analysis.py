@@ -1230,6 +1230,17 @@ def plot_主要國家零歲平均餘命(plots):
     )
 
 
+def plot_房價所得比(plots):
+    key = "房價所得比"
+    key = sanitize_filename(key)
+    df = df_房價所得比()
+
+    plots[f"{key}"] = plot_line(
+        df,
+        f"{key}=中位數住宅價格/中位數家戶可支配所得 {df.index[0]}~{df.index[-1]}",
+    )
+
+
 def plot_國民所得統計_國民所得_儲蓄與投資_季(plots):
     key = "國民所得統計-國民所得、儲蓄與投資-季"
     key = sanitize_filename(key)
@@ -6848,6 +6859,7 @@ def main():
     plot_教育程度別失業率_按年齡分(plots)
     plot_就業率(plots)
     plot_主要國家零歲平均餘命(plots)
+    plot_房價所得比(plots)
 
     plot_國民所得統計_國民所得_儲蓄與投資_季(plots)
     plot_國民所得統計_常用資料_季(plots)

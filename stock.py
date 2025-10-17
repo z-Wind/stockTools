@@ -2,6 +2,7 @@ import copy
 import os
 import re
 import minify_html
+import numpy as np
 import yfinance as yf
 import pandas as pd
 import time
@@ -495,6 +496,97 @@ class Stock:
 
         return df
 
+    def identify_bull_bear_markets(self, bear_threshold=-0.20, bull_threshold=0.20):
+        # 我們使用 'Adj Close' 來計算，它已調整股息和拆分
+        prices = self.history[["Date", "Adj Close Cal"]].set_index("Date").loc[:, "Adj Close Cal"]
+        df_returns = pd.DataFrame({"value": prices})
+
+        # 初始化變數
+        market_periods = []
+
+        # 初始狀態假設為牛市
+        state = "BULL"
+        peak_price = prices.iloc[0]
+        peak_date = prices.index[0]
+        trough_price = prices.iloc[0]
+        trough_date = prices.index[0]
+        period_start_date = prices.index[0]
+
+        # 2. 遍歷價格資料，應用 +/-20% 法則
+        for date, price in prices.items():
+            if state == "BULL":
+                # 在牛市中，不斷更新高點
+                if price >= peak_price:
+                    peak_price = price
+                    peak_date = date
+
+                # 檢查是否從高點下跌超過 20%，進入熊市
+                if price < peak_price * (1 + bear_threshold):
+                    # 記錄上一個牛市的結束
+                    market_periods.append(
+                        {
+                            "Type": "Bull",
+                            "Start Date": period_start_date,
+                            "End Date": peak_date,  # 牛市的終點是最高點
+                            "Start Price": prices[period_start_date],
+                            "End Price": peak_price,
+                        }
+                    )
+                    df_returns.loc[period_start_date:peak_date, "ref"] = prices[period_start_date]
+                    # 更新狀態，進入熊市
+                    state = "BEAR"
+                    period_start_date = peak_date  # 熊市的起點是前一個牛市的最高點
+                    trough_price = price
+                    trough_date = date
+
+            elif state == "BEAR":
+                # 在熊市中，不斷更新低點
+                if price <= trough_price:
+                    trough_price = price
+                    trough_date = date
+
+                # 檢查是否從低點反彈超過 20%，進入牛市
+                if price > trough_price * (1 + bull_threshold):
+                    # 記錄上一個熊市的結束
+                    market_periods.append(
+                        {
+                            "Type": "Bear",
+                            "Start Date": period_start_date,
+                            "End Date": trough_date,  # 熊市的終點是最低點
+                            "Start Price": prices[period_start_date],
+                            "End Price": trough_price,
+                        }
+                    )
+                    df_returns.loc[period_start_date:trough_date, "ref"] = prices[period_start_date]
+                    # 更新狀態，進入牛市
+                    state = "BULL"
+                    period_start_date = trough_date  # 牛市的起點是前一個熊市的最低點
+                    peak_price = price
+                    peak_date = date
+        # 3. 處理最後一個（當前）的市場階段
+        last_period_start_price = prices[period_start_date]
+        last_period_end_price = prices.iloc[-1]
+        market_periods.append(
+            {
+                "Type": "Bull" if state == "BULL" else "Bear",
+                "Start Date": period_start_date,
+                "End Date": prices.index[-1],
+                "Start Price": last_period_start_price,
+                "End Price": last_period_end_price,
+            }
+        )
+        df_returns.loc[period_start_date:, "ref"] = last_period_start_price
+
+        df_returns["return"] = df_returns["value"] / df_returns["ref"] - 1.0
+
+        # 4. 將結果轉為 DataFrame 並計算指標
+        df_periods = pd.DataFrame(market_periods)
+        df_periods["Duration (Days)"] = (df_periods["End Date"] - df_periods["Start Date"]).dt.days
+        df_periods["Duration (Years)"] = df_periods["Duration (Days)"] / 365.25
+        df_periods["Return"] = (df_periods["End Price"] / df_periods["Start Price"]) - 1
+
+        return df_periods, df_returns
+
 
 class Figure:
     theme_template = plotly.io.templates["plotly_dark"].to_plotly_json()
@@ -956,7 +1048,13 @@ class Figure:
     def _plotDailyReturn(self, data):
         dataList = []
         buttons = []
-        for i, (symbol, df_daily, df_rollback, df_dollar_cost_averaging) in enumerate(data):
+        for i, (
+            symbol,
+            df_daily,
+            df_rollback,
+            df_dollar_cost_averaging,
+            df_bull_bear_markets_returns,
+        ) in enumerate(data):
             start = df_daily["Start"].iat[0].strftime("%Y-%m-%d")
             end = df_daily["End"].iat[-1].strftime("%Y-%m-%d")
             df_daily = df_daily.sort_values(by=["Return"])
@@ -1042,6 +1140,51 @@ class Figure:
                 },
             ]
 
+            mask = df_bull_bear_markets_returns["return"] >= 0
+            area_bull_bear_markets_returns = [
+                {
+                    "type": "scatter",
+                    "name": symbol,
+                    "line": {"width": 0},
+                    "xaxis": "x7",
+                    "yaxis": "y7",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": df_bull_bear_markets_returns["return"],
+                    "visible": i == 0,
+                    "showlegend": False,
+                },
+                {
+                    "type": "scatter",
+                    "fill": "tozeroy",
+                    "fillcolor": "#81c995",
+                    "line": {"color": "#81c995"},
+                    "mode": "none",
+                    "name": "Bull Market",
+                    "xaxis": "x7",
+                    "yaxis": "y7",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": np.where(mask, df_bull_bear_markets_returns["return"], 0),
+                    "visible": i == 0,
+                    "showlegend": False,
+                    "hoverinfo": "skip",
+                },
+                {
+                    "type": "scatter",
+                    "fill": "tozeroy",
+                    "fillcolor": "#f28b82",
+                    "line": {"color": "#f28b82"},
+                    "mode": "none",
+                    "name": "Bear Market",
+                    "xaxis": "x7",
+                    "yaxis": "y7",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": np.where(mask, 0, df_bull_bear_markets_returns["return"]),
+                    "visible": i == 0,
+                    "showlegend": False,
+                    "hoverinfo": "skip",
+                },
+            ]
+
             graphs = [
                 missedgains,
                 avoidedlosses,
@@ -1050,6 +1193,9 @@ class Figure:
                 dailyreturn,
                 cost_vs_profit[0],
                 cost_vs_profit[1],
+                area_bull_bear_markets_returns[0],
+                area_bull_bear_markets_returns[1],
+                area_bull_bear_markets_returns[2],
             ]
             dataList.extend(graphs)
 
@@ -1105,12 +1251,13 @@ class Figure:
                 "rows": graphs_num,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x6y6"], ["x3y3"], ["x3y4"], ["x2y2"], ["x5y5"], ["xy"]],
+                "subplots": [["x6y6"], ["x7y7"], ["x3y3"], ["x3y4"], ["x2y2"], ["x5y5"], ["xy"]],
             },
             "yaxis": {"tickformat": ".2%", "range": range_init_daily},
             "yaxis3": {"tickformat": ".2%"},
             "yaxis4": {"tickformat": ".2%"},
             "yaxis6": {"ticksuffix": "%"},
+            "yaxis7": {"tickformat": ".2%"},
             "xaxis2": {"tickformat": ".2%", "range": range_init_daily},
             "xaxis5": {"tickformat": ".2%", "range": range_init_rollback},
             "annotations": [
@@ -1121,9 +1268,9 @@ class Figure:
                     "xref": "x3 domain",
                     "yref": "y3 domain",
                     "x": 0.5,
-                    "y": 0.95,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
                 },
                 {
                     "text": "<b>Avoided Losses<b>",
@@ -1132,9 +1279,9 @@ class Figure:
                     "xref": "x3 domain",
                     "yref": "y4 domain",
                     "x": 0.5,
-                    "y": 1.05,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
                 },
                 {
                     "text": "<b>Daily Return Histogram<b>",
@@ -1143,9 +1290,9 @@ class Figure:
                     "xref": "x2 domain",
                     "yref": "y2 domain",
                     "x": 0.5,
-                    "y": 1.05,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
                 },
                 {
                     "text": f"<b>{self.iYear} Years Rollback Histogram<b>",
@@ -1154,9 +1301,9 @@ class Figure:
                     "xref": "x5 domain",
                     "yref": "y5 domain",
                     "x": 0.5,
-                    "y": 1.05,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
                 },
                 {
                     "text": "<b>Daily Return<b>",
@@ -1165,9 +1312,9 @@ class Figure:
                     "xref": "x domain",
                     "yref": "y domain",
                     "x": 0.5,
-                    "y": 1.05,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
                 },
                 {
                     "text": f"<b>Cost vs. Profit of Investing Once a Year<b>",
@@ -1176,9 +1323,20 @@ class Figure:
                     "xref": "x6 domain",
                     "yref": "y6 domain",
                     "x": 0.5,
-                    "y": 1.05,
+                    "y": 1.2,
                     "xanchor": "center",
-                    "yanchor": "bottom",
+                    "yanchor": "top",
+                },
+                {
+                    "text": f"<b>Bull and Bear Markets<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x7 domain",
+                    "yref": "y7 domain",
+                    "x": 0.5,
+                    "y": 1.2,
+                    "xanchor": "center",
+                    "yanchor": "top",
                 },
             ],
         }
@@ -1451,7 +1609,16 @@ class Figure:
             df_daily = st.dailyReturn
             df_rollback = st.rollback(self.iYear)
             df_dollar_cost_averaging = st.dollar_cost_averaging()
-            data.append((st.name, df_daily, df_rollback[st.name], df_dollar_cost_averaging))
+            _, df_bull_bear_markets_returns = st.identify_bull_bear_markets()
+            data.append(
+                (
+                    st.name,
+                    df_daily,
+                    df_rollback[st.name],
+                    df_dollar_cost_averaging,
+                    df_bull_bear_markets_returns,
+                )
+            )
 
         return self._plotDailyReturn(data)
 

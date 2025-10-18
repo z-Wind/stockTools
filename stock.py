@@ -1056,6 +1056,7 @@ class Figure:
         for i, (
             symbol,
             df_daily,
+            df_rollback,
         ) in enumerate(data):
             start = df_daily["Start"].iat[0].strftime("%Y-%m-%d")
             end = df_daily["End"].iat[-1].strftime("%Y-%m-%d")
@@ -1108,24 +1109,39 @@ class Figure:
                 "showlegend": False,
             }
 
+            histogram_rollback = {
+                "type": "histogram",
+                "name": symbol,
+                "x": df_rollback,
+                "visible": i == 0,
+                "xaxis": "x5",
+                "yaxis": "y5",
+                "showlegend": False,
+            }
+
             graphs = [
                 missedgains,
                 avoidedlosses,
                 histogram_dailyreturn,
                 dailyreturn,
+                histogram_rollback,
             ]
             dataList.extend(graphs)
 
             graphs_num = len(graphs)
+            row_num = graphs_num
             visible = [False] * graphs_num * len(data)
             for j in range(graphs_num):
                 visible[i * graphs_num + j] = True
 
             title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
             return_range_daily = [min(df_daily["Return"]) - 0.01, max(df_daily["Return"]) + 0.01]
+            return_range_rollback = [min(df_rollback) - 0.01, max(df_rollback) + 0.01]
             if i == 0:
                 title_init = title
                 range_init_daily = return_range_daily
+                range_init_rollback = return_range_rollback
+
             button = {
                 "method": "update",
                 "args": [
@@ -1134,6 +1150,7 @@ class Figure:
                         "title.text": title,
                         "yaxis.range": return_range_daily,
                         "xaxis2.range": return_range_daily,
+                        "xaxis5.range": return_range_rollback,
                     },
                 ],
                 "label": symbol,
@@ -1162,15 +1179,16 @@ class Figure:
                 }
             ],
             "grid": {
-                "rows": graphs_num,
+                "rows": row_num,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["x3y3"], ["x3y4"], ["x2y2"], ["xy"]],
+                "subplots": [["x5y5"], ["x3y3"], ["x3y4"], ["x2y2"], ["xy"]],
             },
             "yaxis": {"tickformat": ".2%", "range": range_init_daily},
             "yaxis3": {"tickformat": ".2%"},
             "yaxis4": {"tickformat": ".2%"},
             "xaxis2": {"tickformat": ".2%", "range": range_init_daily},
+            "xaxis5": {"tickformat": ".2%", "range": range_init_rollback},
             "annotations": [
                 {
                     "text": "<b>Missed Gains<b>",
@@ -1216,6 +1234,17 @@ class Figure:
                     "xanchor": "center",
                     "yanchor": "bottom",
                 },
+                {
+                    "text": f"<b>{self.iYear} Years Rollback Histogram<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x5 domain",
+                    "yref": "y5 domain",
+                    "x": 0.5,
+                    "y": 1.0,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
+                },
             ],
         }
 
@@ -1245,14 +1274,12 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotDailyInvest(self, data):
+    def _plotDailyInvestCost(self, data):
         dataList = []
         buttons = []
         for i, (
             symbol,
-            df_rollback,
             df_dollar_cost_averaging,
-            df_bull_bear_markets_returns,
         ) in enumerate(data):
             start = df_dollar_cost_averaging.index[0].strftime("%Y-%m-%d")
             end = df_dollar_cost_averaging.index[-1].strftime("%Y-%m-%d")
@@ -1281,88 +1308,29 @@ class Figure:
                 },
             ]
 
-            mask = df_bull_bear_markets_returns["return"] >= 0
-            area_bull_bear_markets_returns = [
-                {
-                    "type": "scatter",
-                    "name": symbol,
-                    "line": {"width": 0},
-                    "xaxis": "x2",
-                    "yaxis": "y2",
-                    "x": df_bull_bear_markets_returns.index,
-                    "y": df_bull_bear_markets_returns["return"],
-                    "visible": i == 0,
-                    "showlegend": False,
-                },
-                {
-                    "type": "scatter",
-                    "fill": "tozeroy",
-                    "fillcolor": "#81c995",
-                    "line": {"color": "#81c995"},
-                    "mode": "none",
-                    "name": "Bull Market",
-                    "xaxis": "x2",
-                    "yaxis": "y2",
-                    "x": df_bull_bear_markets_returns.index,
-                    "y": np.where(mask, df_bull_bear_markets_returns["return"], 0),
-                    "visible": i == 0,
-                    "showlegend": False,
-                    "hoverinfo": "skip",
-                },
-                {
-                    "type": "scatter",
-                    "fill": "tozeroy",
-                    "fillcolor": "#f28b82",
-                    "line": {"color": "#f28b82"},
-                    "mode": "none",
-                    "name": "Bear Market",
-                    "xaxis": "x2",
-                    "yaxis": "y2",
-                    "x": df_bull_bear_markets_returns.index,
-                    "y": np.where(mask, 0, df_bull_bear_markets_returns["return"]),
-                    "visible": i == 0,
-                    "showlegend": False,
-                    "hoverinfo": "skip",
-                },
-            ]
-
-            histogram_rollback = {
-                "type": "histogram",
-                "name": symbol,
-                "x": df_rollback,
-                "visible": i == 0,
-                "xaxis": "x3",
-                "yaxis": "y3",
-                "showlegend": False,
-            }
-
             graphs = [
                 cost_vs_profit[0],
                 cost_vs_profit[1],
-                area_bull_bear_markets_returns[0],
-                area_bull_bear_markets_returns[1],
-                area_bull_bear_markets_returns[2],
-                histogram_rollback,
             ]
             dataList.extend(graphs)
 
             graphs_num = len(graphs)
+            row_num = graphs_num - 1
             visible = [False] * graphs_num * len(data)
             for j in range(graphs_num):
                 visible[i * graphs_num + j] = True
 
             title = f"<b>Daily Invest Analysis<b><br><i>{start} ~ {end}<i>"
-            return_range_rollback = [min(df_rollback) - 0.01, max(df_rollback) + 0.01]
+
             if i == 0:
                 title_init = title
-                range_init_rollback = return_range_rollback
+
             button = {
                 "method": "update",
                 "args": [
                     {"visible": visible},
                     {
                         "title.text": title,
-                        "xaxis3.range": return_range_rollback,
                     },
                 ],
                 "label": symbol,
@@ -1376,7 +1344,7 @@ class Figure:
                 "y": None,
             },
             "hovermode": "x",
-            "height": "1300",
+            # "height": "1300",
             "updatemenus": [
                 {
                     "x": 0,
@@ -1391,14 +1359,12 @@ class Figure:
                 }
             ],
             "grid": {
-                "rows": graphs_num,
+                "rows": row_num,
                 "columns": 1,
                 "pattern": "independent",
-                "subplots": [["xy"], ["x2y2"], ["x3y3"]],
+                "subplots": [["xy"]],
             },
             "yaxis": {"ticksuffix": "%"},
-            "yaxis2": {"tickformat": ".2%"},
-            "xaxis3": {"tickformat": ".2%", "range": range_init_rollback},
             "annotations": [
                 {
                     "text": f"<b>Cost vs. Profit of Investing Once a Year<b>",
@@ -1411,23 +1377,153 @@ class Figure:
                     "xanchor": "center",
                     "yanchor": "bottom",
                 },
+            ],
+        }
+
+        config = {
+            "toImageButtonOptions": {"filename": f"Daily Return Analysis_{start}~{end}"},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotDailyInvestBullBear(self, data):
+        dataList = []
+        buttons = []
+        for i, (
+            symbol,
+            df_bull_bear_markets_returns,
+        ) in enumerate(data):
+            start = df_bull_bear_markets_returns.index[0].strftime("%Y-%m-%d")
+            end = df_bull_bear_markets_returns.index[-1].strftime("%Y-%m-%d")
+
+            mask = df_bull_bear_markets_returns["return"] >= 0
+            area_bull_bear_markets_returns = [
+                {
+                    "type": "scatter",
+                    "name": symbol,
+                    "line": {"width": 0},
+                    "xaxis": "x",
+                    "yaxis": "y",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": df_bull_bear_markets_returns["return"],
+                    "visible": i == 0,
+                    "showlegend": False,
+                },
+                {
+                    "type": "scatter",
+                    "fill": "tozeroy",
+                    "fillcolor": "#81c995",
+                    "line": {"color": "#81c995"},
+                    "mode": "none",
+                    "name": "Bull Market",
+                    "xaxis": "x",
+                    "yaxis": "y",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": np.where(mask, df_bull_bear_markets_returns["return"], 0),
+                    "visible": i == 0,
+                    "showlegend": False,
+                    "hoverinfo": "skip",
+                },
+                {
+                    "type": "scatter",
+                    "fill": "tozeroy",
+                    "fillcolor": "#f28b82",
+                    "line": {"color": "#f28b82"},
+                    "mode": "none",
+                    "name": "Bear Market",
+                    "xaxis": "x",
+                    "yaxis": "y",
+                    "x": df_bull_bear_markets_returns.index,
+                    "y": np.where(mask, 0, df_bull_bear_markets_returns["return"]),
+                    "visible": i == 0,
+                    "showlegend": False,
+                    "hoverinfo": "skip",
+                },
+            ]
+
+            graphs = [
+                area_bull_bear_markets_returns[0],
+                area_bull_bear_markets_returns[1],
+                area_bull_bear_markets_returns[2],
+            ]
+            dataList.extend(graphs)
+
+            graphs_num = len(graphs)
+            row_num = graphs_num - 2
+            visible = [False] * graphs_num * len(data)
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
+
+            title = f"<b>Daily Invest Analysis<b><br><i>{start} ~ {end}<i>"
+            if i == 0:
+                title_init = title
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                    },
+                ],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "hovermode": "x",
+            # "height": "1300",
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+            "grid": {
+                "rows": row_num,
+                "columns": 1,
+                "pattern": "independent",
+                "subplots": [["xy"]],
+            },
+            "yaxis": {"tickformat": ".2%"},
+            "annotations": [
                 {
                     "text": f"<b>Bull and Bear Markets<b>",
                     "font": {"size": 16},
                     "showarrow": False,
-                    "xref": "x2 domain",
-                    "yref": "y2 domain",
-                    "x": 0.5,
-                    "y": 1.0,
-                    "xanchor": "center",
-                    "yanchor": "bottom",
-                },
-                {
-                    "text": f"<b>{self.iYear} Years Rollback Histogram<b>",
-                    "font": {"size": 16},
-                    "showarrow": False,
-                    "xref": "x3 domain",
-                    "yref": "y3 domain",
+                    "xref": "x domain",
+                    "yref": "y domain",
                     "x": 0.5,
                     "y": 1.0,
                     "xanchor": "center",
@@ -1702,32 +1798,42 @@ class Figure:
         data = []
         for st in self.stocks:
             df_daily = st.dailyReturn
-
+            df_rollback = st.rollback(self.iYear)
             data.append(
                 (
                     st.name,
                     df_daily,
+                    df_rollback[st.name],
                 )
             )
 
         return self._plotDailyReturn(data)
 
-    def daily_invest_graph(self):
+    def daily_invest_cost_graph(self):
         data = []
         for st in self.stocks:
-            df_rollback = st.rollback(self.iYear)
             df_dollar_cost_averaging = st.dollar_cost_averaging()
+            data.append(
+                (
+                    st.name,
+                    df_dollar_cost_averaging,
+                )
+            )
+
+        return self._plotDailyInvestCost(data)
+
+    def daily_invest_bull_bear_graph(self):
+        data = []
+        for st in self.stocks:
             _, df_bull_bear_markets_returns = st.identify_bull_bear_markets()
             data.append(
                 (
                     st.name,
-                    df_rollback[st.name],
-                    df_dollar_cost_averaging,
                     df_bull_bear_markets_returns,
                 )
             )
 
-        return self._plotDailyInvest(data)
+        return self._plotDailyInvestBullBear(data)
 
     def active_vs_passive(self):
         # =========================================================================
@@ -2098,7 +2204,8 @@ def report(
     plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
-    plots["dailyInvest"] = fig.daily_invest_graph()
+    plots["dailyInvestCost"] = fig.daily_invest_cost_graph()
+    plots["dailyInvestBullBear"] = fig.daily_invest_bull_bear_graph()
     plots["growth_of_10000"] = fig.growth(10000)
     plots["growth_of_10000_separate"] = fig.growth_separate(10000)
     plots["retire"] = fig.retire_graph()

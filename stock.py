@@ -1558,6 +1558,146 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
+    def _plotHistoryAdj(self, data):
+        dataList = []
+        buttons = []
+        for i, (
+            symbol,
+            history_adj,
+            df_bull_bear_markets,
+        ) in enumerate(data):
+            start = history_adj.index[0].strftime("%Y-%m-%d")
+            end = history_adj.index[-1].strftime("%Y-%m-%d")
+
+            line_history_adj = {
+                "type": "scatter",
+                "mode": "lines",
+                "name": symbol,
+                "xaxis": "x",
+                "yaxis": "y",
+                "x": history_adj.index,
+                "y": history_adj["Adj Close Cal"],
+                "visible": i == 0,
+                "showlegend": False,
+            }
+
+            graphs = [
+                line_history_adj,
+            ]
+            dataList.extend(graphs)
+
+            graphs_num = len(graphs)
+            row_num = graphs_num
+            visible = [False] * graphs_num * len(data)
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
+
+            title = f"<b>History Adj<b><br><i>{start} ~ {end}<i>"
+            if i == 0:
+                title_init = title
+
+            shapes = []
+            for _, market in df_bull_bear_markets.iterrows():
+                history_adj.index[0] > market["Start Date"]
+                color = "#81c995" if market["Type"] == "Bull" else "#f28b82"
+                shape = {
+                    "type": "rect",
+                    "xref": "x",
+                    "yref": "paper",
+                    "x0": market["Start Date"],
+                    "y0": 0,
+                    "x1": market["End Date"],
+                    "y1": 1,
+                    "fillcolor": color,
+                    "layer": "below",
+                    "opacity": 0.3,
+                    "line": {"width": 0},
+                }
+                if market["Type"] == "Bear":
+                    shapes.append(shape)
+
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                        "shapes": shapes,
+                    },
+                ],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "hovermode": "x",
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+            "shapes": buttons[0]["args"][1]["shapes"],
+            "grid": {
+                "rows": row_num,
+                "columns": 1,
+                "pattern": "independent",
+                "subplots": [["xy"]],
+            },
+            "yaxis": {"type": "log"},
+            "annotations": [
+                {
+                    "text": f"<b>Bear Markets<b>",
+                    "font": {"size": 16},
+                    "showarrow": False,
+                    "xref": "x domain",
+                    "yref": "y domain",
+                    "x": 0.5,
+                    "y": 1.0,
+                    "xanchor": "center",
+                    "yanchor": "bottom",
+                },
+            ],
+        }
+
+        config = {
+            "toImageButtonOptions": {"filename": f"History Adj_{start}~{end}"},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
     def annual_return_bar(self):
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
@@ -2171,6 +2311,21 @@ class Figure:
 
         return lines
 
+    def history_adj_graph(self):
+        data = []
+        for st in self.stocks:
+            df_bull_bear_markets, _ = st.identify_bull_bear_markets()
+            history_adj = st.rawData[["Date", "Adj Close Cal"]].set_index("Date")
+            data.append(
+                (
+                    st.name,
+                    history_adj,
+                    df_bull_bear_markets,
+                )
+            )
+
+        return self._plotHistoryAdj(data)
+
 
 def report(
     symbols,
@@ -2212,6 +2367,7 @@ def report(
     plots["retire_separate"] = fig.retire_separate_graph()
     plots["retire_adj"] = fig.retire_adj_graph()
     plots["retire_adj_separate"] = fig.retire_adj_separate_graph()
+    plots["history_adj"] = fig.history_adj_graph()
 
     with app.app_context():
         jsfolder = f"{prefix}"

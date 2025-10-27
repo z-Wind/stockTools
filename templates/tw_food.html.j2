@@ -31,6 +31,23 @@
         </div>
         {%- endfor %}
 
+        {% if detail %}
+            <div id=graph></div>
+            {{ detail }}
+        {% endif %}
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
+        {% if detail %}
+        <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+        <script>
+        var element = document.getElementById("graph");
+        var graph = {{ graph | safe }};
+
+        Plotly.newPlot("graph",
+            graph.data,
+            graph.layout || {},
+            graph.config);
+        </script>
+        {% endif %}
     </body>
 </html>

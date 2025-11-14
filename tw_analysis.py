@@ -6,7 +6,6 @@ import plotly
 import copy
 import warnings
 
-
 from jsmin import jsmin
 from datetime import datetime
 from typing import Callable, Optional, Dict, Any
@@ -6856,164 +6855,170 @@ def main():
     plots: Dict[str, str] = {}  # Stores Plotly JSON strings
     items: Dict[str, Any] = {}  # Stores other items like column lists for templates
 
-    # ========================================================================
-    plot_消費者物價基本分類指數(plots)
-    plot_生產者物價基本分類指數(plots)
-    plot_躉售物價基本分類指數(plots)
-    plot_人力資源調查失業率(plots)
-    plot_人力資源調查縣市別失業率(plots)
-    plot_歷年人力資源調查重要指標(plots)
-    plot_人力資源調查重要指標(plots)
-    plot_歷年教育程度別失業率(plots)
-    plot_教育程度別失業率(plots)
-    plot_歷年年齡組別失業率(plots)
-    plot_年齡組別失業率(plots)
-    plot_教育程度別失業率_按年齡分(plots)
-    plot_就業率(plots)
-    plot_主要國家零歲平均餘命(plots)
-    plot_房價所得比(plots)
-    plot_貸款負擔率(plots)
+    tasks = [
+        # ========================================================================
+        lambda: plot_消費者物價基本分類指數(plots),
+        lambda: plot_生產者物價基本分類指數(plots),
+        lambda: plot_躉售物價基本分類指數(plots),
+        lambda: plot_人力資源調查失業率(plots),
+        lambda: plot_人力資源調查縣市別失業率(plots),
+        lambda: plot_歷年人力資源調查重要指標(plots),
+        lambda: plot_人力資源調查重要指標(plots),
+        lambda: plot_歷年教育程度別失業率(plots),
+        lambda: plot_教育程度別失業率(plots),
+        lambda: plot_歷年年齡組別失業率(plots),
+        lambda: plot_年齡組別失業率(plots),
+        lambda: plot_教育程度別失業率_按年齡分(plots),
+        lambda: plot_就業率(plots),
+        lambda: plot_主要國家零歲平均餘命(plots),
+        lambda: plot_房價所得比(plots),
+        lambda: plot_貸款負擔率(plots),
+        # ========================================================================
+        lambda: plot_國民所得統計_國民所得_儲蓄與投資_季(plots),
+        lambda: plot_國民所得統計_常用資料_季(plots),
+        lambda: plot_家庭收支調查_家庭收支重要指標(plots),
+        lambda: plot_家庭收支調查_所得總額按來源別分(plots),
+        lambda: plot_家庭收支調查_所得總額與可支配所得(plots),
+        lambda: plot_家庭收支調查_所得收入者人數與按年齡組別及性別之分配(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶所得總額(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶所得收入總計(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶非消費支出(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶可支配所得(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶消費支出(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶經常性支出(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶儲蓄(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶儲蓄率(plots),
+        lambda: plot_家庭收支調查_戶內人數別平均每戶受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_家庭戶數按戶內人口規模別之分配(plots),
+        lambda: plot_家庭收支調查_農家平均每戶所得總額按來自農業與非農業分(plots),
+        lambda: plot_家庭收支調查_農家與非農家平均每戶可支配所得_所得總額及儲蓄(plots),
+        lambda: plot_家庭收支調查_農家與非農家平均每戶消費支出_非消費支出及經常性支出(plots),
+        lambda: plot_家庭收支調查_農家與非農家平均每戶所得收入總計及受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶所得總額(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶所得收入總計(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶非消費支出(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶可支配所得(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶消費支出(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶經常性支出(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶儲蓄(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶儲蓄率(plots),
+        lambda: plot_家庭收支調查_戶數五等分位之平均每戶受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_戶數五等分位組之平均每戶人口數(plots),
+        lambda: plot_家庭收支調查_戶數五等分位組之平均每戶就業人數(plots),
+        lambda: plot_家庭收支調查_戶數十等分位組分界點之可支配所得(plots),
+        lambda: plot_家庭收支調查_所得收入者五等分位平均每人可支配所得(plots),
+        lambda: plot_家庭收支調查_所得收入者十等分位組分界點之可支配所得(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶所得總額(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶所得收入總計(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶非消費支出(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶可支配所得(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶消費支出(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶經常性支出(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶儲蓄(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶儲蓄率(plots),
+        lambda: plot_家庭收支調查_家庭組織型態別平均每戶受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_性別統計指標_家戶狀況按家庭組織型態分(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶所得總額(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶所得收入總計(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶非消費支出(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶可支配所得(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶消費支出(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶經常性支出(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶儲蓄(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶儲蓄率(plots),
+        lambda: plot_家庭收支調查_各縣市別平均每戶受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_所得收入者各縣市別平均每人所得收入總計(plots),
+        lambda: plot_家庭收支調查_所得收入者各縣市別平均每人非消費支出(plots),
+        lambda: plot_家庭收支調查_所得收入者各縣市別平均每人可支配所得(plots),
+        lambda: plot_家庭收支調查_所得收入者各縣市別平均每人受僱人員報酬(plots),
+        lambda: plot_主計總處統計專區_家庭收支調查_統計表_常用資料(plots),
+        lambda: plot_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率(plots),
+        lambda: plot_家庭收支調查_性別統計指標_戶數與結構按經濟戶長性別分(plots),
+        lambda: plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分,
+        lambda: plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分,
+        lambda: plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分,
+        lambda: plot_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別分(plots),
+        lambda: plot_家庭收支調查_所得收入者人數按性別及可支配所得組別分(plots),
+        lambda: plot_家庭收支調查_性別統計指標_經濟戶長人數按性別_教育程度及年齡分(plots),
+        lambda: plot_家庭收支調查_性別統計指標_單親戶長人數按性別_教育程度及年齡分(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶所得總額(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶所得收入總計(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶非消費支出(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶可支配所得(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶消費支出(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶經常性支出(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶儲蓄(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶儲蓄率(plots),
+        lambda: plot_家庭收支調查_經濟戶長職業別平均每戶受僱人員報酬(plots),
+        lambda: plot_家庭收支調查_所得收入者職業別平均每人所得收入總計(plots),
+        lambda: plot_家庭收支調查_所得收入者職業別平均每人非消費支出(plots),
+        lambda: plot_家庭收支調查_所得收入者職業別平均每人可支配所得(plots),
+        lambda: plot_家庭收支調查_所得收入者職業別平均每人受僱人員報酬(plots),
+        lambda: plot_家庭部門平均每戶資產負債(plots),
+        lambda: plot_公開資訊觀測站_財務報告附註揭露之員工福利_薪資_資訊(plots),
+        lambda: plot_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊(plots),
+        lambda: plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董事酬金相關資訊(plots),
+        lambda: plot_企業ESG資訊揭露彙總資料_人力發展(plots),
+        lambda: plot_歷年受僱員工每人每月總薪資平均數(plots),
+        lambda: plot_歷年受僱員工每人每月經常性薪資平均數(plots),
+        lambda: plot_工業及服務業全體受僱員工全年總薪資統計表(plots),
+        lambda: plot_工業及服務業每人每月工時_時_(plots),
+        lambda: plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分(plots),
+        lambda: plot_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分(plots),
+        lambda: plot_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分(plots),
+        lambda: plot_公司合併報表董事酬金相關資訊(plots),
+        lambda: plot_公司合併報表監察人酬金相關資訊(plots),
+        lambda: plot_綜稅總所得各縣市申報統計分析表(plots),
+        lambda: plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plots),
+        lambda: plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(plots),
+        lambda: plot_勞工退休金提繳統計年報_按地區_行業及規模別(plots),
+        lambda: plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別_按地區_行業及規模別(plots),
+        lambda: plot_勞工退休準備金專戶餘額統計(plots),
+        lambda: plot_勞工退休準備金提撥率統計(plots),
+        lambda: plot_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況(plots),
+        lambda: plot_勞工退休金平均提繳工資_按行業別(plots),
+        lambda: plot_勞工退休金平均提繳工資_按年齡組別(plots),
+        lambda: plot_新制勞工退休基金歷年最近月份收益率(plots),
+        # ========================================================================
+        lambda: plot_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分(plots),
+        lambda: plot_全國賦稅收入實徵淨額與預算數之比較(plots, items),
+        # ========================================================================
+        lambda: plot_進口貿易值_按洲別___國別分_CY2001__(plots),
+        lambda: plot_出口貿易值_按洲別___國別分_CY2001__(plots),
+        lambda: plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別分(plots),
+        lambda: plot_進口值_按主要貨品分(plots),
+        lambda: plot_出口值_按主要貨品分(plots),
+        lambda: plot_貿易指數_進口單位價值指數(plots),
+        lambda: plot_貿易指數_出口單位價值指數(plots),
+        lambda: plot_貿易指數_進口數量指數(plots),
+        lambda: plot_貿易指數_出口數量指數(plots),
+        # ========================================================================
+        lambda: plot_村里戶數_單一年齡人口_新增區域代碼_(plots),
+        lambda: plot_現住人口性別_年齡_婚姻狀況_含同婚_(plots),
+        lambda: plot_動態資料統計表_含同婚_(plots),
+        lambda: plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(plots),
+        lambda: plot_結婚對數按婚姻類型_性別及年齡分_按登記_(plots, items),
+        lambda: plot_嬰兒出生數按性別_生母原屬國籍_地區__年齡及教育程度分_按登記_(plots),
+        lambda: plot_嬰兒出生數按性別_生父原屬國籍_地區__年齡及教育程度分_按登記_(plots),
+        lambda: plot_嬰兒出生數按嬰兒性別及生父母年齡分_按登記_(plots),
+        lambda: plot_嬰兒出生數按生母年齡及出生身分分_按登記_(plots),
+        lambda: plot_嬰兒出生數按性別_胎次及生母年齡分_按登記_(plots),
+        lambda: plot_嬰兒胎次_vs_綜稅綜合所得總額(plots),
+        lambda: plot_嬰兒出生數按嬰兒性別及出生胎別分_按登記_(plots),
+        lambda: plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(
+            plots
+        ),
+        # ========================================================================
+        lambda: plot_全國公立動物收容所收容處理情形統計表(plots, items),
+        # ========================================================================
+        lambda: plot_定期定額交易戶數統計排行月報表(plots),
+        lambda: plot_集保戶股權分散表(plots),
+        lambda: plot_投信投顧公會基金費用比率(plots),
+        lambda: plot_基金績效評比(plots, items),
+        # ========================================================================
+    ]
 
-    plot_國民所得統計_國民所得_儲蓄與投資_季(plots)
-    plot_國民所得統計_常用資料_季(plots)
-    plot_家庭收支調查_家庭收支重要指標(plots)
-    plot_家庭收支調查_所得總額按來源別分(plots)
-    plot_家庭收支調查_所得總額與可支配所得(plots)
-    plot_家庭收支調查_所得收入者人數與按年齡組別及性別之分配(plots)
-    plot_家庭收支調查_戶內人數別平均每戶所得總額(plots)
-    plot_家庭收支調查_戶內人數別平均每戶所得收入總計(plots)
-    plot_家庭收支調查_戶內人數別平均每戶非消費支出(plots)
-    plot_家庭收支調查_戶內人數別平均每戶可支配所得(plots)
-    plot_家庭收支調查_戶內人數別平均每戶消費支出(plots)
-    plot_家庭收支調查_戶內人數別平均每戶經常性支出(plots)
-    plot_家庭收支調查_戶內人數別平均每戶儲蓄(plots)
-    plot_家庭收支調查_戶內人數別平均每戶儲蓄率(plots)
-    plot_家庭收支調查_戶內人數別平均每戶受僱人員報酬(plots)
-    plot_家庭收支調查_家庭戶數按戶內人口規模別之分配(plots)
-    plot_家庭收支調查_農家平均每戶所得總額按來自農業與非農業分(plots)
-    plot_家庭收支調查_農家與非農家平均每戶可支配所得_所得總額及儲蓄(plots)
-    plot_家庭收支調查_農家與非農家平均每戶消費支出_非消費支出及經常性支出(plots)
-    plot_家庭收支調查_農家與非農家平均每戶所得收入總計及受僱人員報酬(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶所得總額(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶所得收入總計(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶非消費支出(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶可支配所得(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶消費支出(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶經常性支出(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶儲蓄(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶儲蓄率(plots)
-    plot_家庭收支調查_戶數五等分位之平均每戶受僱人員報酬(plots)
-    plot_家庭收支調查_戶數五等分位組之平均每戶人口數(plots)
-    plot_家庭收支調查_戶數五等分位組之平均每戶就業人數(plots)
-    plot_家庭收支調查_戶數十等分位組分界點之可支配所得(plots)
-    plot_家庭收支調查_所得收入者五等分位平均每人可支配所得(plots)
-    plot_家庭收支調查_所得收入者十等分位組分界點之可支配所得(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶所得總額(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶所得收入總計(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶非消費支出(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶可支配所得(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶消費支出(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶經常性支出(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶儲蓄(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶儲蓄率(plots)
-    plot_家庭收支調查_家庭組織型態別平均每戶受僱人員報酬(plots)
-    plot_家庭收支調查_性別統計指標_家戶狀況按家庭組織型態分(plots)
-    plot_家庭收支調查_各縣市別平均每戶所得總額(plots)
-    plot_家庭收支調查_各縣市別平均每戶所得收入總計(plots)
-    plot_家庭收支調查_各縣市別平均每戶非消費支出(plots)
-    plot_家庭收支調查_各縣市別平均每戶可支配所得(plots)
-    plot_家庭收支調查_各縣市別平均每戶消費支出(plots)
-    plot_家庭收支調查_各縣市別平均每戶經常性支出(plots)
-    plot_家庭收支調查_各縣市別平均每戶儲蓄(plots)
-    plot_家庭收支調查_各縣市別平均每戶儲蓄率(plots)
-    plot_家庭收支調查_各縣市別平均每戶受僱人員報酬(plots)
-    plot_家庭收支調查_所得收入者各縣市別平均每人所得收入總計(plots)
-    plot_家庭收支調查_所得收入者各縣市別平均每人非消費支出(plots)
-    plot_家庭收支調查_所得收入者各縣市別平均每人可支配所得(plots)
-    plot_家庭收支調查_所得收入者各縣市別平均每人受僱人員報酬(plots)
-    plot_主計總處統計專區_家庭收支調查_統計表_常用資料(plots)
-    plot_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率(plots)
-    plot_家庭收支調查_性別統計指標_戶數與結構按經濟戶長性別分(plots)
-    plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長年齡組別分
-    plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長教育程度別分
-    plot_家庭收支調查_平均每戶可支配所得及消費支出依可支配所得按戶數五等分位分及經濟戶長性別分
-    plot_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別分(plots)
-    plot_家庭收支調查_所得收入者人數按性別及可支配所得組別分(plots)
-    plot_家庭收支調查_性別統計指標_經濟戶長人數按性別_教育程度及年齡分(plots)
-    plot_家庭收支調查_性別統計指標_單親戶長人數按性別_教育程度及年齡分(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶所得總額(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶所得收入總計(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶非消費支出(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶可支配所得(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶消費支出(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶經常性支出(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶儲蓄(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶儲蓄率(plots)
-    plot_家庭收支調查_經濟戶長職業別平均每戶受僱人員報酬(plots)
-    plot_家庭收支調查_所得收入者職業別平均每人所得收入總計(plots)
-    plot_家庭收支調查_所得收入者職業別平均每人非消費支出(plots)
-    plot_家庭收支調查_所得收入者職業別平均每人可支配所得(plots)
-    plot_家庭收支調查_所得收入者職業別平均每人受僱人員報酬(plots)
-    plot_家庭部門平均每戶資產負債(plots)
-    plot_公開資訊觀測站_財務報告附註揭露之員工福利_薪資_資訊(plots)
-    plot_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊(plots)
-    plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董事酬金相關資訊(plots)
-    plot_企業ESG資訊揭露彙總資料_人力發展(plots)
-    plot_歷年受僱員工每人每月總薪資平均數(plots)
-    plot_歷年受僱員工每人每月經常性薪資平均數(plots)
-    plot_工業及服務業全體受僱員工全年總薪資統計表(plots)
-    plot_工業及服務業每人每月工時_時_(plots)
-    plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分(plots)
-    plot_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分(plots)
-    plot_各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分(plots)
-    plot_公司合併報表董事酬金相關資訊(plots)
-    plot_公司合併報表監察人酬金相關資訊(plots)
-    plot_綜稅總所得各縣市申報統計分析表(plots)
-    plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(plots)
-    plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(plots)
-    plot_勞工退休金提繳統計年報_按地區_行業及規模別(plots)
-    plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別_按地區_行業及規模別(plots)
-    plot_勞工退休準備金專戶餘額統計(plots)
-    plot_勞工退休準備金提撥率統計(plots)
-    plot_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況(plots)
-    plot_勞工退休金平均提繳工資_按行業別(plots)
-    plot_勞工退休金平均提繳工資_按年齡組別(plots)
-    plot_新制勞工退休基金歷年最近月份收益率(plots)
-
-    plot_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分(plots)
-    plot_全國賦稅收入實徵淨額與預算數之比較(plots, items)
-
-    plot_進口貿易值_按洲別___國別分_CY2001__(plots)
-    plot_出口貿易值_按洲別___國別分_CY2001__(plots)
-    plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別分(plots)
-    plot_進口值_按主要貨品分(plots)
-    plot_出口值_按主要貨品分(plots)
-    plot_貿易指數_進口單位價值指數(plots)
-    plot_貿易指數_出口單位價值指數(plots)
-    plot_貿易指數_進口數量指數(plots)
-    plot_貿易指數_出口數量指數(plots)
-
-    plot_村里戶數_單一年齡人口_新增區域代碼_(plots)
-    plot_現住人口性別_年齡_婚姻狀況_含同婚_(plots)
-    plot_動態資料統計表_含同婚_(plots)
-    plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(plots)
-    plot_結婚對數按婚姻類型_性別及年齡分_按登記_(plots, items)
-    plot_嬰兒出生數按性別_生母原屬國籍_地區__年齡及教育程度分_按登記_(plots)
-    plot_嬰兒出生數按性別_生父原屬國籍_地區__年齡及教育程度分_按登記_(plots)
-    plot_嬰兒出生數按嬰兒性別及生父母年齡分_按登記_(plots)
-    plot_嬰兒出生數按生母年齡及出生身分分_按登記_(plots)
-    plot_嬰兒出生數按性別_胎次及生母年齡分_按登記_(plots)
-    plot_嬰兒胎次_vs_綜稅綜合所得總額(plots)
-    plot_嬰兒出生數按嬰兒性別及出生胎別分_按登記_(plots)
-    plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(plots)
-
-    plot_全國公立動物收容所收容處理情形統計表(plots, items)
-
-    plot_定期定額交易戶數統計排行月報表(plots)
-    plot_集保戶股權分散表(plots)
-    plot_投信投顧公會基金費用比率(plots)
-    plot_基金績效評比(plots, items)
-    # ========================================================================
+    do_tasks(tasks)
 
     prefix = "TW_Analysis"
     report_dir = Path("report")
@@ -7039,6 +7044,32 @@ def main():
                 html, keep_comments=False, keep_html_and_head_opening_tags=False
             )
             f.write(minified_html)
+
+
+def do_tasks(tasks):
+    print("開始執行所有繪圖任務...")
+
+    for task in tasks:
+        # 獲取函數的名稱以便於錯誤報告
+        func_name = task.__code__.co_names[0] if task.__code__.co_names else "未知函數"
+
+        try:
+            # 執行當前任務 (即調用函數)
+            task()
+            print(f"✅ 成功執行：{func_name}")
+        except Exception as e:
+            # 捕捉所有類型的例外
+            print(f"❌ 執行失敗：{func_name}")
+            print(f"錯誤類型：{type(e).__name__}")
+            print(f"錯誤訊息：{e}")
+            # print("\n 詳細追蹤：")
+            # import traceback
+            # print(traceback.format_exc())
+        finally:
+            # 無論成功或失敗，都會執行這裡的程式碼
+            print("-" * 30)
+
+    print("所有任務執行完畢。")
 
 
 if __name__ == "__main__":

@@ -544,7 +544,7 @@ def df_房價所得比():
     path = EXTRA_DATA_DIR / f"{key}.csv.gz"
     _ensure_dir_exists(path)
     # todo: 自動更新
-    if not path.is_file():
+    if True:  # not path.is_file():
         r = session.get(
             url,
             params={
@@ -4813,6 +4813,7 @@ def update():
         lambda: df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(),
         lambda: df_投信投顧公會基金費用比率(),
         lambda: df_集保戶股權分散表(),
+        lambda: df_房價所得比(),
         # =========================================
         lambda: df_人力資源調查重要指標(),
         lambda: df_教育程度別失業率(),

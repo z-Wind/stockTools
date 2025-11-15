@@ -543,8 +543,7 @@ def df_房價所得比():
 
     path = EXTRA_DATA_DIR / f"{key}.csv.gz"
     _ensure_dir_exists(path)
-    # todo: 自動更新
-    if True:  # not path.is_file():
+    try:
         r = session.get(
             url,
             params={
@@ -569,7 +568,10 @@ def df_房價所得比():
         df = df.astype(float)
 
         df.to_csv(path, compression="gzip")
-    else:
+    except Exception as e:
+        print(f"❌ 更新失敗，讀取舊資料")
+        print(f"錯誤類型：{type(e).__name__}")
+        print(f"錯誤訊息：{e}")
         df = pd.read_csv(path, index_col="年度季別", compression="gzip")
 
     return df

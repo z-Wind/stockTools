@@ -129,10 +129,7 @@ def read_json(url: str, encoding: str = "utf-8") -> pd.DataFrame:
 def read_excel_with_cache(
     path: Path,
     url: str,
-    skiprows=None,
-    nrows=None,
-    usecols=None,
-    sheet_name=0,
+    read_func,
 ) -> pd.DataFrame:
     _ensure_dir_exists(path)
 
@@ -144,14 +141,8 @@ def read_excel_with_cache(
     with gzip.open(path, "rb") as f_gz:
         # Read the gzipped content into BytesIO for pandas
         excel_bytes = io.BytesIO(f_gz.read())
-    df = pd.read_excel(
-        excel_bytes,
-        engine="calamine",
-        skiprows=skiprows,
-        nrows=nrows,
-        usecols=usecols,
-        sheet_name=sheet_name,
-    )
+
+    df = read_func(excel_bytes)
 
     return df
 
@@ -1395,10 +1386,14 @@ def df_家庭收支調查_所得收入者人數按性別及可支配所得組別
     df = read_excel_with_cache(
         EXTRA_DATA_DIR / key / f"{year}.xlsx.gz",
         url,
-        sheet_name=10,
-        skiprows=3,
-        nrows=44,
-        usecols=range(0, 4),
+        lambda excel_bytes: pd.read_excel(
+            excel_bytes,
+            engine="calamine",
+            skiprows=3,
+            nrows=44,
+            usecols=range(0, 4),
+            sheet_name=10,
+        ),
     )
 
     df.columns = ["可支配所得組別", "合計", "男", "女"]
@@ -1650,7 +1645,15 @@ def df_家庭部門平均每戶資產負債():
     url = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2515/112%E8%A1%A87.xlsx"
 
     df = read_excel_with_cache(
-        EXTRA_DATA_DIR / f"{key}.xlsx.gz", url, skiprows=2, nrows=19, usecols=range(0, 6)
+        EXTRA_DATA_DIR / f"{key}.xlsx.gz",
+        url,
+        lambda excel_bytes: pd.read_excel(
+            excel_bytes,
+            engine="calamine",
+            skiprows=2,
+            nrows=19,
+            usecols=range(0, 6),
+        ),
     )
     df.columns = ["種類", "2019", "2020", "2021", "2022", "2023"]
     df["種類"] = df["種類"].str.replace(r"[\n \r]", "", regex=True)
@@ -2176,6 +2179,190 @@ def df_工業及服務業全體受僱員工全年總薪資統計表():
         df_按員工特性,
         df_按年齡及教育程度分,
         df_按工作場所所在縣市別及年齡別分,
+    )
+
+
+# https://www.dgbas.gov.tw/News_Content.aspx?n=3602&s=235514 工業及服務業受僱員工全年總薪資中位數及分布統計結果
+def df_工業及服務業受僱員工全年總薪資中位數及分布統計結果():
+    key = "工業及服務業受僱員工全年總薪資中位數及分布統計結果"
+    key = sanitize_filename(key)
+    url = {
+        113: [
+            "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10980/235514/表3　工業及服務業全年總薪資中位數－全體受僱員工按特性別分.xlsx",
+            "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10980/235514/表4　工業及服務業全年總薪資中位數－本國籍全時受僱員工按特性別分.xlsx",
+            "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10980/235514/表5　工業及服務業四等分位組分界點之全年總薪資－全體受僱員工按特性別分.xlsx",
+            "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10980/235514/表6　工業及服務業四等分位組分界點之全年總薪資－本國籍全時受僱員工按特性別分.xlsx",
+            "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10980/235514/表2　工業及服務業十等分位組分界點之全年總薪資－全體受僱員工.xlsx",
+        ]
+    }
+    lastyear = max(url.keys())
+
+    if lastyear + 1911 + 1 < datetime.now().year and datetime.now().month > 11:
+        print(f"請更新 {key}")
+
+    df_總薪資中位數_全體受僱員工按特性別分 = []
+    for i in range(0, 2):
+        data = read_excel_with_cache(
+            EXTRA_DATA_DIR / key / f"總薪資中位數_全體受僱員工按特性別分_{lastyear}.xlsx.gz",
+            url[lastyear][0],
+            lambda excel_bytes: pd.read_excel(
+                excel_bytes,
+                engine="calamine",
+                skiprows=3,
+                nrows=45,
+                usecols=range(0, 12),
+                sheet_name=i,
+            ),
+        )
+        data.rename(columns={"Unnamed: 0": "特性"}, inplace=True)
+        data = data.dropna().set_index("特性")
+        data.columns = [int(col.split("年")[0]) + 1911 for col in data.columns]  # 轉西元
+
+        df_總薪資中位數_全體受僱員工按特性別分.append(data)
+
+    df_總薪資中位數_全體受僱員工按特性別分 = pd.concat(df_總薪資中位數_全體受僱員工按特性別分)
+    df_總薪資中位數_全體受僱員工按特性別分 *= 10000
+    df_總薪資中位數_全體受僱員工按特性別分 = df_總薪資中位數_全體受僱員工按特性別分.astype(int)
+
+    df_總薪資中位數_本國籍全時受僱員工按特性別分 = []
+    for i in range(0, 2):
+        data = read_excel_with_cache(
+            EXTRA_DATA_DIR / key / f"總薪資中位數_本國籍全時受僱員工按特性別分_{lastyear}.xlsx.gz",
+            url[lastyear][1],
+            lambda excel_bytes: pd.read_excel(
+                excel_bytes,
+                engine="calamine",
+                skiprows=3,
+                nrows=45,
+                usecols=range(0, 7),
+                sheet_name=i,
+            ),
+        )
+        data.rename(columns={"Unnamed: 0": "特性"}, inplace=True)
+        data = data.dropna().set_index("特性")
+        data.columns = [int(col.split("年")[0]) + 1911 for col in data.columns]  # 轉西元
+
+        df_總薪資中位數_本國籍全時受僱員工按特性別分.append(data)
+
+    df_總薪資中位數_本國籍全時受僱員工按特性別分 = pd.concat(
+        df_總薪資中位數_本國籍全時受僱員工按特性別分
+    )
+    df_總薪資中位數_本國籍全時受僱員工按特性別分 *= 10000
+    df_總薪資中位數_本國籍全時受僱員工按特性別分 = (
+        df_總薪資中位數_本國籍全時受僱員工按特性別分.astype(int)
+    )
+
+    df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分 = []
+    for i in range(0, 2):
+        data = read_excel_with_cache(
+            EXTRA_DATA_DIR
+            / key
+            / f"四等分位組分界點之全年總薪資_全體受僱員工按特性別分_{lastyear}.xlsx.gz",
+            url[lastyear][2],
+            lambda excel_bytes: pd.read_excel(
+                excel_bytes,
+                engine="calamine",
+                skiprows=4,
+                nrows=45,
+                usecols=range(0, 20),
+                sheet_name=i,
+            ),
+        )
+        data.rename(
+            columns={
+                "Unnamed: 0": "特性",
+                "Unnamed: 4": "Q1",
+                "(中位數)": "中位數",
+                "Unnamed: 12": "Q3",
+                "Unnamed: 19": "平均",
+            },
+            inplace=True,
+        )
+        data = data.dropna(axis="columns", how="all").dropna().set_index("特性")
+
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分.append(data)
+
+    df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分 = pd.concat(
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分
+    )
+    df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分 *= 10000
+    df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分 = (
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分.astype(int)
+    )
+
+    df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分 = []
+    for i in range(0, 2):
+        data = read_excel_with_cache(
+            EXTRA_DATA_DIR
+            / key
+            / f"四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分_{lastyear}.xlsx.gz",
+            url[lastyear][3],
+            lambda excel_bytes: pd.read_excel(
+                excel_bytes,
+                engine="calamine",
+                skiprows=4,
+                nrows=45,
+                usecols=range(0, 20),
+                sheet_name=i,
+            ),
+        )
+        data.rename(
+            columns={
+                "Unnamed: 0": "特性",
+                "Unnamed: 4": "Q1",
+                "(中位數)": "中位數",
+                "Unnamed: 12": "Q3",
+                "Unnamed: 19": "平均",
+            },
+            inplace=True,
+        )
+        data = data.dropna(axis="columns", how="all").dropna().set_index("特性")
+
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分.append(data)
+
+    df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分 = pd.concat(
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分
+    )
+    df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分 *= 10000
+    df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分 = (
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分.astype(int)
+    )
+
+    df_十等分位組分界點之全年總薪資_全體受僱員工 = []
+    data = read_excel_with_cache(
+        EXTRA_DATA_DIR / key / f"十等分位組分界點之全年總薪資_全體受僱員工_{lastyear}.xlsx.gz",
+        url[lastyear][4],
+        lambda excel_bytes: pd.read_excel(
+            excel_bytes,
+            engine="calamine",
+            skiprows=4,
+            nrows=11,
+            usecols=range(0, 20),
+            sheet_name=0,
+        ),
+    )
+    data.rename(
+        columns={
+            "Unnamed: 0": "年",
+        },
+        inplace=True,
+    )
+    data = data.dropna(axis="columns", how="all").dropna().set_index("年")
+    data.index = [int(i.split("年")[0]) + 1911 for i in data.index]  # 轉西元
+
+    df_十等分位組分界點之全年總薪資_全體受僱員工 = data
+    df_十等分位組分界點之全年總薪資_全體受僱員工 *= 10000
+    df_十等分位組分界點之全年總薪資_全體受僱員工 = (
+        df_十等分位組分界點之全年總薪資_全體受僱員工.astype(int)
+    )
+
+    return (
+        lastyear + 1911,  # 轉西元
+        df_總薪資中位數_全體受僱員工按特性別分,
+        df_總薪資中位數_本國籍全時受僱員工按特性別分,
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分,
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分,
+        df_十等分位組分界點之全年總薪資_全體受僱員工,
     )
 
 
@@ -4835,6 +5022,7 @@ def update():
         lambda: df_勞工退休金平均提繳工資_按行業別(),
         lambda: df_勞工退休金平均提繳工資_按年齡組別(),
         lambda: df_家庭收支調查_所得收入者人數按性別及可支配所得組別分(),
+        lambda: df_工業及服務業受僱員工全年總薪資中位數及分布統計結果(),
     ]
 
     print("開始執行所有更新任務...")

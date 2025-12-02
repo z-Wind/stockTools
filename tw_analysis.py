@@ -3156,6 +3156,68 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots):
     )
 
 
+def plot_工業及服務業受僱員工全年總薪資中位數及分布統計結果(plots):
+    key = "工業及服務業受僱員工全年總薪資中位數及分布統計結果"
+    key = sanitize_filename(key)
+    (
+        lastyear,
+        df_總薪資中位數_全體受僱員工按特性別分,
+        df_總薪資中位數_本國籍全時受僱員工按特性別分,
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分,
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分,
+        df_十等分位組分界點之全年總薪資_全體受僱員工,
+    ) = df_工業及服務業受僱員工全年總薪資中位數及分布統計結果()
+
+    df_總薪資中位數_全體受僱員工按特性別分 = df_總薪資中位數_全體受僱員工按特性別分.T
+    plots[f"{key}_總薪資中位數_全體受僱員工按特性別分"] = plot_line(
+        df_總薪資中位數_全體受僱員工按特性別分,
+        f"{key}_總薪資中位數_全體受僱員工按特性別分 {df_總薪資中位數_全體受僱員工按特性別分.index[0]}~{df_總薪資中位數_全體受僱員工按特性別分.index[-1]}",
+    )
+
+    df_總薪資中位數_本國籍全時受僱員工按特性別分 = df_總薪資中位數_本國籍全時受僱員工按特性別分.T
+    plots[f"{key}_總薪資中位數_本國籍全時受僱員工按特性別分"] = plot_line(
+        df_總薪資中位數_本國籍全時受僱員工按特性別分,
+        f"{key}_總薪資中位數_本國籍全時受僱員工按特性別分 {df_總薪資中位數_全體受僱員工按特性別分.index[0]}~{df_總薪資中位數_全體受僱員工按特性別分.index[-1]}",
+    )
+
+    def plot_box(df, title):
+        data_list = []
+        for name in df.index:
+            data = {
+                "type": "box",
+                "name": f"{name}",
+                "x": [name],
+                "q1": [df.loc[name, "Q1"]],
+                "median": [df.loc[name, "中位數"]],
+                "q3": [df.loc[name, "Q3"]],
+                "mean": [df.loc[name, "平均"]],
+            }
+            data_list.append(data)
+
+        layout = {
+            "title": {"text": title},
+            "hovermode": "x",
+        }
+        graph = {"data": data_list, "layout": layout}
+        graph = merge_dict(copy.deepcopy(default_template), graph)
+
+        return plotly_json_dump(graph)
+
+    plots[f"{key}_四等分位組分界點之全年總薪資_全體受僱員工按特性別分"] = plot_box(
+        df_四等分位組分界點之全年總薪資_全體受僱員工按特性別分,
+        f"{key}_四等分位組分界點之全年總薪資_全體受僱員工按特性別分 {lastyear}年",
+    )
+    plots[f"{key}_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分"] = plot_box(
+        df_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分,
+        f"{key}_四等分位組分界點之全年總薪資_本國籍全時受僱員工按特性別分 {lastyear}年",
+    )
+
+    plots[f"{key}_十等分位組分界點之全年總薪資_全體受僱員工"] = plot_line(
+        df_十等分位組分界點之全年總薪資_全體受僱員工,
+        f"{key}_十等分位組分界點之全年總薪資_全體受僱員工 {df_十等分位組分界點之全年總薪資_全體受僱員工.index[0]}~{df_十等分位組分界點之全年總薪資_全體受僱員工.index[-1]}",
+    )
+
+
 def plot_工業及服務業每人每月工時_時_(plots):
     key = "工業及服務業每人每月工時(時)"
     key = sanitize_filename(key)
@@ -6962,6 +7024,7 @@ def main():
         lambda: plot_歷年受僱員工每人每月總薪資平均數(plots),
         lambda: plot_歷年受僱員工每人每月經常性薪資平均數(plots),
         lambda: plot_工業及服務業全體受僱員工全年總薪資統計表(plots),
+        lambda: plot_工業及服務業受僱員工全年總薪資中位數及分布統計結果(plots),
         lambda: plot_工業及服務業每人每月工時_時_(plots),
         lambda: plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分(plots),
         lambda: plot_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分(plots),

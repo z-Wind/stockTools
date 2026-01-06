@@ -913,10 +913,10 @@ class Figure:
             # "title": {"text": title, "font": {"family": "Times New Roman"}},
             "title": {"text": title},
             # "font": {"family": "Courier New"},
-            "xaxis": {
-                # "tickfont": {"family": "Courier New", "size": 14},
-                "tickangle": 90
-            },
+            # "xaxis": {
+            # "tickfont": {"family": "Courier New", "size": 14},
+            # "tickangle": 90
+            # },
             "updatemenus": self._group_button(symbols),
         }
 
@@ -1288,8 +1288,6 @@ class Figure:
                 {
                     "name": "Cost",
                     "visible": i == 0,
-                    "xaxis": "x",
-                    "yaxis": "y",
                     "x": df_dollar_cost_averaging.index,
                     "y": df_dollar_cost_averaging["cost"],
                     "stackgroup": "one",
@@ -1299,8 +1297,6 @@ class Figure:
                 {
                     "name": "Profit",
                     "visible": i == 0,
-                    "xaxis": "x",
-                    "yaxis": "y",
                     "x": df_dollar_cost_averaging.index,
                     "y": df_dollar_cost_averaging["profit"],
                     "stackgroup": "one",
@@ -1315,7 +1311,6 @@ class Figure:
             dataList.extend(graphs)
 
             graphs_num = len(graphs)
-            row_num = graphs_num - 1
             visible = [False] * graphs_num * len(data)
             for j in range(graphs_num):
                 visible[i * graphs_num + j] = True
@@ -1358,12 +1353,6 @@ class Figure:
                     "font": {"color": "#AAAAAA"},
                 }
             ],
-            "grid": {
-                "rows": row_num,
-                "columns": 1,
-                "pattern": "independent",
-                "subplots": [["xy"]],
-            },
             "yaxis": {"ticksuffix": "%"},
             "annotations": [
                 {
@@ -1422,8 +1411,6 @@ class Figure:
                     "type": "scatter",
                     "name": symbol,
                     "line": {"width": 0},
-                    "xaxis": "x",
-                    "yaxis": "y",
                     "x": df_bull_bear_markets_returns.index,
                     "y": df_bull_bear_markets_returns["return"],
                     "visible": i == 0,
@@ -1436,8 +1423,6 @@ class Figure:
                     "line": {"color": "#81c995"},
                     "mode": "none",
                     "name": "Bull Market",
-                    "xaxis": "x",
-                    "yaxis": "y",
                     "x": df_bull_bear_markets_returns.index,
                     "y": np.where(mask, df_bull_bear_markets_returns["return"], 0),
                     "visible": i == 0,
@@ -1451,8 +1436,6 @@ class Figure:
                     "line": {"color": "#f28b82"},
                     "mode": "none",
                     "name": "Bear Market",
-                    "xaxis": "x",
-                    "yaxis": "y",
                     "x": df_bull_bear_markets_returns.index,
                     "y": np.where(mask, 0, df_bull_bear_markets_returns["return"]),
                     "visible": i == 0,
@@ -1469,7 +1452,6 @@ class Figure:
             dataList.extend(graphs)
 
             graphs_num = len(graphs)
-            row_num = graphs_num - 2
             visible = [False] * graphs_num * len(data)
             for j in range(graphs_num):
                 visible[i * graphs_num + j] = True
@@ -1510,12 +1492,6 @@ class Figure:
                     "font": {"color": "#AAAAAA"},
                 }
             ],
-            "grid": {
-                "rows": row_num,
-                "columns": 1,
-                "pattern": "independent",
-                "subplots": [["xy"]],
-            },
             "yaxis": {"tickformat": ".2%"},
             "annotations": [
                 {
@@ -1573,8 +1549,6 @@ class Figure:
                 "type": "scatter",
                 "mode": "lines",
                 "name": symbol,
-                "xaxis": "x",
-                "yaxis": "y",
                 "x": history_adj.index,
                 "y": history_adj["Adj Close Cal"],
                 "visible": i == 0,
@@ -1587,7 +1561,6 @@ class Figure:
             dataList.extend(graphs)
 
             graphs_num = len(graphs)
-            row_num = graphs_num
             visible = [False] * graphs_num * len(data)
             for j in range(graphs_num):
                 visible[i * graphs_num + j] = True
@@ -1650,12 +1623,6 @@ class Figure:
                 }
             ],
             "shapes": buttons[0]["args"][1]["shapes"],
-            "grid": {
-                "rows": row_num,
-                "columns": 1,
-                "pattern": "independent",
-                "subplots": [["xy"]],
-            },
             "yaxis": {"type": "log"},
             "annotations": [
                 {
@@ -1669,6 +1636,261 @@ class Figure:
                     "xanchor": "center",
                     "yanchor": "bottom",
                 },
+            ],
+        }
+
+        config = {
+            "toImageButtonOptions": {"filename": f"History Adj_{start}~{end}"},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotRollbackBullBearLine(self, data):
+        dataList = []
+        buttons = []
+        for i, (
+            symbol,
+            rollback,
+            df_bull_bear_markets,
+        ) in enumerate(data):
+            start = rollback.index[0]
+            end = rollback.index[-1]
+
+            line_rollback = {
+                "type": "scatter",
+                "mode": "lines",
+                "name": symbol,
+                "x": rollback.index,
+                "y": rollback.iloc[:, 0],
+                "visible": i == 0,
+                "showlegend": False,
+            }
+
+            graphs = [
+                line_rollback,
+            ]
+            dataList.extend(graphs)
+
+            graphs_num = len(graphs)
+            visible = [False] * graphs_num * len(data)
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
+
+            title = (
+                f"<b>{self.iYear} Years Rollback<b><br>"
+                f"Start: <i>{(start - relativedelta(years=self.iYear)).strftime('%Y-%m-%d')} ~"
+                f" {(end - relativedelta(years=self.iYear)).strftime('%Y-%m-%d')}<i><br>"
+                f"End  : <i>{start.strftime('%Y-%m-%d')} ~"
+                f" {end.strftime('%Y-%m-%d')}<i>"
+            )
+            if i == 0:
+                title_init = title
+
+            shapes = []
+            for _, market in df_bull_bear_markets.iterrows():
+                if end < market["Start Date"] + relativedelta(years=self.iYear):
+                    continue
+
+                color = "#81c995" if market["Type"] == "Bull" else "#f28b82"
+                shape = {
+                    "type": "rect",
+                    "xref": "x",
+                    "yref": "paper",
+                    "x0": market["Start Date"] + relativedelta(years=self.iYear),
+                    "y0": 0,
+                    "x1": market["End Date"] + relativedelta(years=self.iYear),
+                    "y1": 1,
+                    "fillcolor": color,
+                    "layer": "below",
+                    "opacity": 0.3,
+                    "line": {"width": 0},
+                }
+                if market["Type"] == "Bear":
+                    shapes.append(shape)
+
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                        "shapes": shapes,
+                    },
+                ],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "yaxis": {"tickformat": ".2%"},
+            "hovermode": "x",
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+            "shapes": buttons[0]["args"][1]["shapes"],
+        }
+
+        config = {
+            "toImageButtonOptions": {"filename": f"History Adj_{start}~{end}"},
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def _plotRollbackBullBearViolin(self, data):
+        dataList = []
+        buttons = []
+        for i, (
+            symbol,
+            rollback,
+            df_bull_bear_markets,
+        ) in enumerate(data):
+            start = rollback.index[0]
+            end = rollback.index[-1]
+
+            rollback_bullbear = rollback.reset_index()
+
+            def check(ser):
+                within = df_bull_bear_markets[
+                    (
+                        df_bull_bear_markets["Start Date"] + pd.DateOffset(years=self.iYear)
+                        <= ser.iloc[0]
+                    )
+                    & (
+                        ser.iloc[0]
+                        <= df_bull_bear_markets["End Date"] + pd.DateOffset(years=self.iYear)
+                    )
+                ]
+
+                # 可能會出現剛好在交界處，所以直接取第一個
+                return within.iloc[0, 0]
+
+            rollback_bullbear["tag"] = rollback_bullbear.apply(check, axis=1)
+
+            violin_bull_rollback = {
+                "type": "violin",
+                "name": "Bull",
+                "y": rollback_bullbear[rollback_bullbear["tag"] == "Bull"].iloc[:, 1],
+                "box": {"visible": True},
+                "meanline": {"visible": True},
+                "visible": i == 0,
+                "showlegend": False,
+            }
+
+            violin_bear_rollback = {
+                "type": "violin",
+                "name": "Bear",
+                "y": rollback_bullbear[rollback_bullbear["tag"] == "Bear"].iloc[:, 1],
+                "box": {"visible": True},
+                "meanline": {"visible": True},
+                "visible": i == 0,
+                "showlegend": False,
+            }
+
+            graphs = [violin_bull_rollback, violin_bear_rollback]
+            dataList.extend(graphs)
+
+            graphs_num = len(graphs)
+            visible = [False] * graphs_num * len(data)
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
+
+            title = (
+                f"<b>{self.iYear} Years Rollback<b><br>"
+                f"Start: <i>{(start - relativedelta(years=self.iYear)).strftime('%Y-%m-%d')} ~"
+                f" {(end - relativedelta(years=self.iYear)).strftime('%Y-%m-%d')}<i><br>"
+                f"End  : <i>{start.strftime('%Y-%m-%d')} ~"
+                f" {end.strftime('%Y-%m-%d')}<i>"
+            )
+            if i == 0:
+                title_init = title
+
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                    },
+                ],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "yaxis": {"tickformat": ".2%"},
+            "hovermode": "x",
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
             ],
         }
 
@@ -2326,6 +2548,17 @@ class Figure:
 
         return self._plotHistoryAdj(data)
 
+    def rollback_bullbear_graph(self):
+        # =========================================================================
+        # area
+        data = []
+        for st in self.stocks:
+            df_rollback = st.rollback(self.iYear)
+            df_bull_bear_markets, _ = st.identify_bull_bear_markets()
+            data.append((st.name, df_rollback, df_bull_bear_markets))
+
+        return self._plotRollbackBullBearLine(data), self._plotRollbackBullBearViolin(data)
+
 
 def report(
     symbols,
@@ -2368,6 +2601,7 @@ def report(
     plots["retire_adj"] = fig.retire_adj_graph()
     plots["retire_adj_separate"] = fig.retire_adj_separate_graph()
     plots["history_adj"] = fig.history_adj_graph()
+    plots["rollbackBullBear"], plots["rollbackBullBearVolin"] = fig.rollback_bullbear_graph()
 
     with app.app_context():
         jsfolder = f"{prefix}"
@@ -2913,6 +3147,52 @@ def us_stock():
     report(symbols, prefix="US", iYear=2, name_width=6)
 
 
+def custom_stock():
+    symbols = [
+        {
+            "name": "^TAIEX",
+            "remark": "臺灣加權報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+            "groups": ["常用", "ETF"],
+        },
+        {
+            "name": "^TAI50I",
+            "remark": "臺灣50報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+            "groups": ["常用", "ETF"],
+        },
+        # {
+        #     "name": "0050.TW",
+        #     "name_suffix": "Fund",
+        #     "remark": "元大台灣卓越50基金",
+        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
+        #     "replaceDiv": True,
+        #     "groups": ["常用", "基金"],
+        #     "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        # },
+        # {
+        #     "name": "0050.TW",
+        #     "name_suffix": "Fund",
+        #     "remark": "元大台灣卓越50基金_股息不投入",
+        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
+        #     "replaceDiv": True,
+        #     "groups": ["常用", "基金"],
+        #     "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        #     "calAdjClose": False,
+        # },
+        # {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True, "groups": ["ETF"]},
+        # {
+        #     "name": "0056.TW",
+        #     "remark": "元大高股息_股息不投入",
+        #     "replaceDiv": True,
+        #     "groups": ["ETF"],
+        #     "calAdjClose": False,
+        # },
+    ]
+    report(symbols, start="1911-1-1", prefix="Custom", iYear=5, name_width=12)
+
+
 if __name__ == "__main__":
     tw_stock()
     us_stock()
+    # custom_stock()

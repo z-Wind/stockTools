@@ -1770,7 +1770,7 @@ class Figure:
         }
 
         config = {
-            "toImageButtonOptions": {"filename": f"History Adj_{start}~{end}"},
+            "toImageButtonOptions": {"filename": f"{self.iYear} Years Rollback BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"},
         }
 
         graph = {"data": dataList, "layout": layout, "config": config}
@@ -1899,7 +1899,7 @@ class Figure:
         }
 
         config = {
-            "toImageButtonOptions": {"filename": f"History Adj_{start}~{end}"},
+            "toImageButtonOptions": {"filename": f"{self.iYear} Years Rollback Violin BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"},
         }
 
         graph = {"data": dataList, "layout": layout, "config": config}

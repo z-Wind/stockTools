@@ -642,10 +642,8 @@ def 年月混合_plot(
     df_year = df.filter(regex=r"\d+年$", axis="index")
     df_month = df.filter(regex=r"\d+年 *\d+月$", axis="index")
 
-    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
-    current_year = datetime.today().year if index_year - 1911 > 0 else datetime.today().year - 1911
-    if index_year != current_year:
-        last_year = df.filter(regex=rf"^{current_year}年 *\d+月$", axis="index")
+    if not df.index[-1].startswith(df_year.index[-1]):
+        last_year = df.filter(regex=rf"^{df.index[-1][:5]} *\d+月$", axis="index")
         if sum_or_keep == "sum":
             last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")}).T
         df_year = pd.concat([df_year, last_year], axis="index")
@@ -4083,8 +4081,9 @@ def plot_全國賦稅收入實徵淨額日曆年別_按稅目別與地區別分(
     df_all.columns = [f"{region}_{tax}" for region, tax in df_all.columns]
 
     df_all_year = df_all.filter(regex=r"\d+年$", axis="index")
-    if df_all_year.index[-1] != datetime.today().year:
-        last_year = df_all.filter(regex=rf"^{datetime.today().year}年 *\d+月$", axis="index")
+
+    if not df_all.index[-1].startswith(df_all_year.index[-1]):
+        last_year = df_all.filter(regex=rf"^{df_all.index[-1][:5]} *\d+月$", axis="index")
         last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
         df_all_year = pd.concat([df_all_year, last_year.T], axis="index")
     plots[f"{key}_年"] = plot_line(
@@ -4350,10 +4349,9 @@ def plot_進出口貿易值_按國際商品統一分類制度_HS_及主要國別
     df.columns = [f"{country}{export}{kind}" for country, export, kind in df.columns]
 
     df_year = df.filter(regex=r"\d+年$", axis="index")
-    index_year = int(re.sub(r"[^0-9]*", "", df_year.index[-1]))
-    current_year = datetime.today().year if index_year > 0 else datetime.today().year
-    if index_year != current_year:
-        last_year = df.filter(regex=rf"^{current_year}年 *\d+月$", axis="index")
+
+    if not df.index[-1].startswith(df_year.index[-1]):
+        last_year = df.filter(regex=rf"^{df.index[-1][:5]} *\d+月$", axis="index")
         last_year = pd.DataFrame({last_year.index[-1]: last_year.sum(axis="index")})
         df_year = pd.concat([df_year, last_year.T], axis="index")
     plots[f"{key}_年"] = plot_line(

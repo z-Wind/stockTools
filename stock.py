@@ -1708,17 +1708,21 @@ class Figure:
 
             shapes = []
             for _, market in df_bull_bear_markets.iterrows():
-                if end < market["Start Date"] + relativedelta(years=self.iYear):
+
+                if end - relativedelta(years=self.iYear) < market["Start Date"]:
                     continue
+
+                shape_start = market["Start Date"] + relativedelta(years=self.iYear)
+                shape_end = min(end, market["End Date"] + relativedelta(years=self.iYear))
 
                 color = "#81c995" if market["Type"] == "Bull" else "#f28b82"
                 shape = {
                     "type": "rect",
                     "xref": "x",
                     "yref": "paper",
-                    "x0": market["Start Date"] + relativedelta(years=self.iYear),
+                    "x0": shape_start,
                     "y0": 0,
-                    "x1": market["End Date"] + relativedelta(years=self.iYear),
+                    "x1": shape_end,
                     "y1": 1,
                     "fillcolor": color,
                     "layer": "below",
@@ -3150,17 +3154,24 @@ def us_stock():
 def custom_stock():
     symbols = [
         {
-            "name": "^TAIEX",
-            "remark": "臺灣加權報酬指數",
-            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+            "name": "0050.TW",
+            "remark": "元大臺灣50",
+            "replaceDiv": True,
             "groups": ["常用", "ETF"],
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
-        {
-            "name": "^TAI50I",
-            "remark": "臺灣50報酬指數",
-            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
-            "groups": ["常用", "ETF"],
-        },
+        # {
+        #     "name": "^TAIEX",
+        #     "remark": "臺灣加權報酬指數",
+        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+        #     "groups": ["常用", "ETF"],
+        # },
+        # {
+        #     "name": "^TAI50I",
+        #     "remark": "臺灣50報酬指數",
+        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+        #     "groups": ["常用", "ETF"],
+        # },
         # {
         #     "name": "0050.TW",
         #     "name_suffix": "Fund",

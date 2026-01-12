@@ -509,6 +509,7 @@ def index_原始值_年增率_plot(
     key = sanitize_filename(key)
 
     df = df_get()
+    df["TIME_PERIOD_Datetime"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
     date_range = f"{df["TIME_PERIOD"].iloc[0]}~{df["TIME_PERIOD"].iloc[-1]}"
 
     kinds = df["Item"].unique().tolist()
@@ -581,22 +582,38 @@ def index_原始值_年增率_plot(
         pivot_df, f"{key} 原始值 {title_suffix} {date_range}", additional_layout
     )
 
-    def irr(x):
-        x = x.dropna()
+    pivot_df = (
+        df[df["TYPE"] == "原始值"]
+        .pivot_table(index="TIME_PERIOD", columns="Item", values="Item_VALUE", sort=False)
+        .dropna(axis="index")
+    )
+    實質購買力_df = pivot_df.iloc[0] / pivot_df * 100.0
+    plots[f"{key}_實質購買力"] = plot_line(
+        實質購買力_df,
+        f"{key} 實質購買力=當月份的一百元等於 {pivot_df.index[0]} 多少錢 {pivot_df.index[0]}~{pivot_df.index[-1]}",
+        additional_layout,
+    )
 
-        val = (x.iloc[-1] / x.iloc[0]) ** (365 / (x.index[-1] - x.index[0]).days) - 1
+    def irr(x):
+        val = (x.iloc[-1] / x.iloc[0]) ** (365 / (x.index[-1][0] - x.index[0][0]).days) - 1
         return val
 
-    df["TIME_PERIOD_Datetime"] = df["TIME_PERIOD"].apply(lambda x: datetime.strptime(x, "%YM%m"))
-    pivot_df_datetime = df[df["TYPE"] == "原始值"].pivot_table(
-        index="TIME_PERIOD_Datetime", columns="Item", values="Item_VALUE", sort=False
+    pivot_df_datetime = (
+        df[df["TYPE"] == "原始值"]
+        .pivot_table(
+            index=["TIME_PERIOD_Datetime", "TIME_PERIOD"],
+            columns="Item",
+            values="Item_VALUE",
+            sort=False,
+        )
+        .dropna(axis="index")
     )
     irr_df = pivot_df_datetime.apply(irr, axis=0).to_frame()
     irr_df.columns = ["IRR"]
     irr_df = irr_df.T
     plots[f"{key}_IRR"] = plot_bar(
         irr_df,
-        f"{key} IRR(%) {title_suffix} {date_range}",
+        f"{key} IRR(%) {title_suffix} {pivot_df_datetime.index[0][1]}~{pivot_df_datetime.index[-1][1]}",
         additional_layout | {"yaxis": {"tickformat": ".2%"}},
     )
 

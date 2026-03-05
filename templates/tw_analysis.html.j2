@@ -3,6 +3,18 @@
     <head>
         <title>{{title}}</title>
         <meta charset="UTF-8">
+        <style>
+            /* 這是關鍵：強制讓瀏覽器放棄對圖表的連點縮放控制 */
+            .js-plotly-plot {
+                touch-action: manipulation;
+            }
+
+            /* 針對圖例區域加強靈敏度 */
+            .js-plotly-plot .legend {
+                cursor: pointer;
+                touch-action: manipulation;
+            }
+        </style>
     </head>
     <body bgcolor="#000000">
         <form method="GET">

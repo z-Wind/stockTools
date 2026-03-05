@@ -4807,22 +4807,44 @@ def df_基金績效評比():
     key = sanitize_filename(key)
 
     url_year_month = (
-        "https://members.sitca.org.tw/OPF/K0000/files/F/02/{year}-{month:02d}基金績效評比表.zip"
+        "https://www.sitca.org.tw/MemberK0000/F/02/{year}-{month:02d}基金績效評比表.zip"
     )
 
     def get_data(year, month) -> pd.DataFrame:
+        current_date = datetime.today()
+        target_date = datetime(year, month, 1)
+
+        # 如果請求的日期超過今天，或者距離今天不到 1 個月（通常資料還沒出來），直接跳過
+        # 避免產生無效的 404 請求導致被封鎖
+        if target_date > current_date - relativedelta(months=1):
+            print(f"跳過 {year}-{month:02d}：資料可能尚未發布")
+            return None
+
         path = EXTRA_DATA_DIR / key / f"{year}{month:02d}.zip"
         _ensure_dir_exists(path)
 
-        if not path.is_file() or datetime.today() < datetime(year, month, 1) + relativedelta(
-            months=3
-        ):
+        # 判斷是否需要下載：檔案不存在，或資料太舊（未滿3個月通常會有修正版，所以重新抓取）
+        needs_download = not path.is_file() or current_date < target_date + relativedelta(months=3)
+
+        if needs_download:
             url = url_year_month.format(year=year - 1911, month=month)
-            time.sleep(1)
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+
+            time.sleep(2)
             try:
-                r = session.get(url)
+                r = session.get(url, headers=headers, timeout=15)
+                if r.status_code == 200:
+                    with open(path, "wb") as f:
+                        f.write(r.content)
+                    print(f"成功下載: {url}")
+                elif r.status_code == 404:
+                    print(f"檔案不存在 (404): {url}")
+                    return None
             except Exception as e:
-                print(url, e)
+                print(f"連線錯誤 {url}: {e}")
                 return None
 
             if r.status_code == 404:
@@ -5080,7 +5102,7 @@ def df_基金績效評比():
 def update():
     tasks = [
         lambda: df_銀行間市場新臺幣對美元收盤匯率(),
-        # =========================================
+        # 自動化 =========================================
         lambda: df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊(),
         lambda: df_村里戶數_單一年齡人口(),
         lambda: df_現住人口性別_年齡_婚姻狀況(),
@@ -5095,7 +5117,8 @@ def update():
         lambda: df_投信投顧公會基金費用比率(),
         lambda: df_集保戶股權分散表(),
         lambda: df_房價所得比(),
-        # =========================================
+        lambda: df_基金績效評比(),
+        # 手動填 =========================================
         lambda: df_人力資源調查重要指標(),
         lambda: df_教育程度別失業率(),
         lambda: df_年齡組別失業率(),

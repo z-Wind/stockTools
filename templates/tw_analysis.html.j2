@@ -478,29 +478,62 @@
             <option value="{{key}}">
             {%- endfor %} 
         </datalist>
+
+        <!-- 1. 先載入 Plotly 核心庫 -->
+        <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+
+        <!-- 2. 【核心攔截邏輯】在畫圖腳本執行前，先過濾掉不想要的繪圖動作 -->
         <script>
-            // Get the parameter from the URL
-            var urlParams = new URLSearchParams(window.location.search);
-            var filterDivID = urlParams.get('filterDivID');
-            
-            if (filterDivID && filterDivID.toLowerCase() != "all") {
-                var allDivs = document.querySelectorAll('div[id]'); // Select all divs with an ID
-                allDivs.forEach(div => {
-                    if (!div.id.includes(filterDivID)) {
-                        div.style.display = 'none';
+            (function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const filter = urlParams.get('filterDivID')?.toLowerCase().trim();
+
+                // 1. 如果完全沒給參數，或參數是空的，我們就進入「全攔截模式」保護瀏覽器
+                if (!filter) {
+                    console.warn("[高級工程師保護模式] 未偵測到 filterDivID，已停用所有繪圖以防當機。");
+                }
+
+                // 2. 備份原始方法
+                const _origNewPlot = Plotly.newPlot;
+                const _origReact = Plotly.react;
+
+                // 3. 定義統一的攔截邏輯
+                const interceptor = function(originalFunc, root, ...args) {
+                    const id = (typeof root === 'string' ? root : root?.id || "").toLowerCase();
+                    
+                    // 只有當：有給 filter，且 ID 包含關鍵字（或 filter 為 all）時才畫
+                    const shouldDraw = filter === 'all' || (filter && id.includes(filter));
+
+                    if (shouldDraw) {
+                        return originalFunc.apply(this, [root, ...args]);
+                    } else {
+                        // 不畫圖：移除元素
+                        const el = typeof root === 'string' ? document.getElementById(root) : root;
+                        if (el) el.remove();
+                        return Promise.resolve(null);
                     }
-                });
-            }
+                };
+
+                // 4. 分別替換（這樣最保險，確保 react 還是跑 react 的原始邏輯）
+                Plotly.newPlot = function(root, ...args) {
+                    return interceptor.call(this, _origNewPlot, root, ...args);
+                };
+
+                Plotly.react = function(root, ...args) {
+                    return interceptor.call(this, _origReact, root, ...args);
+                };
+            })();
         </script>
 
-        <!-- Plotly.js -->
-        <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+        <!-- 3. 載入各個圖表的 JS (此時內部的 Plotly.newPlot 已被我們攔截) -->
         {% for key,item in plots.items() %}
         <script src="./{{jsfolder}}/{{key}}.js"></script>
-        {%- endfor %} 
+        {%- endfor %}
 
+        <!-- 4. 最後的校正 -->
         <script>
             window.onload = function() {
+                // 只針對剩下的（有畫出來的）圖表做 resize
                 window.dispatchEvent(new Event('resize'));
             };
         </script>

@@ -7,9 +7,8 @@ use statrs::statistics::Min;
 use statrs::statistics::OrderStatistics;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::fs::File;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Copy)]
 pub struct Price {
     #[pyo3(get, set)]
@@ -52,7 +51,7 @@ impl Price {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Copy)]
 struct Return {
     #[pyo3(get, set)]
@@ -68,12 +67,9 @@ struct Return {
 pub struct Stock {
     pub symbol: String,
     data: Vec<Price>,
-    years: Option<HashSet<i32>>,
-    all_return: Option<Vec<Return>>,
-    years_return: Option<HashMap<i32, Vec<Return>>>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Copy)]
 pub struct Stat {
     #[pyo3(get)]
@@ -101,235 +97,253 @@ impl Stock {
         let mut stock = Stock {
             symbol: String::from("symbol"),
             data: Vec::new(),
-            years: None,
-            all_return: None,
-            years_return: None,
         };
 
         for price in data {
-            stock.data.push(Price { ..price });
+            stock.data.push(price);
         }
-        stock.cal_return();
+
         stock
     }
 
     pub fn n_years(&self) -> usize {
-        self.years_return
-            .as_ref()
-            .expect("尚未提供資料分析，無法提供年數")
-            .keys()
+        // 使用 HashSet 收集所有年份，最後回傳長度
+        self.data
+            .iter()
+            .map(|p| p.date.year())
+            .collect::<HashSet<i32>>()
             .len()
     }
 
-    pub fn stat_active_all(&mut self) -> Stat {
-        self.cal_return();
+    pub fn stat_active_all(&self) -> Stat {
+        // 使用 flat_map 模擬原本的雙層 for 迴圈
+        let returns_iter = self.data.iter().enumerate().flat_map(|(i, start)| {
+            self.data[i + 1..]
+                .iter()
+                .map(move |end| (end.close_adj - start.close_adj) / start.close_adj)
+        });
 
-        let data: Vec<f64> = self
-            .all_return
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|x| x.value)
-            .collect();
-
-        Stock::cal_statistic(data)
+        Self::cal_statistic(returns_iter)
     }
 
-    pub fn stat_hold_all(&mut self) -> Stat {
-        self.cal_return();
+    pub fn stat_hold_all(&self) -> Stat {
+        // 1. 取得全資料最後一天的價格資訊
+        // 如果 data 為空，直接回傳空統計（安全處理）
+        let Some(last_price) = self.data.last() else {
+            return Self::cal_statistic(std::iter::empty());
+        };
 
-        let end = self.data[self.data.len() - 1].date;
-
-        let data: Vec<f64> = self
-            .all_return
-            .as_ref()
-            .unwrap()
+        // 2. 建立一個迭代器：從第一天開始到倒數第二天為止，作為買入點 (start)
+        // 計算 (最後一天.close_adj - start.close_adj) / start.close_adj
+        let returns_iter = self.data[..self.data.len() - 1]
             .iter()
-            .filter(|x| x.end == end)
-            .map(|x| x.value)
-            .collect();
+            .map(|start| (last_price.close_adj - start.close_adj) / start.close_adj);
 
-        Stock::cal_statistic(data)
+        // 3. 直接丟進統計函數
+        Self::cal_statistic(returns_iter)
     }
 
     pub fn stat_active_year(&mut self) -> Vec<(i32, Stat)> {
-        self.cal_return();
+        let mut groups: HashMap<i32, Vec<f64>> = HashMap::new();
 
-        let mut result: Vec<(i32, Stat)> = Vec::new();
-        for (year, data) in self.years_return.as_ref().unwrap() {
-            let data: Vec<f64> = data.iter().map(|x| x.value).collect();
-
-            let stat = Stock::cal_statistic(data);
-
-            result.push((*year, stat));
+        // 1. 分類：只在呼叫時計算並按年份歸類
+        for (year, value) in self.iter_active_years_returns() {
+            groups.entry(year).or_default().push(value);
         }
 
+        // 2. 轉換：將每一組 Vec 轉成 Stat
+        let mut result: Vec<(i32, Stat)> = groups
+            .into_iter()
+            .map(|(year, values)| (year, Self::cal_statistic(values.into_iter())))
+            .collect();
+
+        // 3. 排序（選用）：因為 HashMap 是無序的，通常會按年份排一下
+        result.sort_by_key(|x| x.0);
         result
     }
 
-    pub fn stat_hold_year(&mut self) -> Vec<(i32, Stat)> {
-        self.cal_return();
-
-        let mut result: Vec<(i32, Stat)> = Vec::new();
-        for (year, data) in self.years_return.as_ref().unwrap() {
-            let end_date = data[data.len() - 1].end;
-            let data: Vec<f64> = data
-                .iter()
-                .filter(|x| x.end == end_date)
-                .map(|x| x.value)
-                .collect();
-
-            let stat = Stock::cal_statistic(data);
-
-            result.push((*year, stat));
+    pub fn stat_hold_year(&self) -> Vec<(i32, Stat)> {
+        // 1. 快速掃描，找出每年的最後一個交易日
+        let mut year_ends: HashMap<i32, NaiveDate> = HashMap::new();
+        for price in &self.data {
+            let y = price.date.year();
+            // 由於資料通常是按日期排序的，後面的會蓋掉前面的，最終留下最後一天
+            year_ends.insert(y, price.date);
         }
 
+        // 2. 建立年份分組的容器 (暫時性)
+        let mut groups: HashMap<i32, Vec<f64>> = HashMap::new();
+
+        // 3. 遍歷數據，只抓取「持有到該年最後一天」的組合
+        for (i, start) in self.data.iter().enumerate() {
+            let start_year = start.date.year();
+            if let Some(&last_day_of_year) = year_ends.get(&start_year) {
+                // 從 start 開始往後找，直到碰到該年最後一天
+                for end in &self.data[i + 1..] {
+                    // 如果 end 不是該年最後一天，跳過
+                    if end.date != last_day_of_year {
+                        continue;
+                    }
+                    // 計算報酬率並存入對應年份
+                    let r = (end.close_adj - start.close_adj) / start.close_adj;
+                    groups.entry(start_year).or_default().push(r);
+
+                    // 既然已經找到該年最後一天，後面的 end 就不看了（優化效能）
+                    break;
+                }
+            }
+        }
+
+        // 4. 轉換為 Stat
+        let mut result: Vec<(i32, Stat)> = groups
+            .into_iter()
+            .map(|(year, values)| (year, Self::cal_statistic(values.into_iter())))
+            .collect();
+
+        result.sort_by_key(|x| x.0);
         result
     }
 
     pub fn cal_years_return(&mut self) -> Vec<(i32, f64)> {
-        self.cal_years();
-
-        let mut result: Vec<(i32, f64)> = Vec::new();
-
-        for year in self.years.as_ref().unwrap() {
-            let data: Vec<_> = self
-                .data
-                .iter()
-                .filter(|x| x.date.format("%Y").to_string() == year.to_string())
-                .collect();
-
-            let start = data[0];
-            let end = data[data.len() - 1];
-            let r = (end.close_adj - start.close_adj) / start.close_adj;
-
-            result.push((*year, r));
+        if self.data.is_empty() {
+            return Vec::new();
         }
 
+        let mut year_bounds: HashMap<i32, (f64, f64)> = HashMap::new();
+
+        for price in &self.data {
+            let year = price.date.year();
+            let adj = price.close_adj;
+
+            year_bounds
+                .entry(year)
+                .and_modify(|(_, end)| *end = adj) // 更新年底價格
+                .or_insert((adj, adj)); // 第一次遇到該年，設為年初價格
+        }
+
+        let mut result: Vec<(i32, f64)> = year_bounds
+            .into_iter()
+            .map(|(year, (start_price, end_price))| (year, (end_price - start_price) / start_price))
+            .collect();
+
+        result.sort_unstable_by_key(|x| x.0);
         result
     }
 }
 
 impl Stock {
-    pub fn new_by_csv(symbol: &str, file_path: &str) -> Stock {
-        let file = File::open(file_path).expect(&format!("開啟 {file_path} 失敗")[..]);
-        let mut reader = csv::Reader::from_reader(file);
-
-        let mut stock = Stock {
-            symbol: String::from(symbol),
-            data: Vec::new(),
-            years: None,
-            all_return: None,
-            years_return: None,
-        };
-
-        for record in reader.records() {
-            let mut record = record.expect("reader.records() Fail");
-            record.trim();
-
-            let date = NaiveDate::parse_from_str(&record[0], "%Y-%m-%d")
-                .unwrap_or_else(|_| panic!("price date {} 轉換失敗，格式為 %Y-%m-%d", &record[0]));
-            let open: f64 = record[1]
-                .parse()
-                .unwrap_or_else(|_| panic!("price open {} 轉換失敗", &record[1]));
-            let high: f64 = record[2]
-                .parse()
-                .unwrap_or_else(|_| panic!("price high {} 轉換失敗", &record[2]));
-            let low: f64 = record[3]
-                .parse()
-                .unwrap_or_else(|_| panic!("price low {} 轉換失敗", &record[3]));
-            let close: f64 = record[4]
-                .parse()
-                .unwrap_or_else(|_| panic!("price close {} 轉換失敗", &record[4]));
-            let close_adj: f64 = record[5]
-                .parse()
-                .unwrap_or_else(|_| panic!("price close_adj {} 轉換失敗", &record[5]));
-            let volume: u64 = record[6]
-                .parse()
-                .unwrap_or_else(|_| panic!("price volume {} 轉換失敗", &record[6]));
-
-            let price = Price {
-                date,
-                open,
-                high,
-                low,
-                close,
-                close_adj,
-                volume,
-            };
-            stock.data.push(price);
-        }
-        stock.cal_return();
-        stock
-    }
-
-    fn cal_return(&mut self) {
-        if self.all_return.is_some() {
-            return;
-        }
-
-        let mut result: Vec<Return> = Vec::new();
-        let mut years_result: HashMap<i32, Vec<Return>> = HashMap::new();
-        for (i, start) in self.data.iter().enumerate() {
+    /// 取得按年份分組的所有「年度內主動買賣組合」迭代器
+    /// 邏輯：(買入年, 報酬率)
+    fn iter_active_years_returns(&self) -> impl Iterator<Item = (i32, f64)> + '_ {
+        self.data.iter().enumerate().flat_map(move |(i, start)| {
             let start_year = start.date.year();
-            for end in &self.data[i + 1..] {
-                let r = Return {
-                    start: start.date,
-                    end: end.date,
-                    value: (end.close_adj - start.close_adj) / start.close_adj,
-                };
-                if start_year == end.date.year() {
-                    years_result.entry(start_year).or_default().push(r);
-                }
-                result.push(r);
-            }
-        }
-        self.years_return = Some(years_result);
-        self.all_return = Some(result);
+
+            // 優化：只遍歷同一年份的後續數據，遇到不同年份就停止
+            // 假設 data 已按日期排序，這能顯著提升效能
+            self.data[i + 1..]
+                .iter()
+                .take_while(move |end| end.date.year() == start_year)
+                .map(move |end| {
+                    let r = (end.close_adj - start.close_adj) / start.close_adj;
+                    (start_year, r)
+                })
+        })
     }
 
-    fn cal_years(&mut self) {
-        if self.years.is_some() {
-            return;
+    fn cal_statistic<I>(iter: I) -> Stat
+    where
+        I: Iterator<Item = f64>,
+    {
+        let data_vec: Vec<f64> = iter.collect();
+        let count = data_vec.len();
+
+        if count == 0 {
+            // 回傳空統計（或根據需求改為 Option<Stat>）
+            return Stat {
+                count: 0,
+                mean: 0.0,
+                std: 0.0,
+                min: 0.0,
+                q1: 0.0,
+                q2: 0.0,
+                q3: 0.0,
+                max: 0.0,
+            };
         }
 
-        let mut years = HashSet::new();
-        for y in self.data.iter().map(|x| x.date.year()) {
-            years.insert(y);
-        }
-        self.years = Some(years);
-    }
-
-    fn cal_statistic(data: Vec<f64>) -> Stat {
-        let count = data.len();
-        let mut data = statistics::Data::new(data);
-
-        let mean = data.mean().unwrap();
-        let std = data.std_dev().unwrap();
-        let min = data.min();
-        let max = data.max();
-
-        let q1 = data.lower_quartile();
-        let q2 = data.median();
-        let q3 = data.upper_quartile();
-
+        let mut data = statistics::Data::new(data_vec);
         Stat {
             count,
-            mean,
-            std,
-            min,
-            q1,
-            q2,
-            q3,
-            max,
+            mean: data.mean().unwrap_or(0.0),
+            std: data.std_dev().unwrap_or(0.0),
+            min: data.min(),
+            q1: data.lower_quartile(),
+            q2: data.median(),
+            q3: data.upper_quartile(),
+            max: data.max(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use float_cmp::assert_approx_eq;
+    use std::fs::File;
+
+    use super::*;
+
+    impl Stock {
+        fn new_by_csv(symbol: &str, file_path: &str) -> Stock {
+            let file = File::open(file_path)
+                .unwrap_or_else(|_| panic!("{}", format!("開啟 {file_path} 失敗")));
+            let mut reader = csv::Reader::from_reader(file);
+
+            let mut stock = Stock {
+                symbol: String::from(symbol),
+                data: Vec::new(),
+            };
+
+            for record in reader.records() {
+                let mut record = record.expect("reader.records() Fail");
+                record.trim();
+
+                let date = NaiveDate::parse_from_str(&record[0], "%Y-%m-%d").unwrap_or_else(|_| {
+                    panic!("price date {} 轉換失敗，格式為 %Y-%m-%d", &record[0])
+                });
+                let open: f64 = record[1]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price open {} 轉換失敗", &record[1]));
+                let high: f64 = record[2]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price high {} 轉換失敗", &record[2]));
+                let low: f64 = record[3]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price low {} 轉換失敗", &record[3]));
+                let close: f64 = record[4]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price close {} 轉換失敗", &record[4]));
+                let close_adj: f64 = record[5]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price close_adj {} 轉換失敗", &record[5]));
+                let volume: u64 = record[6]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("price volume {} 轉換失敗", &record[6]));
+
+                let price = Price {
+                    date,
+                    open,
+                    high,
+                    low,
+                    close,
+                    close_adj,
+                    volume,
+                };
+                stock.data.push(price);
+            }
+
+            stock
+        }
+    }
 
     #[test]
     fn test_read_csv() {
@@ -340,55 +354,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cal_return() {
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
-
-        stock.cal_return();
-        let result = &stock.all_return.unwrap();
-        assert_eq!(result.len(), stock.data.len() * (stock.data.len() - 1) / 2);
-        println!("{:?}", result[0]);
-    }
-
-    #[test]
-    fn test_cal_years() {
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
-
-        stock.cal_years();
-        let ys = stock.years.unwrap();
-        assert!(ys.contains(&2010));
-        assert!(ys.contains(&2011));
-        assert!(ys.contains(&2012));
-        assert!(ys.contains(&2013));
-        assert!(ys.contains(&2014));
-        assert!(ys.contains(&2015));
-        assert!(ys.contains(&2016));
-        assert!(ys.contains(&2017));
-        assert!(ys.contains(&2018));
-        assert!(ys.contains(&2019));
-        assert!(ys.contains(&2020));
-    }
-
-    #[test]
-    fn test_cal_statistic() {
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
-
-        stock.cal_return();
-        let data: Vec<f64> = stock.all_return.unwrap().iter().map(|x| x.value).collect();
-        let stat = Stock::cal_statistic(data);
-        dbg!(&stat);
-        assert_eq!(stat.count, 4_048_435);
-        assert_approx_eq!(f64, stat.mean, 0.700_680_347_180_011_5, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.std, 0.650_469_698_879_045_9, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.min, -0.350_002_858_888_694_26, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.q1, 0.202_955_876_863_636_14, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.q2, 0.519_365_946_505_478_3, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.q3, 1.019_478_019_156_691_2, epsilon = 0.0001);
-        assert_approx_eq!(f64, stat.max, 4.125_857_367_549_767, epsilon = 0.0001);
-    }
-
-    #[test]
     fn test_stat_active_all() {
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
+        let stock = Stock::new_by_csv("VTI", "tests//data.csv");
         let stat = stock.stat_active_all();
         dbg!(&stat);
         assert_eq!(stat.count, 4_048_435);
@@ -403,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_stat_hold_all() {
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
+        let stock = Stock::new_by_csv("VTI", "tests//data.csv");
         let stat = stock.stat_hold_all();
         dbg!(&stat);
         assert_eq!(stat.count, 2845);
@@ -766,7 +733,7 @@ mod tests {
             ),
         ]);
 
-        let mut stock = Stock::new_by_csv("VTI", "tests//data.csv");
+        let stock = Stock::new_by_csv("VTI", "tests//data.csv");
         let stats = stock.stat_hold_year();
         dbg!(&stats);
         for (ref y, stat) in stats {

@@ -9,17 +9,21 @@
 
 ## 事前準備
 需安裝 rust
-```
+```bash
 cd FFI/rust_pyo3
-maturin develop
+maturin develop --release
 ```
 
 ## 抓資料
-```
+```bash
 python get_extraData.py
+python get_extraData_fund.py
+python tw_analysis_data.py
 ```
 
-## 比較股票
-```
+## 各式比較
+```bash
 python stock.py
+python tw_analysis.py
+python tw_food.py
 ```

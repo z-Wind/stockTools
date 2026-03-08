@@ -1,6 +1,7 @@
 import copy
 import os
 import re
+import warnings
 import minify_html
 import numpy as np
 import yfinance as yf
@@ -11,15 +12,32 @@ import plotly
 
 from jsmin import jsmin
 from datetime import datetime
+from typing import Optional, Dict, Any
 from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
-from flask import render_template
-from flask import Flask
+from jinja2 import Environment, FileSystemLoader
 
 from FFI import rust_pyo3
 
-app = Flask(__name__)
+_jinja_env = None  # type: Optional[Environment]
+
+
+def _get_jinja_env() -> Environment:
+    """5.3：改用純 Jinja2 渲染，不需要 Flask app context。"""
+    global _jinja_env
+    if _jinja_env is None:
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        _jinja_env = Environment(loader=FileSystemLoader(template_dir))
+    return _jinja_env
+
+
+def render_template(template_name: str, **kwargs) -> str:
+    """5.3：取代 Flask render_template，使用純 Jinja2。"""
+    env = _get_jinja_env()
+    tmpl = env.get_template(template_name)
+    return tmpl.render(**kwargs)
+
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
@@ -28,32 +46,60 @@ headers = {
     "Referer": "https://www.google.com/",
 }
 
+# 退休模擬預設參數
+DEFAULT_RETIRE_INIT_MONEY = 10_000_000
+DEFAULT_RETIRE_INIT_EXPENSE = 400_000
+DEFAULT_RETIRE_INFLATION_PERCENT = 3
+
+# 牛熊市判斷預設門檻
+DEFAULT_BEAR_THRESHOLD = -0.20
+DEFAULT_BULL_THRESHOLD = 0.20
+
+# 定期定額預設金額
+DEFAULT_DCA_MONEY = 10_000
+
+
+def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = True) -> Dict:
+    """Merges b into a. If overwrite is True, b's values will overwrite a's on conflict."""
+    if path is None:
+        path = []
+    for key in b:
+        if key in a:
+            if isinstance(a[key], dict) and isinstance(b[key], dict):
+                merge_dict(a[key], b[key], path + [str(key)], overwrite)
+            elif isinstance(a[key], list) and isinstance(b[key], list):
+                a[key] += b[key]
+            elif a[key] != b[key] and overwrite:
+                a[key] = b[key]
+            elif a[key] == b[key]:
+                pass  # same leaf value
+            elif not overwrite:
+                print(
+                    f"Conflict at {'.'.join(path + [str(key)])} and overwrite is False. Keeping original value."
+                )
+        else:
+            a[key] = b[key]
+    return a
+
 
 class Stock:
-    start = datetime.strptime("1970-01-02", "%Y-%m-%d")
-    end = datetime.now()
-    history = None
-    yfinance = None
-    rawData = None
-    name_width = 7
-
     def __init__(
         self,
-        symbol,
-        groups,
-        remark="",
-        start=None,
-        end=None,
-        extraDiv={},
-        replaceDiv=False,
-        extraSplit={},
-        fromPath="",
-        dateDuplcatedCombine=False,
-        name_width=7,
-        daily_return_mul=None,
-        name_suffix="",
-        calAdjClose=True,
-    ):
+        symbol: str,
+        groups: list,
+        remark: str = "",
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        extraDiv: Dict = {},
+        replaceDiv: bool = False,
+        extraSplit: Dict = {},
+        fromPath: str = "",
+        dateDuplcatedCombine: bool = False,
+        name_width: int = 7,
+        daily_return_mul: Optional[int] = None,
+        name_suffix: str = "",
+        calAdjClose: bool = True,
+    ) -> None:
         """
         symbol: 代碼
         remark: 註解，方便辨識
@@ -69,6 +115,14 @@ class Stock:
         %Y-%m-%d |   Float |  Float       |   Float      |    Int
         """
         print("\n================================================================\n")
+
+        # 2.1：實例屬性（原本定義在類別層級，多實例間會共用，已修正）
+        self.start = datetime.strptime("1970-01-02", "%Y-%m-%d")
+        self.end = datetime.now()
+        self.history = None
+        self.yfinance = None
+        self.rawData = None
+        self.rollback_map = {}
 
         self.symbol = symbol
         self.groups = groups
@@ -88,9 +142,8 @@ class Stock:
 
         self.dateDuplcatedCombine = dateDuplcatedCombine
         self.history = self._getHistory(fromPath)
-        self.rollback_map = {}
 
-    def _getDiv_TW(self):
+    def _getDiv_TW(self) -> dict:
         try:
             dom = PyQuery(
                 url=f"https://tw.stock.yahoo.com/quote/{self.symbol}/dividend",
@@ -108,7 +161,8 @@ class Stock:
                 div = float(i.find("div > div:nth-child(3)").text())
                 replaceDiv[date] = div
         except Exception as e:
-            print(e)
+            # 5.5：股息資料取得失敗時改為 warning，避免靜默回傳空值導致計算錯誤
+            warnings.warn(f"{self.symbol} 股息資料取得失敗：{e}")
             return {}
 
         print(self.name, "replaceDiv:", replaceDiv)
@@ -142,9 +196,8 @@ class Stock:
             self.yfinance = yf.Ticker(self.symbol)
             hist = self.yfinance.history(start="1970-01-02", end=datetime.now(), auto_adjust=False)
 
-            if set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
-                hist.reset_index().columns
-            ):
+            required_cols = {"Date", "Close", "Adj Close", "Dividends", "Stock Splits"}
+            if required_cols.issubset(set(hist.reset_index().columns)):
                 if self.remark == "":
                     info = self.yfinance.info
                     self.remark = info["longName"] + " type:" + info["typeDisp"]
@@ -153,11 +206,9 @@ class Stock:
             time.sleep(60)
             n += 1
         else:
-            print(self.symbol)
-            print(hist.reset_index().columns)
-            assert set(["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]).issubset(
-                hist.reset_index().columns
-            )
+            # 4.4：assert 改為明確例外，避免 -O 模式下被跳過
+            missing = required_cols - set(hist.reset_index().columns)
+            raise ValueError(f"{self.symbol}: 缺少必要欄位 {missing}")
 
         # 特調，因為股價有針對 split 調整，但資料中卻沒有 split
         # 而且還只調到某個日期，再之前就又沒調整
@@ -172,17 +223,13 @@ class Stock:
                 date = datetime.strptime(date, "%Y/%m/%d %H:%M:%S%z")
                 hist.loc[date, "Stock Splits"] = split
 
-        # 回復 yahoo 的原本價格
-        ratio = 1.0
-        for index, row in hist.iloc[::-1].iterrows():
-            hist.loc[index, "Open"] *= ratio
-            hist.loc[index, "High"] *= ratio
-            hist.loc[index, "Low"] *= ratio
-            hist.loc[index, "Close"] *= ratio
-            # hist.loc[index, "Volume"] /= ratio
-
-            if row["Stock Splits"] != 0.0:
-                ratio *= row["Stock Splits"]
+        # 2.2：向量化計算累積 split ratio，取代原本 O(n) 逐行 iterrows
+        # 從後往前：每一列要乘以「其後所有 split 的累積」（自身當天的 split 不影響自己）
+        splits = hist["Stock Splits"].copy()
+        cumulative = splits.iloc[::-1].replace(0, 1).cumprod().iloc[::-1]
+        cumulative = cumulative.shift(-1).fillna(1)
+        for col in ["Open", "High", "Low", "Close"]:
+            hist[col] = hist[col] * cumulative
 
         # 特調後，回復正確的 split
         for date, split in finetune_split.items():
@@ -194,7 +241,7 @@ class Stock:
         if not df.empty:
             print(self.name, df)
             if not self.dateDuplcatedCombine:
-                assert not hist.index.has_duplicates
+                raise ValueError(f"{self.name}: 發現重複日期，請設定 dateDuplcatedCombine=True")
             else:
                 hist = hist.groupby(level=0, sort=False).sum()
 
@@ -205,17 +252,14 @@ class Stock:
 
         return hist
 
-    def _getHistory(self, fromPath):
-        if self.history:
-            return self.history
-
+    def _getHistory(self, fromPath: str):
+        # 3.5：移除原本永遠為 False 的 `if self.history` 早退條件
         if fromPath:
             hist = self._getData(fromPath)
         else:
             hist = self._getHistory_yahoo()
 
         data = self._calAdjClose(hist)
-        # data.to_csv(self.symbol + ".csv")
 
         if self.daily_return_mul:
             data = self._adj_hist_by_daily_return_mul(data)
@@ -234,21 +278,35 @@ class Stock:
 
         return data
 
-    def set_end_datetime(self, end):
+    def set_end_datetime(self, end: datetime) -> None:
+        # 4.5：加入邊界驗證，避免空 DataFrame 造成後續難以追蹤的錯誤
+        raw_start = self.rawData["Date"].iloc[0]
+        raw_end = self.rawData["Date"].iloc[-1]
+        if end < raw_start or end > raw_end:
+            raise ValueError(
+                f"{self.name}: set_end_datetime({end}) 超出資料範圍 [{raw_start}, {raw_end}]"
+            )
         self.end = end
         index = (self.start.date() <= self.rawData["Date"].dt.date) & (
             self.rawData["Date"].dt.date <= self.end.date()
         )
         self.history = self.rawData[index]
 
-    def set_start_datetime(self, start):
+    def set_start_datetime(self, start: datetime) -> None:
+        # 4.5：加入邊界驗證
+        raw_start = self.rawData["Date"].iloc[0]
+        raw_end = self.rawData["Date"].iloc[-1]
+        if start < raw_start or start > raw_end:
+            raise ValueError(
+                f"{self.name}: set_start_datetime({start}) 超出資料範圍 [{raw_start}, {raw_end}]"
+            )
         self.start = start
         index = (self.start.date() <= self.rawData["Date"].dt.date) & (
             self.rawData["Date"].dt.date <= self.end.date()
         )
         self.history = self.rawData[index]
 
-    def _calAdjClose(self, df):
+    def _calAdjClose(self, df: pd.DataFrame) -> pd.DataFrame:
         div = df[["Dividends"]].copy()
 
         if self.replaceDiv:
@@ -294,46 +352,45 @@ class Stock:
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
             return data
 
-        data.loc[:, "Adj Close Cal"] = 0.0
-        data.loc[:, "Adj Ratio"] = 1.0
+        # 2.3：向量化計算 Adj Ratio，取代原本多次 iterrows 掃描整個 DataFrame
+        n = len(data)
+        adj_ratio = np.ones(n)
 
-        for i, row in split.iterrows():
-            splitDate = row.Date
-            splitVal = 1 / row["Stock Splits"]
-            if data["Date"][data["Date"] >= splitDate].empty:
-                continue
-            index = data["Date"] < splitDate
-            if index.any():
-                data.loc[index, "Adj Ratio"] *= splitVal
+        # 處理 split：分割日之前的資料乘以 1/split
+        for _, row in split.iterrows():
+            split_date = row["Date"]
+            split_val = 1.0 / row["Stock Splits"]
+            mask = data["Date"] < split_date
+            if mask.any():
+                adj_ratio[mask.values] *= split_val
 
+        # 處理 dividend：除息日之前的資料乘以 (1 - div/前一日收盤)
         if self.calAdjClose:
-            for i, row in div.iterrows():
-                divDate = row.Date
-                divVal = row["Dividends"]
-                if data["Date"][data["Date"] >= divDate].empty:
-                    continue
-                index = data["Date"] < divDate
-                if index.any():
-                    data.loc[index, "Adj Ratio"] *= 1 - divVal / data.loc[index, "Close"].iloc[-1]
+            for _, row in div.iterrows():
+                div_date = row["Date"]
+                div_val = row["Dividends"]
+                mask = data["Date"] < div_date
+                if mask.any():
+                    last_close_before = data.loc[mask, "Close"].iloc[-1]
+                    adj_ratio[mask.values] *= 1 - div_val / last_close_before
 
-        data.loc[:, "Adj Close Cal"] = data.loc[:, "Close"] * data.loc[:, "Adj Ratio"]
+        data = data.copy()
+        data.loc[:, "Adj Ratio"] = adj_ratio
+        data.loc[:, "Adj Close Cal"] = data["Close"] * data["Adj Ratio"]
 
         return data
 
-    def _adj_hist_by_daily_return_mul(self, df):
+    def _adj_hist_by_daily_return_mul(self, df: pd.DataFrame) -> pd.DataFrame:
+        """3.8：向量化計算槓桿/反向報酬，取代原本逐日 .iat 迭代。"""
         result = df.copy()
-        result["Adj Close Cal"].iat[0] = df["Adj Close Cal"].iat[0]
-        for i in range(1, len(df["Adj Close Cal"])):
-            day_return = (df["Adj Close Cal"].iat[i] - df["Adj Close Cal"].iat[i - 1]) / df[
-                "Adj Close Cal"
-            ].iat[i - 1]
-            result["Adj Close Cal"].iat[i] = result["Adj Close Cal"].iat[i - 1] * (
-                1 + day_return * self.daily_return_mul
-            )
+        daily_returns = df["Adj Close Cal"].pct_change().fillna(0)
+        adjusted_returns = 1 + daily_returns * self.daily_return_mul
+        adjusted_returns.iloc[0] = 1.0  # 第一筆基準不變
+        result.loc[:, "Adj Close Cal"] = df["Adj Close Cal"].iloc[0] * adjusted_returns.cumprod()
         return result
 
     @property
-    def name(self):
+    def name(self) -> str:
         symbol = self.symbol.replace(".TW", "")
         if self.remark:
             name = symbol + self.name_suffix
@@ -342,7 +399,7 @@ class Stock:
             return symbol
 
     @property
-    def yearReturn(self):
+    def yearReturn(self) -> pd.DataFrame:
         data = self.history
 
         first = data.iloc[0]["Adj Close Cal"]
@@ -359,7 +416,7 @@ class Stock:
         return df.T
 
     @property
-    def totalReturn(self):
+    def totalReturn(self) -> pd.DataFrame:
         data = self.history
 
         first = data.iloc[0]["Adj Close Cal"]
@@ -369,7 +426,7 @@ class Stock:
         return totalReturn
 
     @property
-    def dailyReturn(self):
+    def dailyReturn(self) -> pd.DataFrame:
         data = self.history
 
         pre = data.iloc[:-1].reset_index()
@@ -381,7 +438,7 @@ class Stock:
 
         return day_return
 
-    def rollback(self, iYear):
+    def rollback(self, iYear: int) -> pd.DataFrame:
         if self.rollback_map.get(iYear) is not None:
             return self.rollback_map[iYear]
 
@@ -391,22 +448,27 @@ class Stock:
             raise ValueError(f"{self.name}: raw data {start} - {end} 間隔時間小於 iYear:{iYear}")
 
         interval = relativedelta(years=iYear)
-        data = self.history.iloc[::-1]
 
-        pairs = []
-        for i, row in data.iterrows():
-            t = row["Date"] - interval
-            start = data[data["Date"] <= t]
-            if start.empty:
+        # 3.9：用 searchsorted 取代 O(n²) 的逐行掃描，改為 O(n log n)
+        data = self.history.sort_values("Date").reset_index(drop=True)
+        dates_np = data["Date"].values
+        prices = data["Adj Close Cal"].values
+        date_objs = data["Date"].tolist()
+
+        result_dates = []
+        result_returns = []
+
+        for i in range(len(data) - 1, -1, -1):
+            end_date = date_objs[i]
+            start_target = end_date - interval
+            idx = np.searchsorted(dates_np, np.datetime64(start_target), side="right") - 1
+            if idx < 0:
                 break
-            start = start.iloc[0, :]
-            pairs.append((start, row))
+            ret = (prices[i] - prices[idx]) / prices[idx]
+            result_dates.append(end_date)
+            result_returns.append(ret)
 
-        t = [p[1]["Date"] for p in pairs]
-        r = [(p[1]["Adj Close Cal"] - p[0]["Adj Close Cal"]) / p[0]["Adj Close Cal"] for p in pairs]
-
-        df = pd.DataFrame({self.name: r}, index=t)
-
+        df = pd.DataFrame({self.name: result_returns}, index=result_dates)
         rollback = df.sort_index()
         self.rollback_map[iYear] = rollback
 
@@ -419,7 +481,15 @@ class Stock:
         init_money: int,
         init_expense: int,
         inflation_percent: int,
-    ):
+        inflation_adjusted: bool = False,
+    ) -> pd.DataFrame:
+        """計算退休資產模擬。
+
+        Args:
+            inflation_adjusted: True = retire_adj 模式（以實質購買力計算餘額）；
+                                 False = 一般模式（支出每年依通膨調整）。
+        """
+        # 3.7：合併原本的 retire() 與 retire_adj()，差異只在 inflation 的套用方式
         annual_return = self.yearReturn[self.name].to_dict()
         years = list(range(year_start, year_end + 1))
 
@@ -433,7 +503,10 @@ class Stock:
 
             if balance > 0:
                 balance -= expense
-                expense *= inflation
+                if inflation_adjusted:
+                    balance /= inflation
+                else:
+                    expense *= inflation
                 balance *= annual_return.get(year, 0) + 1.0
         data.append(balance)
 
@@ -448,31 +521,20 @@ class Stock:
         init_money: int,
         init_expense: int,
         inflation_percent: int,
-    ):
-        annual_return = self.yearReturn[self.name].to_dict()
-        years = list(range(year_start, year_end + 1))
+    ) -> pd.DataFrame:
+        """保留向後相容介面，內部委派至 retire(inflation_adjusted=True)。"""
+        return self.retire(
+            year_start,
+            year_end,
+            init_money,
+            init_expense,
+            inflation_percent,
+            inflation_adjusted=True,
+        )
 
-        balance = init_money
-        expense = init_expense
-        inflation = 1 + inflation_percent / 100
-
-        data = []
-        for year in years:
-            data.append(balance)
-
-            if balance > 0:
-                balance -= expense
-                balance /= inflation
-                balance *= annual_return.get(year, 0) + 1.0
-        data.append(balance)
-
-        df = pd.DataFrame(data, index=[str(x) for x in years] + ["YTD"], columns=[self.name])
-
-        return df
-
-    def dollar_cost_averaging(self):
-        money = 10000
-        check = set()
+    def dollar_cost_averaging(self) -> pd.DataFrame:
+        money = DEFAULT_DCA_MONEY
+        invested_years = set()  # 4.7：原名 check，改為語義更清楚的 invested_years
         shares = 0
         cost = 0
         result = {"date": [], "cost": [], "profit": []}
@@ -482,10 +544,10 @@ class Stock:
             date = data["Date"]
             year = date.year
 
-            if year not in check:
+            if year not in invested_years:
                 shares += money / price
                 cost += money
-                check.add(year)
+                invested_years.add(year)
 
             result["date"].append(date)
             result["cost"].append(cost)
@@ -496,10 +558,17 @@ class Stock:
 
         return df
 
-    def identify_bull_bear_markets(self, bear_threshold=-0.20, bull_threshold=0.20):
+    def identify_bull_bear_markets(
+        self,
+        bear_threshold: float = DEFAULT_BEAR_THRESHOLD,
+        bull_threshold: float = DEFAULT_BULL_THRESHOLD,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         # 我們使用 'Adj Close' 來計算，它已調整股息和拆分
         prices = self.history[["Date", "Adj Close Cal"]].set_index("Date").loc[:, "Adj Close Cal"]
         df_returns = pd.DataFrame({"value": prices})
+
+        # 4.8：初始化 ref 為第一筆價格，避免第一段期間的 return 計算出現 NaN
+        df_returns["ref"] = prices.iloc[0]
 
         # 初始化變數
         market_periods = []
@@ -641,20 +710,24 @@ class Figure:
     }
     name_width = 7
 
-    intersection_history_val = None
-    total_return_val = None
-
     def __init__(
         self,
-        symbols,
-        start="1970-01-02",
-        end=datetime.now().strftime("%Y-%m-%d"),
-        prefix="",
-        iYear=5,
-        image=False,
-        name_width=7,
-    ):
-        self.default_template = self._mergeDict(self.theme_template, self.default_template)
+        symbols: list,
+        start: str = "1970-01-02",
+        end: str = datetime.now().strftime("%Y-%m-%d"),
+        prefix: str = "",
+        iYear: int = 5,
+        image: bool = False,
+        name_width: int = 7,
+    ) -> None:
+        # 3.6：快取屬性移至 __init__，避免多個 Figure 實例共用類別層級屬性
+        self.intersection_history_val = None
+        self.total_return_val = None
+
+        # 3.11：使用 deepcopy 避免修改到類別層級的 default_template
+        self.default_template = merge_dict(
+            copy.deepcopy(self.theme_template), copy.deepcopy(self.__class__.default_template)
+        )
 
         self.start = start
         self.end = end
@@ -670,7 +743,6 @@ class Figure:
 
         self.stocks = []
         for symbol in symbols:
-            # try:
             self.stocks.append(
                 Stock(
                     symbol["name"],
@@ -689,34 +761,16 @@ class Figure:
                     calAdjClose=symbol.get("calAdjClose", True),
                 )
             )
-            # except Exception as error:
-            #     print(f"{symbol} can not be created, it seems something wrong {error}")
 
         end = min([stock.end for stock in self.stocks])
+        # 3.3：更新 self.end 為實際最小結束日，避免 end 參數被 min() 結果覆蓋而語義不清
+        self.end = end.strftime("%Y-%m-%d") if isinstance(end, datetime) else end
         for stock in self.stocks:
             stock.set_end_datetime(end)
 
     def _mergeDict(self, a, b, path=None, overwrite=True):
-        """Merges b into a. If overwrite is True, b's values will overwrite a's on conflict."""
-        if path is None:
-            path = []
-        for key in b:
-            if key in a:
-                if isinstance(a[key], dict) and isinstance(b[key], dict):
-                    self._mergeDict(a[key], b[key], path + [str(key)], overwrite)
-                elif isinstance(a[key], list) and isinstance(b[key], list):
-                    a[key] += b[key]
-                elif a[key] != b[key] and overwrite:
-                    a[key] = b[key]
-                elif a[key] == b[key]:
-                    pass  # same leaf value
-                elif not overwrite:
-                    print(
-                        f"Conflict at {'.'.join(path + [str(key)])} and overwrite is False. Keeping original value."
-                    )
-            else:
-                a[key] = b[key]
-        return a
+        """3.1：委派至模組層級的 merge_dict，保留向後相容介面。"""
+        return merge_dict(a, b, path, overwrite)
 
     def _group_button(self, symbols):
         symbol_map = {}
@@ -771,167 +825,125 @@ class Figure:
 
         return updatemenus
 
-    def _plotBar_without_group(self, df, title, filename):
-        dataList = []
-        symbols = []
-        for symbol, data in df.items():
-            data = {"type": "bar", "name": symbol, "x": [symbol], "y": data}
-            dataList.append(data)
-            symbols.append(symbol)
+    def _finalize_graph(
+        self,
+        data_list: list,
+        symbols: list,
+        title: str,
+        filename: str,
+        extra_layout: Optional[Dict] = None,
+        additional_layout: Optional[Dict] = None,
+    ) -> str:
+        """3.2：DRY 輔助方法——組合 layout/config、合併 default_template 並序列化。
 
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            # "font": {"family": "Courier New"},
+        所有簡單的 _plot* 方法（Bar/Line/Area/Violin/Box）的尾部邏輯完全相同，
+        抽取至此以消除重複。
+
+        Args:
+            data_list:         Plotly trace 列表（由各 _plot* 方法自行組裝）。
+            symbols:           用於 _group_button 的 symbol 列表。
+            title:             圖表標題。
+            filename:          下載圖片的預設檔名。
+            extra_layout:      在 title/hovermode/updatemenus 之外的額外 layout 欄位
+                               （例如 barmode、boxmode 等）。
+            additional_layout: 呼叫端額外傳入的 layout 覆寫（與 extra_layout 分開，
+                               保留原本各方法的 additional_layout 語義）。
+        """
+        layout: Dict = {
             "title": {"text": title},
             "hovermode": "x",
             "updatemenus": self._group_button(symbols),
         }
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-    def _plotBar_with_group(self, df, title, filename):
-        dataList = []
-        symbols = []
-        for symbol, data in df.items():
-            data = {"type": "bar", "name": symbol, "x": data.index, "y": data}
-            dataList.append(data)
-            symbols.append(symbol)
-
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            # "font": {"family": "Courier New"},
-            "title": {"text": title},
-            "barmode": "group",
-            "hovermode": "x",
-            "updatemenus": self._group_button(symbols),
-        }
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-    def _plotArea(self, df, title, filename, additional_layout=None):
-        dataList = []
-        symbols = []
-        for symbol, data in df.items():
-            data = {
-                "type": "scatter",
-                "name": symbol,
-                "x": data.index,
-                "y": data,
-                "fill": "tozeroy",
-                "mode": "none",
-            }
-            dataList.append(data)
-            symbols.append(symbol)
-
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            "title": {"text": title},
-            # "font": {"family": "Courier New"},
-            "hovermode": "x",
-            "updatemenus": self._group_button(symbols),
-        }
-
+        if extra_layout:
+            layout = self._mergeDict(layout, extra_layout)
         if additional_layout:
             layout = self._mergeDict(layout, additional_layout)
 
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
+        config = {"toImageButtonOptions": {"filename": filename}}
+        graph = {"data": data_list, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotLine_without_markers(self, df, title, filename, additional_layout=None):
-        dataList = []
-        symbols = []
+    def _plotBar_without_group(self, df: pd.DataFrame, title: str, filename: str) -> str:
+        """3.2 單欄 bar chart（x = symbol 名稱本身）。"""
+        data_list, symbols = [], []
         for symbol, data in df.items():
-            data = {
-                "type": "scatter",
-                "name": symbol,
-                "x": data.index,
-                "y": data,
-                "mode": "lines",
-            }
-            dataList.append(data)
+            data_list.append({"type": "bar", "name": symbol, "x": [symbol], "y": data})
             symbols.append(symbol)
+        return self._finalize_graph(data_list, symbols, title, filename)
 
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            "title": {"text": title},
-            # "font": {"family": "Courier New"},
-            "hovermode": "x",
-            "updatemenus": self._group_button(symbols),
-        }
-
-        if additional_layout:
-            layout = self._mergeDict(layout, additional_layout)
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-    def _plotViolin(self, df, title, filename):
-        dataList = []
-        symbols = []
+    def _plotBar_with_group(self, df: pd.DataFrame, title: str, filename: str) -> str:
+        """3.2 分組 bar chart（x = df.index）。"""
+        data_list, symbols = [], []
         for symbol, data in df.items():
-            data = {
-                "type": "violin",
-                "name": symbol,
-                "y": data,
-                "box": {"visible": True},
-                "meanline": {"visible": True},
-            }
-            dataList.append(data)
+            data_list.append({"type": "bar", "name": symbol, "x": data.index, "y": data})
             symbols.append(symbol)
+        return self._finalize_graph(
+            data_list, symbols, title, filename, extra_layout={"barmode": "group"}
+        )
 
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            "title": {"text": title},
-            # "font": {"family": "Courier New"},
-            # "xaxis": {
-            # "tickfont": {"family": "Courier New", "size": 14},
-            # "tickangle": 90
-            # },
-            "updatemenus": self._group_button(symbols),
-        }
+    def _plotArea(
+        self, df: pd.DataFrame, title: str, filename: str, additional_layout: Optional[Dict] = None
+    ) -> str:
+        """3.2 面積圖（fill=tozeroy）。"""
+        data_list, symbols = [], []
+        for symbol, data in df.items():
+            data_list.append(
+                {
+                    "type": "scatter",
+                    "name": symbol,
+                    "x": data.index,
+                    "y": data,
+                    "fill": "tozeroy",
+                    "mode": "none",
+                }
+            )
+            symbols.append(symbol)
+        return self._finalize_graph(
+            data_list, symbols, title, filename, additional_layout=additional_layout
+        )
 
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
+    def _plotLine_without_markers(
+        self, df: pd.DataFrame, title: str, filename: str, additional_layout: Optional[Dict] = None
+    ) -> str:
+        """3.2 折線圖（mode=lines，無標記點）。"""
+        data_list, symbols = [], []
+        for symbol, data in df.items():
+            data_list.append(
+                {
+                    "type": "scatter",
+                    "name": symbol,
+                    "x": data.index,
+                    "y": data,
+                    "mode": "lines",
+                }
+            )
+            symbols.append(symbol)
+        return self._finalize_graph(
+            data_list, symbols, title, filename, additional_layout=additional_layout
+        )
 
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+    def _plotViolin(self, df: pd.DataFrame, title: str, filename: str) -> str:
+        """3.2 小提琴圖。"""
+        data_list, symbols = [], []
+        for symbol, data in df.items():
+            data_list.append(
+                {
+                    "type": "violin",
+                    "name": symbol,
+                    "y": data,
+                    "box": {"visible": True},
+                    "meanline": {"visible": True},
+                }
+            )
+            symbols.append(symbol)
+        return self._finalize_graph(data_list, symbols, title, filename)
 
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-    def _plotHeatmap(self, df, title, filename, range_color=[-1, 1]):
-        data = {
+    def _plotHeatmap(
+        self, df: pd.DataFrame, title: str, filename: str, range_color: list = [-1, 1]
+    ) -> str:
+        """3.2 熱力圖。"""
+        trace = {
             "type": "heatmap",
             "z": df.values.tolist(),
             "x": df.index,
@@ -940,115 +952,62 @@ class Figure:
             "zmax": range_color[1],
             "colorbar": {"x": -0.2},
         }
-
         layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            # "font": {"family": "Courier New"},
             "title": {"text": title, "y": 0.05},
-            # "autosize": False,
-            "xaxis": {
-                "side": "top",
-                # "tickfont": {"family": "Courier New"},
-                "tickangle": -90,
-                # "automargin": True,
-                "gridcolor": "rgba(0, 0, 0, 0)",
-            },
-            "yaxis": {
-                "side": "right",
-                # "tickfont": {"family": "Courier New"},
-                # "automargin": True,
-                # "scaleanchor": "x",
-                "gridcolor": "rgba(0, 0, 0, 0)",
-            },
+            "xaxis": {"side": "top", "tickangle": -90, "gridcolor": "rgba(0, 0, 0, 0)"},
+            "yaxis": {"side": "right", "gridcolor": "rgba(0, 0, 0, 0)"},
         }
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": [data], "layout": layout, "config": config}
+        config = {"toImageButtonOptions": {"filename": filename}}
+        graph = {"data": [trace], "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
         graph["layout"]["annotations"][0]["xanchor"] = "left"
-
-        # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def _plotBox_without_group(self, df, title, filename):
-        dataList = []
-        symbols = []
+    def _plotBox_without_group(self, df: pd.DataFrame, title: str, filename: str) -> str:
+        """3.2 箱形圖（x = symbol 名稱本身）。"""
+        data_list, symbols = [], []
         for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
-            data = {
-                "type": "box",
-                "name": symbol,
-                "x": [symbol],
-                "q1": data.loc[:, "25%", :].values[0],
-                "median": data.loc[:, "50%", :].values[0],
-                "q3": data.loc[:, "75%", :].values[0],
-                "lowerfence": data.loc[:, "min", :].values[0],
-                "upperfence": data.loc[:, "max", :].values[0],
-                "mean": data.loc[:, "mean", :].values[0],
-                "sd": data.loc[:, "std", :].values[0],
-            }
-            dataList.append(data)
+            data_list.append(
+                {
+                    "type": "box",
+                    "name": symbol,
+                    "x": [symbol],
+                    "q1": data.loc[:, "25%", :].values[0],
+                    "median": data.loc[:, "50%", :].values[0],
+                    "q3": data.loc[:, "75%", :].values[0],
+                    "lowerfence": data.loc[:, "min", :].values[0],
+                    "upperfence": data.loc[:, "max", :].values[0],
+                    "mean": data.loc[:, "mean", :].values[0],
+                    "sd": data.loc[:, "std", :].values[0],
+                }
+            )
             symbols.append(symbol)
+        return self._finalize_graph(data_list, symbols, title, filename)
 
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            # "font": {"family": "Courier New"},
-            "title": {"text": title},
-            "hovermode": "x",
-            "updatemenus": self._group_button(symbols),
-        }
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
-
-    def _plotBox_with_group(self, df, title, filename):
-        dataList = []
-        symbols = []
+    def _plotBox_with_group(self, df: pd.DataFrame, title: str, filename: str) -> str:
+        """3.2 分組箱形圖（x = df.columns）。"""
+        data_list, symbols = [], []
         for symbol, data in df.groupby(level=0, sort=False):
             data = data.dropna(axis=1)
-            data = {
-                "type": "box",
-                "name": symbol,
-                "x": data.columns,
-                "q1": data.loc[:, "25%", :].values[0],
-                "median": data.loc[:, "50%", :].values[0],
-                "q3": data.loc[:, "75%", :].values[0],
-                "lowerfence": data.loc[:, "min", :].values[0],
-                "upperfence": data.loc[:, "max", :].values[0],
-                "mean": data.loc[:, "mean", :].values[0],
-                "sd": data.loc[:, "std", :].values[0],
-            }
-            dataList.append(data)
+            data_list.append(
+                {
+                    "type": "box",
+                    "name": symbol,
+                    "x": data.columns,
+                    "q1": data.loc[:, "25%", :].values[0],
+                    "median": data.loc[:, "50%", :].values[0],
+                    "q3": data.loc[:, "75%", :].values[0],
+                    "lowerfence": data.loc[:, "min", :].values[0],
+                    "upperfence": data.loc[:, "max", :].values[0],
+                    "mean": data.loc[:, "mean", :].values[0],
+                    "sd": data.loc[:, "std", :].values[0],
+                }
+            )
             symbols.append(symbol)
-
-        layout = {
-            # "title": {"text": title, "font": {"family": "Times New Roman"}},
-            # "font": {"family": "Courier New"},
-            "title": {"text": title},
-            "boxmode": "group",
-            "hovermode": "x",
-            "updatemenus": self._group_button(symbols),
-        }
-
-        config = {
-            "toImageButtonOptions": {"filename": filename},
-        }
-
-        graph = {"data": dataList, "layout": layout, "config": config}
-        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
-
-        # 序列化
-        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+        return self._finalize_graph(
+            data_list, symbols, title, filename, extra_layout={"boxmode": "group"}
+        )
 
     def _plotDailyReturn(self, data):
         dataList = []
@@ -1770,7 +1729,9 @@ class Figure:
         }
 
         config = {
-            "toImageButtonOptions": {"filename": f"{self.iYear} Years Rollback BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"},
+            "toImageButtonOptions": {
+                "filename": f"{self.iYear} Years Rollback BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"
+            },
         }
 
         graph = {"data": dataList, "layout": layout, "config": config}
@@ -1899,7 +1860,9 @@ class Figure:
         }
 
         config = {
-            "toImageButtonOptions": {"filename": f"{self.iYear} Years Rollback Violin BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"},
+            "toImageButtonOptions": {
+                "filename": f"{self.iYear} Years Rollback Violin BullBear_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"
+            },
         }
 
         graph = {"data": dataList, "layout": layout, "config": config}
@@ -1924,7 +1887,7 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
-    def annual_return_bar(self):
+    def annual_return_bar(self) -> str:
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
         end = self.stocks[0].history["Date"].iloc[-1]
@@ -1946,7 +1909,7 @@ class Figure:
 
         return graph
 
-    def intersection_history(self):
+    def intersection_history(self) -> pd.DataFrame:
         if self.intersection_history_val is not None:
             return self.intersection_history_val
 
@@ -1966,7 +1929,7 @@ class Figure:
 
         return df
 
-    def total_return(self):
+    def total_return(self) -> tuple:
         if self.total_return_val is not None:
             return self.total_return_val
 
@@ -1983,7 +1946,7 @@ class Figure:
 
         return start, end, df
 
-    def total_return_bar(self):
+    def total_return_bar(self) -> str:
         start, end, df = self.total_return()
         start = start.strftime("%Y-%m-%d")
         end = end.strftime("%Y-%m-%d")
@@ -1997,7 +1960,7 @@ class Figure:
         graph = json.dumps(graph)
         return graph
 
-    def irr_bar(self):
+    def irr_bar(self) -> str:
         start, end, df = self.total_return()
         year = pd.Timedelta(end - start).days / 365.0
         df = df.map(lambda x: ((1 + x) ** (1 / year) - 1))
@@ -2015,10 +1978,10 @@ class Figure:
 
         return graph
 
-    def year_regular_saving_plan_irr(self):
+    def year_regular_saving_plan_irr(self) -> tuple:
         df = self.intersection_history()
-        start = df.index[0]
-        end = df.index[-1]
+        period_start = df.index[0]  # 3.3：避免與外層 end 同名，改用 period_start/period_end
+        period_end = df.index[-1]
 
         dates = []
         amounts = {}
@@ -2026,7 +1989,8 @@ class Figure:
         money = 1000
         pre_date = None
         for i, (index, row) in enumerate(df.iterrows()):
-            if i != 0 and pd.Timedelta(index - pre_date).days < 365:
+            # 3.10：改用 year 比較，避免閏年 365 天被舊邏輯錯誤跳過
+            if i != 0 and index.year == pre_date.year:
                 continue
 
             dates.append(index.date())
@@ -2048,9 +2012,9 @@ class Figure:
             data[symbol] = [r]
 
         df = pd.DataFrame(data, index=["RSP_IRR"])
-        return start, end, df
+        return period_start, period_end, df
 
-    def year_regular_saving_plan_irr_bar(self):
+    def year_regular_saving_plan_irr_bar(self) -> str:
         start, end, df = self.year_regular_saving_plan_irr()
         start = start.strftime("%Y-%m-%d")
         end = end.strftime("%Y-%m-%d")
@@ -2065,7 +2029,7 @@ class Figure:
 
         return graph
 
-    def rollback_graph(self):
+    def rollback_graph(self) -> str:
         # =========================================================================
         # area
         data = []
@@ -2117,7 +2081,7 @@ class Figure:
 
         return lines, violin
 
-    def correlation_heatmap(self):
+    def correlation_heatmap(self) -> str:
         # =========================================================================
         # close
         data = []
@@ -2160,7 +2124,7 @@ class Figure:
 
         return close, closeAdj
 
-    def daily_return_graph(self):
+    def daily_return_graph(self) -> str:
         data = []
         for st in self.stocks:
             df_daily = st.dailyReturn
@@ -2175,7 +2139,7 @@ class Figure:
 
         return self._plotDailyReturn(data)
 
-    def daily_invest_cost_graph(self):
+    def daily_invest_cost_graph(self) -> str:
         data = []
         for st in self.stocks:
             df_dollar_cost_averaging = st.dollar_cost_averaging()
@@ -2188,7 +2152,7 @@ class Figure:
 
         return self._plotDailyInvestCost(data)
 
-    def daily_invest_bull_bear_graph(self):
+    def daily_invest_bull_bear_graph(self) -> str:
         data = []
         for st in self.stocks:
             _, df_bull_bear_markets_returns = st.identify_bull_bear_markets()
@@ -2201,7 +2165,7 @@ class Figure:
 
         return self._plotDailyInvestBullBear(data)
 
-    def active_vs_passive(self):
+    def active_vs_passive(self) -> str:
         # =========================================================================
         # year
         data = {}
@@ -2293,7 +2257,7 @@ class Figure:
 
         return total_return, annual_return
 
-    def growth_separate(self, init_money):
+    def growth_separate(self, init_money: int) -> str:
         data = []
         start = self.stocks[0].start
         for st in self.stocks:
@@ -2327,7 +2291,7 @@ class Figure:
 
         return lines
 
-    def retire_separate_graph(self):
+    def retire_separate_graph(self) -> str:
         init_money = 10000000
         init_expense = 400000
         inflation_percent = 3
@@ -2368,7 +2332,7 @@ class Figure:
 
         return lines
 
-    def retire_adj_separate_graph(self):
+    def retire_adj_separate_graph(self) -> str:
         init_money = 10000000
         init_expense = 400000
         inflation_percent = 3
@@ -2411,7 +2375,7 @@ class Figure:
 
         return lines
 
-    def growth(self, init_money):
+    def growth(self, init_money: int) -> str:
         df = self.intersection_history()
         start = df.index[0]
         end = df.index[-1]
@@ -2447,7 +2411,7 @@ class Figure:
 
         return lines
 
-    def retire_graph(self):
+    def retire_graph(self) -> str:
         df = self.intersection_history()
         start = df.index[0]
         end = df.index[-1]
@@ -2492,7 +2456,7 @@ class Figure:
 
         return lines
 
-    def retire_adj_graph(self):
+    def retire_adj_graph(self) -> str:
         df = self.intersection_history()
         start = df.index[0]
         end = df.index[-1]
@@ -2537,7 +2501,7 @@ class Figure:
 
         return lines
 
-    def history_adj_graph(self):
+    def history_adj_graph(self) -> str:
         data = []
         for st in self.stocks:
             df_bull_bear_markets, _ = st.identify_bull_bear_markets()
@@ -2552,7 +2516,7 @@ class Figure:
 
         return self._plotHistoryAdj(data)
 
-    def rollback_bullbear_graph(self):
+    def rollback_bullbear_graph(self) -> tuple[str, str]:
         # =========================================================================
         # area
         data = []
@@ -2607,24 +2571,24 @@ def report(
     plots["history_adj"] = fig.history_adj_graph()
     plots["rollbackBullBear"], plots["rollbackBullBearVolin"] = fig.rollback_bullbear_graph()
 
-    with app.app_context():
-        jsfolder = f"{prefix}"
-        os.makedirs(os.path.join(path, jsfolder), exist_ok=True)
+    # 5.3：改用 _render_template，不再需要 app.app_context()
+    jsfolder = f"{prefix}"
+    os.makedirs(os.path.join(path, jsfolder), exist_ok=True)
 
-        for key, item in plots.items():
-            graph = render_template("graph.js.j2", key=key, item=item)
-            with open(os.path.join(path, f"{jsfolder}/{key}.js"), "w", encoding="UTF-8") as f:
-                minified_graph = jsmin(graph)
-                f.write(minified_graph)
+    for key, item in plots.items():
+        graph = render_template("graph.js.j2", key=key, item=item)
+        with open(os.path.join(path, f"{jsfolder}/{key}.js"), "w", encoding="UTF-8") as f:
+            minified_graph = jsmin(graph)
+            f.write(minified_graph)
 
-        html = render_template(
-            "compare.html.j2", plots=plots, jsfolder=jsfolder, title=f"{prefix} Report"
+    html = render_template(
+        "compare.html.j2", plots=plots, jsfolder=jsfolder, title=f"{prefix} Report"
+    )
+    with open(os.path.join(path, f"{prefix}_Report.html"), "w", encoding="UTF-8") as f:
+        minified_html = minify_html.minify(
+            html, keep_comments=False, keep_html_and_head_opening_tags=False
         )
-        with open(os.path.join(path, f"{prefix}_Report.html"), "w", encoding="UTF-8") as f:
-            minified_html = minify_html.minify(
-                html, keep_comments=False, keep_html_and_head_opening_tags=False
-            )
-            f.write(minified_html)
+        f.write(minified_html)
 
 
 def tw_stock():

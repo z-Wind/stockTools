@@ -1,0 +1,31 @@
+# ==========================================
+# 股票與基金分析模組依賴 (requirements.txt)
+# ==========================================
+
+# 基礎資料處理與數學計算
+pandas==2.2.2
+numpy==2.1.0
+python-dateutil==2.8.0
+pyxirr==0.10.5            # IRR 計算
+thefuzz==0.22.1          # 模糊比對 (基金名稱)
+
+# 股價與金融資料抓取
+yfinance>=0.2,<0.3        # Yahoo Finance API
+requests==2.32.4         # 同步 HTTP 請求
+urllib3==1.26.0
+aiohttp==3.12.1           # 非同步 HTTP 請求 (基金資料)
+aiofiles==22.1.0         # 非同步檔案處理
+
+# 網頁解析與爬蟲
+pyquery==2.0.1           # HTML 解析 (類 jQuery 語法)
+
+# 視覺化與報告生成
+plotly==5.23.0            # 互動式圖表
+jinja2==3.0.0            # HTML 模板引擎
+jsmin==3.0.1             # JavaScript 壓縮
+minify_html==0.16.4      # HTML 壓縮 (取較新版本)
+python-calamine==0.3.2
+lxml==5.3.0
+html5lib==1.1
+beautifulsoup4==4.12.3
+maturin==1.7.0

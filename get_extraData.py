@@ -3,34 +3,25 @@ import io
 import requests
 import os
 import time
-import numpy as np
 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+from utils import gen_iter_date_by_month
 
-def transform_date(date):  # 民國轉西元
+
+def transform_date(date: str) -> str:  # 民國轉西元
     y, m, d = date.split("/")
     return str(int(y) + 1911) + "/" + m + "/" + d
 
 
-def process_data(data):
-    data = data.replace(",", "")
-    data = data.replace("--", "")
-
-    if data == "":
-        return np.nan
-
-    return data
+def process_data(data: str) -> float | None:
+    """清理原始字串並轉為 float，空值或無效值回傳 None。"""
+    data = data.replace(",", "").replace("--", "").strip()
+    return float(data) if data else None
 
 
-def gen_iter_date_by_month(start, end):
-    while end >= start:
-        yield start
-        start = start + relativedelta(months=1)
-
-
-def getDatas(path):
+def getDatas(path: str) -> dict:
     datas = {}
     for dirPath, dirNames, fileNames in os.walk(path):
         if len(fileNames) == 0:
@@ -40,9 +31,10 @@ def getDatas(path):
         # 移除當月資料，以免資料不全
         current = f"{(datetime.now() + relativedelta(day=1)).strftime('%Y%m%d')}.csv"
         if fileNames[-1] == current:
-            os.remove(os.path.join(dirPath, fileNames[-1]))
+            removed = fileNames[-1]  # 先記錄再刪除，避免 del 後索引位移
+            os.remove(os.path.join(dirPath, removed))
             del fileNames[-1]
-            print("remove", fileNames[-1])
+            print("remove", removed)
 
         for f in fileNames:
             datas[os.path.splitext(f)[0]] = True
@@ -50,7 +42,9 @@ def getDatas(path):
     return datas
 
 
-def save_twse_ftse_index(s, symbol, url_symbol, start):
+def save_twse_ftse_index(
+    s: requests.Session, symbol: str, url_symbol: str, start: datetime
+) -> None:
     savePath = os.path.join("./extraData", symbol)
     os.makedirs(savePath, exist_ok=True)
     datas = getDatas(savePath)
@@ -105,7 +99,7 @@ def save_TAIDIVIDI_index(s):
     save_twse_ftse_index(s, "臺灣高股息指數", "TAIDIVIDI", start=datetime(2007, 1, 1))
 
 
-def save_TAIEX_index(s):
+def save_TAIEX_index(s: requests.Session) -> None:
     symbol = "臺灣加權股價指數"
     savePath = os.path.join("./extraData", symbol)
     os.makedirs(savePath, exist_ok=True)
@@ -146,7 +140,11 @@ def save_TAIEX_index(s):
         print(totalReturn)
 
         df = hist.join(totalReturn)
-        assert df[df["日期"] != df["日　期"]].empty
+        if not df[df["日期"] != df["日　期"]].empty:
+            raise ValueError(
+                f"{symbol} {d}: hist 與 totalReturn 的日期欄位不對齊，"
+                f"請確認來源資料格式是否改變"
+            )
 
         df.loc[:, "Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="%Y/%m/%d")
         df.loc[:, "Open"] = df["開盤指數"].apply(process_data).astype(float)

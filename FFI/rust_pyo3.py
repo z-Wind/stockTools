@@ -4,6 +4,7 @@ from rust_pyo3 import Price, Stock as Stock_rs, Stat
 import pandas as pd
 import pandas.api.types as ptypes
 
+
 class Stock:
     def _convert(self, df):
         assert ptypes.is_datetime64_dtype(df.index)

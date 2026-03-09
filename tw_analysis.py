@@ -7150,7 +7150,7 @@ def main():
         # ========================================================================
     ]
 
-    do_tasks(tasks, max_workers=5)
+    do_tasks(tasks, max_workers=1)
 
     prefix = "TW_Analysis"
     report_dir = Path("report")

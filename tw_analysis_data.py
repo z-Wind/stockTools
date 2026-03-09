@@ -1542,7 +1542,8 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
-        return pd.read_html(path, encoding="utf8")[0]
+        with gzip.open(path, "rb") as f:
+            return pd.read_html(f, encoding="utf8")[0]
 
     for year in range(113, datetime.today().year - 1911):
         data_上市 = {
@@ -1643,7 +1644,8 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊() 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
-        return pd.read_html(path, encoding="utf8")[0]
+        with gzip.open(path, "rb") as f:
+            return pd.read_html(f, encoding="utf8")[0]
 
     for year in range(113, datetime.today().year - 1911):
         data_上市 = {

@@ -6,12 +6,16 @@ import pandas as pd
 import plotly
 import copy
 import warnings
+import traceback
+import threading
 
 from jsmin import jsmin
 from datetime import datetime
 from typing import Callable, Optional, Dict, Any
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 from tw_analysis_data import *
 
@@ -2739,6 +2743,8 @@ def plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董
     key = "企業ESG資訊揭露彙總資料-人力發展 vs 公司合併報表董事酬金相關資訊"
     key = sanitize_filename(key)
     df_ESG = df_企業ESG資訊揭露彙總資料_人力發展()
+    if df_ESG.empty:
+        return
     df_董事酬金 = df_公司合併報表董事酬金相關資訊()
 
     year_ESG = df_ESG.iloc[0]["報告年度"]
@@ -3059,6 +3065,8 @@ def plot_企業ESG資訊揭露彙總資料_人力發展(plots) -> None:
     key = "企業ESG資訊揭露彙總資料-人力發展"
     key = sanitize_filename(key)
     df = df_企業ESG資訊揭露彙總資料_人力發展()
+    if df.empty:
+        return
 
     year = df.iloc[0]["報告年度"]
     df = df.set_index("公司")
@@ -7078,7 +7086,9 @@ def main():
         lambda: plot_家庭部門平均每戶資產負債(plots),
         lambda: plot_公開資訊觀測站_財務報告附註揭露之員工福利_薪資_資訊(plots),
         lambda: plot_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊(plots),
+        # 企業ESG資訊揭露彙總資料網路資料為空，固定錯誤
         lambda: plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董事酬金相關資訊(plots),
+        # 企業ESG資訊揭露彙總資料網路資料為空，固定錯誤
         lambda: plot_企業ESG資訊揭露彙總資料_人力發展(plots),
         lambda: plot_歷年受僱員工每人每月總薪資平均數(plots),
         lambda: plot_歷年受僱員工每人每月經常性薪資平均數(plots),
@@ -7140,11 +7150,10 @@ def main():
         # ========================================================================
     ]
 
-    do_tasks(tasks)
+    do_tasks(tasks, max_workers=5)
 
     prefix = "TW_Analysis"
     report_dir = Path("report")
-    # 5.3：改用 _render_template，不再需要 app.app_context()
     jsfolder = report_dir / prefix
     jsfolder.mkdir(parents=True, exist_ok=True)
 
@@ -7168,7 +7177,7 @@ def main():
         f.write(minified_html)
 
 
-def do_tasks(tasks, max_workers: int = 8):
+def do_tasks(tasks, max_workers: int):
     """5.1：使用 ThreadPoolExecutor 並行執行繪圖任務，加速 I/O 密集的資料下載。
 
     Args:
@@ -7179,9 +7188,6 @@ def do_tasks(tasks, max_workers: int = 8):
       - plots / items dict 的單次 key 賦值由 CPython GIL 保護（原子操作），安全。
       - _print_lock 確保多執行緒的 print 輸出不交錯。
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import traceback
-    import threading
 
     _print_lock = threading.Lock()
 

@@ -129,7 +129,7 @@ async def get_data(
                 ["Date", "Close", "Adj Close", "Dividends", "Stock Splits"]
             ] + history_list
             with open(root / filename, "w", newline="") as file:
-                csv_writer = csv.writer(file)
+                csv_writer = csv.writer(file, lineterminator="\n")
                 csv_writer.writerows(history_list)
 
 
@@ -174,7 +174,9 @@ fund_querys = [
     {
         "filter": "台灣卓越50基金",
         "name": "元大台灣卓越50基金",
-        "start_date": datetime(2012, 5, 7, 0, 0, 0, tzinfo=taiwan_timezone),
+        "start_date": datetime(
+            2012, 5, 7, 0, 0, 0, tzinfo=taiwan_timezone
+        ),  # 投顧會的資料只到這一天不到成立日 2003/6/25
         "comid": "A0005",
     },
     {

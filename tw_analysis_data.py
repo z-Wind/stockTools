@@ -321,7 +321,7 @@ def df_人力資源調查重要指標() -> pd.DataFrame:
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+    df[num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     return df
 
@@ -382,7 +382,7 @@ def df_教育程度別失業率() -> pd.DataFrame:
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+    df[num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     return df
 
@@ -450,7 +450,7 @@ def df_年齡組別失業率() -> pd.DataFrame:
     num_columns = [
         column for column in df.columns if "年度" not in column and "地區別分" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+    df[num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     return df
 
@@ -503,7 +503,7 @@ def df_教育程度別失業率_按年齡分() -> pd.DataFrame:
     num_columns = [
         column for column in df.columns if "年度" not in column and "項目別" not in column
     ]
-    df.loc[:, num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
+    df[num_columns] = df.loc[:, num_columns].replace("-", np.nan).astype(float) / 100
 
     return df
 
@@ -1536,6 +1536,9 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
 
         if not path.is_file():
             r = _get_session().post(url, data)
+            if "查無資料" in r.text:
+                raise Exception(f"無法獲取資料 {data['RYEAR']} {data['TYPEK']}")
+
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
@@ -1569,9 +1572,7 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
             break
 
     def clear_data(df: pd.DataFrame) -> pd.DataFrame:
-        df = df[df.columns[:-4]]
-
-        df.columns = [
+        new_col_names = [
             "產業類別",
             "公司代號",
             "公司名稱",
@@ -1586,25 +1587,26 @@ def df_公開資訊觀測站_財務報告附註揭露之員工福利薪資資訊
             "每股盈餘(元/股)",
         ]
 
-        df.loc[:, ["員工福利費用"]] = (
-            df["員工福利費用(仟元)"].replace("-", np.nan).astype(float) * 1000
-        )
-        df.loc[:, ["員工薪資費用"]] = (
-            df["員工薪資費用(仟元)"].replace("-", np.nan).astype(float) * 1000
-        )
-        df.loc[:, ["平均員工福利費用(人)"]] = (
+        df = df.iloc[:, : len(new_col_names)]
+
+        df.columns = new_col_names
+        df = df.iloc[1:, :]
+
+        df["員工福利費用"] = df["員工福利費用(仟元)"].replace("-", np.nan).astype(float) * 1000
+        df["員工薪資費用"] = df["員工薪資費用(仟元)"].replace("-", np.nan).astype(float) * 1000
+        df["平均員工福利費用(人)"] = (
             df["平均員工福利費用(仟元/人)"].replace("-", np.nan).astype(float) * 1000
         )
-        df.loc[:, [f"平均員工薪資費用{last_year}年度(人)"]] = (
+        df[f"平均員工薪資費用{last_year}年度(人)"] = (
             df[f"平均員工薪資費用{last_year}年度(仟元/人)"].replace("-", np.nan).astype(float)
             * 1000
         )
-        df.loc[:, [f"平均員工薪資費用{last_year-1}年度(人)"]] = (
+        df[f"平均員工薪資費用{last_year-1}年度(人)"] = (
             df[f"平均員工薪資費用{last_year-1}年度(仟元/人)"].replace("-", np.nan).astype(float)
             * 1000
         )
 
-        df.loc[:, ["平均員工薪資費用調整變動情形"]] = (
+        df["平均員工薪資費用調整變動情形"] = (
             df["平均員工薪資費用調整變動情形(%)"]
             .str.replace("%", "")
             .replace("-", np.nan)
@@ -1636,7 +1638,7 @@ def df_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊() 
         if not path.is_file():
             r = _get_session().post(url, data)
             if "查無資料" in r.text:
-                raise f"無法獲取資料 {data.RYEAR} {data.TYPEK}"
+                raise Exception(f"無法獲取資料 {data['RYEAR']} {data['TYPEK']}")
 
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
@@ -3662,8 +3664,10 @@ def df_現住人口性別_年齡_婚姻狀況() -> pd.DataFrame:
                     if "responseData" in json_data:
                         with gzip.open(path, "wb") as f:
                             f.write(r.content)
+                        print(f"成功儲存 {year} 年第 {page} 頁")
                         break
                     else:
+                        print(f"{year} 年第 {page} 頁無資料 (responseData missing)")
                         return {}
                 except Exception as e:
                     print(key)
@@ -3680,7 +3684,7 @@ def df_現住人口性別_年齡_婚姻狀況() -> pd.DataFrame:
     for year in range(108, datetime.today().year - 1911):
         page = 1
         json_data = get_data(year, page)
-        if "responseData" not in json_data:
+        if not json_data or "responseData" not in json_data:
             print(f"無法獲取資料 {year} {key}")
             continue
 
@@ -3690,6 +3694,10 @@ def df_現住人口性別_年齡_婚姻狀況() -> pd.DataFrame:
         pages = int(json_data["totalPage"])
         for page in range(2, pages + 1):
             json_data = get_data(year, page)
+            if not json_data or "responseData" not in json_data:
+                print(f"無法獲取資料 {year} {key}")
+                continue
+
             data = pd.json_normalize(json_data["responseData"])
             df.append(data)
 
@@ -4900,6 +4908,8 @@ def df_基金績效評比() -> pd.DataFrame:
     df_unique = df_unique[["基金成立日", "基金名稱", "基金統編"]]
     df_unique.loc[:, "訂正_基金名稱"] = df_unique["基金名稱"]
     df_unique.loc[:, "分數"] = np.nan
+    df_unique["分數"] = df_unique["分數"].astype(object)
+
     check = set()
     for index, row in df_unique.iterrows():
         key = (row["基金成立日"], row["基金名稱"], row["基金統編"])

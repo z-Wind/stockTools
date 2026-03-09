@@ -178,7 +178,7 @@ class Stock:
                 dfs.append(pd.read_csv(os.path.join(dirPath, f)))
 
         df = pd.concat(dfs, ignore_index=True).copy()
-        df.loc[:, "Date"] = pd.to_datetime(df["Date"], infer_datetime_format=True)
+        df["Date"] = pd.to_datetime(df["Date"])
         # 去掉 0
         df = df[df["Adj Close"] != 0]
         # 去掉非數字
@@ -253,7 +253,6 @@ class Stock:
         return hist
 
     def _getHistory(self, fromPath: str):
-        # 3.5：移除原本永遠為 False 的 `if self.history` 早退條件
         if fromPath:
             hist = self._getData(fromPath)
         else:
@@ -1916,13 +1915,13 @@ class Figure:
         data = []
         for st in self.stocks:
             s = pd.Series(
-                data=st.history["Adj Close Cal"].to_numpy(),
-                index=st.history["Date"].to_numpy(),
+                data=st.history["Adj Close Cal"].values,
+                index=st.history["Date"],
                 name=st.name,
             )
             data.append(s)
 
-        df = pd.concat(data, axis=1)
+        df = pd.concat(data, axis=1, sort=True)
         df = df.dropna()
 
         self.intersection_history_val = df
@@ -2037,7 +2036,7 @@ class Figure:
             df = st.rollback(self.iYear)
             data.append(df)
 
-        df = pd.concat(data, axis=1)
+        df = pd.concat(data, axis=1, sort=True)
         start = df.index[0] - pd.DateOffset(years=self.iYear)
         end = df.index[-1]
 
@@ -2087,13 +2086,13 @@ class Figure:
         data = []
         for st in self.stocks:
             s = pd.Series(
-                data=st.rawData["Close"].to_numpy(),
-                index=st.rawData["Date"].to_numpy(),
+                data=st.rawData["Close"].values,
+                index=st.rawData["Date"],
                 name=st.name,
             )
             data.append(s)
 
-        df = pd.concat(data, axis=1)
+        df = pd.concat(data, axis=1, sort=True)
         start = df.dropna().index[0].strftime("%Y-%m-%d")
         end = df.dropna().index[-1].strftime("%Y-%m-%d")
         close = self._plotHeatmap(
@@ -2107,13 +2106,13 @@ class Figure:
         data = []
         for st in self.stocks:
             s = pd.Series(
-                data=st.rawData["Adj Close Cal"].to_numpy(),
-                index=st.rawData["Date"].to_numpy(),
+                data=st.rawData["Adj Close Cal"].values,
+                index=st.rawData["Date"],
                 name=st.name,
             )
             data.append(s)
 
-        df = pd.concat(data, axis=1)
+        df = pd.concat(data, axis=1, sort=True)
         start = df.dropna().index[0].strftime("%Y-%m-%d")
         end = df.dropna().index[-1].strftime("%Y-%m-%d")
         closeAdj = self._plotHeatmap(
@@ -2185,7 +2184,7 @@ class Figure:
             df = df.rename({"Adj Close Cal": "CloseAdj"}, axis="columns")
             data[st.name] = df
 
-        df = pd.concat(data, axis=1)
+        df = pd.concat(data, axis=1, sort=True)
         start = df.index[0].strftime("%Y-%m-%d")
         end = df.index[-1].strftime("%Y-%m-%d")
 

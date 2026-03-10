@@ -1,65 +1,260 @@
 <!DOCTYPE html>
-<html data-bs-theme="dark">
-    <head>
-        <title>{{title}}</title>
-        <meta charset="UTF-8">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
-        <style>
-            /* 這是關鍵：強制讓瀏覽器放棄對圖表的連點縮放控制 */
-            .js-plotly-plot {
-                touch-action: manipulation;
-            }
+<html data-bs-theme="dark" lang="zh-Hant">
+<head>
+    <title>{{ title }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <style>
+        :root {
+            --bg-color: #0b0e14;
+            --card-bg: #161b22;
+            --accent-color: #58a6ff;
+        }
 
-            /* 針對圖例區域加強靈敏度 */
-            .js-plotly-plot .legend {
-                cursor: pointer;
-                touch-action: manipulation;
-            }
-        </style>
-    </head>
-    <body bgcolor="#000000">
-        資料來源：<a href="https://consumer.fda.gov.tw/Food/TFND.aspx?nodeID=178" target="_blank">衛生福利部食品藥物管理署</a><br/>
-        <a href="https://data.gov.tw/dataset/8543" target="_blank">政府資料開放平臺：食品營養成分資料集</a><br/>
-        {% if kinds %}
-        <h2>{{kinds.0}} {{kinds.1}} 每100g含量，單位 {{kinds.2}}</h2>
-        {% else %}
-        <h2>每100g含量</h2>
+        body {
+            background-color: var(--bg-color);
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding-bottom: 50px;
+        }
+
+        .container-main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* 標題區塊優化 */
+        .header-section {
+            border-bottom: 1px solid #30363d;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+        }
+
+        .data-source {
+            font-size: 0.85rem;
+            color: #8b949e;
+        }
+
+        /* 導覽按鈕網格化 */
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .btn-nav {
+            background: var(--card-bg);
+            border: 1px solid #30363d;
+            color: #adbac7;
+            text-align: left;
+            padding: 10px 15px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .btn-nav:hover {
+            border-color: #8b949e;
+            background: #21262d;
+            color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        /* 表格樣式美化 */
+        .table-container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .table {
+            margin-bottom: 0;
+            font-size: 0.95rem;
+        }
+
+        .table thead th {
+            background-color: #21262d;
+            border-bottom: 2px solid #30363d;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+
+        .accordion-button:not(.collapsed) {
+            background-color: #1f242c;
+            color: var(--accent-color);
+            box-shadow: none;
+        }
+
+        /* 圖表區塊 */
+        #graph {
+            background: var(--card-bg);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        /* --- 1. 基礎容器設定 --- */
+        .table-responsive.big-table {
+            max-height: 500px;
+            overflow: auto;
+            position: relative;
+        }
+
+        .table-responsive.big-table table {
+            width: max-content !important;
+            white-space: nowrap !important;
+            border-collapse: separate; /* 必須用 separate，sticky 的邊框才不會消失 */
+            border-spacing: 0;
+        }
+
+        /* 3. 優化捲軸外觀 (選配)，讓拉把更容易被看到 */
+        .table-responsive.big-table::-webkit-scrollbar {
+            width: 8px;  /* 縱向捲軸寬度 */
+            height: 8px; /* 橫向捲軸高度 */
+        }
+        .table-responsive.big-table::-webkit-scrollbar-thumb {
+            background: #484f58;
+            border-radius: 4px;
+        }
+
+        /* 自定義捲軸 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+    </style>
+</head>
+<body>
+    <div class="container-main">
+        <div class="header-section text-center">
+            <div class="data-source mb-2">
+                資料來源：<a href="https://consumer.fda.gov.tw/Food/TFND.aspx?nodeID=178" target="_blank" class="text-decoration-none">食藥署</a> | 
+                <a href="https://data.gov.tw/dataset/8543" target="_blank" class="text-decoration-none">開放資料</a>
+            </div>
+            <h1 class="h3 fw-bold">
+                {% if kinds %}
+                    <span class="text-primary">{{ kinds.0 }}</span> 
+                    <span class="text-light">{{ kinds.1 }}</span>
+                    <span class="ms-2 fs-5 text-info">每 100g 含量</span>
+                    <small class="text-secondary fw-normal">({{ kinds.2 }})</small>
+                {% else %}
+                    食品營養分析儀表板
+                {% endif %}
+            </h1>
+        </div>
+
+        <!-- 分欄連結選單 -->
+        {% if links %}
+        <div class="nav-grid">
+            {% for name, link in links.items() %}
+                <a class="btn-nav" href="{{ link }}" target="_blank">
+                    <i class="bi bi-link-45deg"></i> {{ name }}
+                </a>
+            {% endfor %}
+        </div>
         {% endif %}
-        {% for name,link in links.items() %}
-        <div class="d-grid gap-2">
-            <a class="btn btn-outline-light" href="{{ link }}" target="_blank">{{ name }}</a>
-        </div>
-        {%- endfor %}            
-             
-        {% for name,table in tables.items() %}
-        <div class="d-grid gap-2">
-            <button class="btn btn-outline-light" type="button" data-bs-toggle="collapse"  data-bs-target="#collapse{{ loop.index }}" aria-expanded="false" aria-controls="collapse{{ loop.index }}">
-                {{ name }}
-            </button>
-        </div>
-        <div id="collapse{{ loop.index }}" class="collapse">
-            {{ table }}
-        </div>
-        </div>
-        {%- endfor %}
 
+        <!-- 圖表區塊 -->
         {% if detail %}
-            <div id=graph></div>
-            {{ detail }}
+            <div id="graph" style="width:100%; height:500px;"></div>
+            <div class="table-container table-responsive">
+                {{ detail | safe }}
+            </div>
         {% endif %}
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
-        {% if detail %}
-        <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
-        <script>
-        var element = document.getElementById("graph");
-        var graph = {{ graph | safe }};
+        <!-- 折疊表格區 -->
+        <div class="accordion" id="dataAccordion">
+            {% for name, table in tables.items() %}
+            <div class="accordion-item bg-transparent border-secondary mb-2 rounded border">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed py-3" type="button" data-bs-toggle="collapse" data-bs-target="#table{{ loop.index }}">
+                        <strong>{{ name }}</strong>
+                    </button>
+                </h2>
+                <div id="table{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#dataAccordion">
+                    <div class="accordion-body p-0">
+                        <div class="table-responsive big-table">
+                            {{ table | safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 
-        Plotly.newPlot("graph",
-            graph.data,
-            graph.layout || {},
-            graph.config);
-        </script>
-        {% endif %}
-    </body>
+    <!-- 修正後的 JS 載入 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    {% if detail %}
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+    <script>
+        const graphData = {{ graph | safe }};
+        const config = { responsive: true, displayModeBar: false };
+        Plotly.newPlot("graph", graphData.data, graphData.layout || {}, config);
+    </script>
+    {% endif %}
+    <script>
+    document.addEventListener('shown.bs.collapse', function (event) {
+        // 只針對剛展開的那個面板進行計算
+        const container = event.target.querySelector('.table-responsive.big-table');
+        if (!container) return;
+
+        const table = container.querySelector('table');
+        const rows = Array.from(table.rows);
+
+        // 1. 固定上方三列 (縱向滾動)
+        let topOffset = 0;
+        for (let i = 0; i < 3; i++) {
+            if (!rows[i]) continue;
+            const cells = Array.from(rows[i].cells);
+            cells.forEach(cell => {
+                cell.style.position = 'sticky';
+                cell.style.top = topOffset + 'px';
+                cell.style.zIndex = '10';
+                cell.style.backgroundColor = '#21262d';
+            });
+            topOffset += rows[i].offsetHeight; // 自動累加每一行的高度
+        }
+
+        // 2. 固定左側三欄 (橫向滾動)
+        // 我們需要先算出每一欄的累積寬度
+        let leftOffsets = [0];
+        const firstRowCells = rows[0].cells;
+        leftOffsets.push(firstRowCells[0].offsetWidth); // 第二欄的 left
+        leftOffsets.push(leftOffsets[1] + firstRowCells[1].offsetWidth); // 第三欄的 left
+
+        rows.forEach((row, rowIndex) => {
+            for (let j = 0; j < 3; j++) {
+                const cell = row.cells[j];
+                if (!cell) continue;
+
+                cell.style.position = 'sticky';
+                cell.style.left = leftOffsets[j] + 'px';
+                
+                // 處理層級：左上角 3x3 區域 z-index 要最高 (20)
+                if (rowIndex < 3) {
+                    cell.style.zIndex = '20';
+                    cell.style.backgroundColor = '#21262d';
+                } else {
+                    cell.style.zIndex = '5';
+                    cell.style.backgroundColor = '#161b22';
+                }
+                // 補強右側邊框感
+                cell.style.boxShadow = 'inset -1px -1px 0 #30363d';
+            }
+        });
+    });
+    </script>
+</body>
 </html>

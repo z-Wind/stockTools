@@ -10,12 +10,15 @@
             --bg-color: #0b0e14;
             --card-bg: #161b22;
             --accent-color: #58a6ff;
+            --border-color: #30363d;
+            --row-alt-bg: #1c2128;
+            --hover-bg: #21262d;
         }
 
         body {
             background-color: var(--bg-color);
             color: #c9d1d9;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             padding-bottom: 50px;
         }
 
@@ -25,9 +28,9 @@
             padding: 2rem 1rem;
         }
 
-        /* 標題區塊優化 */
+        /* --- 1. 標題與導覽區塊 --- */
         .header-section {
-            border-bottom: 1px solid #30363d;
+            border-bottom: 1px solid var(--border-color);
             margin-bottom: 2rem;
             padding-bottom: 1rem;
         }
@@ -37,7 +40,6 @@
             color: #8b949e;
         }
 
-        /* 導覽按鈕網格化 */
         .nav-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -47,9 +49,8 @@
 
         .btn-nav {
             background: var(--card-bg);
-            border: 1px solid #30363d;
+            border: 1px solid var(--border-color);
             color: #adbac7;
-            text-align: left;
             padding: 10px 15px;
             border-radius: 6px;
             transition: all 0.2s ease;
@@ -63,76 +64,93 @@
 
         .btn-nav:hover {
             border-color: #8b949e;
-            background: #21262d;
+            background: var(--hover-bg);
             color: var(--accent-color);
             transform: translateY(-2px);
         }
 
-        /* 表格樣式美化 */
-        .table-container {
-            background: var(--card-bg);
-            border-radius: 8px;
-            border: 1px solid #30363d;
-            overflow: hidden;
-            margin-bottom: 1.5rem;
-        }
-
-        .table {
-            margin-bottom: 0;
-            font-size: 0.95rem;
-        }
-
-        .table thead th {
-            background-color: #21262d;
-            border-bottom: 2px solid #30363d;
-            color: #f0f6fc;
-            font-weight: 600;
-        }
-
-        .accordion-button:not(.collapsed) {
-            background-color: #1f242c;
-            color: var(--accent-color);
-            box-shadow: none;
-        }
-
-        /* 圖表區塊 */
-        #graph {
-            background: var(--card-bg);
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        /* --- 1. 基礎容器設定 --- */
-        .table-responsive.big-table {
-            max-height: 500px;
+        /* --- 2. 表格容器 (Responsive) --- */
+        /* 僅對大數據表格觸發固定高度與內部陰影 */
+        .table-responsive:has(:is(.all-datas, .partial-datas)) {
+            max-height: 60vh;
             overflow: auto;
             position: relative;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: inset 8px 0 8px -8px rgba(0,0,0,0.5);
         }
 
-        .table-responsive.big-table table {
+        /* --- 3. 表格核心樣式 --- */
+        /* 大數據表格專用：強制寬度、不換行、邊框獨立 (為 Sticky 準備) */
+        .table-responsive table:is(.all-datas, .partial-datas) {
             width: max-content !important;
             white-space: nowrap !important;
-            border-collapse: separate; /* 必須用 separate，sticky 的邊框才不會消失 */
+            border-collapse: separate;
             border-spacing: 0;
         }
 
-        /* 3. 優化捲軸外觀 (選配)，讓拉把更容易被看到 */
-        .table-responsive.big-table::-webkit-scrollbar {
-            width: 8px;  /* 縱向捲軸寬度 */
-            height: 8px; /* 橫向捲軸高度 */
-        }
-        .table-responsive.big-table::-webkit-scrollbar-thumb {
-            background: #484f58;
-            border-radius: 4px;
+        /* 普通表格：自動填滿寬度、允許換行 */
+        .table-responsive table:not(.all-datas):not(.partial-datas) {
+            width: 100% !important;
+            white-space: normal;
+            border-collapse: collapse; /* 普通表格用 collapse 邊框較整齊 */
         }
 
-        /* 自定義捲軸 */
+        /* 通用單元格 (緊湊風格) */
+        .table-responsive th,
+        .table-responsive td {
+            padding: 6px 12px;
+            line-height: 1.4;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* 表頭 Sticky 與配色 */
+        .table-responsive thead th {
+            background-color: var(--hover-bg);
+            color: #f0f6fc;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 15;
+        }
+
+        /* 斑馬紋與滑鼠懸停效果 */
+        .table-responsive tbody tr:nth-child(even) td {
+            background-color: var(--row-alt-bg);
+        }
+
+        .table-responsive tbody tr:hover td {
+            background-color: var(--hover-bg) !important;
+            color: var(--accent-color);
+        }
+
+        /* --- 4. 捲軸美化 (僅針對表格) --- */
+        .table-responsive::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #0d1117;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #3c444d;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        /* 全域捲軸樣式同步 */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: var(--bg-color); }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -184,7 +202,7 @@
                 </h2>
                 <div id="table{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#dataAccordion">
                     <div class="accordion-body p-0">
-                        <div class="table-responsive big-table">
+                        <div class="table-responsive">
                             {{ table | safe }}
                         </div>
                     </div>
@@ -207,11 +225,19 @@
     <script>
     document.addEventListener('shown.bs.collapse', function (event) {
         // 只針對剛展開的那個面板進行計算
-        const container = event.target.querySelector('.table-responsive.big-table');
+        const container = event.target.querySelector('.table-responsive');
         if (!container) return;
 
         const table = container.querySelector('table');
         const rows = Array.from(table.rows);
+
+        // 1. 根據 class 動態決定要固定的欄數
+        let stickyColumns = 0;
+        if (table.classList.contains('all-datas')) {
+            stickyColumns = 3;
+        } else if (table.classList.contains('partial-datas')) {
+            stickyColumns = 2;
+        }
 
         // 1. 固定上方三列 (縱向滾動)
         let topOffset = 0;
@@ -227,15 +253,18 @@
             topOffset += rows[i].offsetHeight; // 自動累加每一行的高度
         }
 
-        // 2. 固定左側三欄 (橫向滾動)
+        // 2. 固定左側欄 (橫向滾動)
         // 我們需要先算出每一欄的累積寬度
         let leftOffsets = [0];
         const firstRowCells = rows[0].cells;
-        leftOffsets.push(firstRowCells[0].offsetWidth); // 第二欄的 left
-        leftOffsets.push(leftOffsets[1] + firstRowCells[1].offsetWidth); // 第三欄的 left
+        let currentOffset = 0;
+        for (let j = 0; j < stickyColumns; j++) {
+            currentOffset += rows[0].cells[j].offsetWidth;
+            leftOffsets.push(currentOffset);
+        }
 
         rows.forEach((row, rowIndex) => {
-            for (let j = 0; j < 3; j++) {
+            for (let j = 0; j < stickyColumns; j++) {
                 const cell = row.cells[j];
                 if (!cell) continue;
 

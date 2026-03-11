@@ -227,7 +227,13 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
     df_all.index += 1
     tables = {
         "全部": df_all.to_html(
-            classes=["table", "table-dark", "table-sm", "table-hover"],  # 加入 table-sm 減小體積
+            classes=[
+                "table",
+                "table-dark",
+                "table-sm",
+                "table-hover",
+                "all-datas",
+            ],  # 加入 table-sm 減小體積
             escape=False,
             render_links=True,
         )
@@ -241,7 +247,7 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
                 df_sub = df_sorted.loc[category].reset_index()
                 df_sub.index += 1
                 tables[category] = df_sub.to_html(
-                    classes=["table", "table-dark", "table-sm", "table-hover"],
+                    classes=["table", "table-dark", "table-sm", "table-hover", "partial-datas"],
                     escape=False,
                     render_links=True,
                 )
@@ -336,14 +342,15 @@ def get_data() -> pd.DataFrame:
         with z.open("20_2.csv") as fh:  # fh 避免與外層變數 f 同名衝突
             data = pd.read_csv(fh)
 
-    # debug 用
-    # file_path = r"C:\Users\chihchieh.sun\Downloads\20_2.csv.zip"
+    # # debug 用
+    # file_path = os.path.expanduser(r"~\Downloads\20_2.csv.zip")
     # _log(f"讀取本地檔案：{file_path}...")
     # # 使用 'rb' 模式開啟二進位檔案
     # with open(file_path, "rb") as f:
     #     with zipfile.ZipFile(f) as z:
     #         with z.open("20_2.csv") as fh:
     #             data = pd.read_csv(fh)
+    # data = data.head(3000)
     # _log(f"讀取完成，資料筆數：{len(data)}")
 
     data = data.fillna(value={"俗名": ""})

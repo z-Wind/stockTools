@@ -1,10 +1,205 @@
-<!doctype html><html data-bs-theme=dark><title>TW_Food Report</title><meta charset=UTF-8><link crossorigin href=https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css integrity=sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr rel=stylesheet><style>/* 這是關鍵：強制讓瀏覽器放棄對圖表的連點縮放控制 */
-            .js-plotly-plot {
-                touch-action: manipulation;
-            }
+<!doctype html><html data-bs-theme=dark lang=zh-Hant><title>TW_Food Report</title><meta charset=UTF-8><meta content="width=device-width,initial-scale=1" name=viewport><link crossorigin href=https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css integrity=sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB rel=stylesheet><style>:root {
+            --bg-color: #0b0e14;
+            --card-bg: #161b22;
+            --accent-color: #58a6ff;
+            --border-color: #30363d;
+            --row-alt-bg: #1c2128;
+            --hover-bg: #21262d;
+        }
 
-            /* 針對圖例區域加強靈敏度 */
-            .js-plotly-plot .legend {
-                cursor: pointer;
-                touch-action: manipulation;
-            }</style><body bgcolor=#000000>資料來源：<a href="https://consumer.fda.gov.tw/Food/TFND.aspx?nodeID=178" target=_blank>衛生福利部食品藥物管理署</a><br><a href=https://data.gov.tw/dataset/8543 target=_blank>政府資料開放平臺：食品營養成分資料集</a><br><h2>每100g含量</h2><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_修正熱量_Report.html target=_blank>一般成分_修正熱量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_水分_Report.html target=_blank>一般成分_水分</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_灰分_Report.html target=_blank>一般成分_灰分</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_熱量_Report.html target=_blank>一般成分_熱量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_粗脂肪_Report.html target=_blank>一般成分_粗脂肪</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_粗蛋白_Report.html target=_blank>一般成分_粗蛋白</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_總碳水化合物_Report.html target=_blank>一般成分_總碳水化合物</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_膳食纖維_Report.html target=_blank>一般成分_膳食纖維</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/一般成分_飽和脂肪_Report.html target=_blank>一般成分_飽和脂肪</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/其他_反式脂肪_Report.html target=_blank>其他_反式脂肪</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/其他_膽固醇_Report.html target=_blank>其他_膽固醇</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/其他_酒精含量_Report.html target=_blank>其他_酒精含量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_磷_Report.html target=_blank>礦物質_磷</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鈉_Report.html target=_blank>礦物質_鈉</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鈣_Report.html target=_blank>礦物質_鈣</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鉀_Report.html target=_blank>礦物質_鉀</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_銅_Report.html target=_blank>礦物質_銅</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鋅_Report.html target=_blank>礦物質_鋅</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_錳_Report.html target=_blank>礦物質_錳</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鎂_Report.html target=_blank>礦物質_鎂</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/礦物質_鐵_Report.html target=_blank>礦物質_鐵</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_乳糖_Report.html target=_blank>糖質分析_乳糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_半乳糖_Report.html target=_blank>糖質分析_半乳糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_果糖_Report.html target=_blank>糖質分析_果糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_糖質總量_Report.html target=_blank>糖質分析_糖質總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_葡萄糖_Report.html target=_blank>糖質分析_葡萄糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_蔗糖_Report.html target=_blank>糖質分析_蔗糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/糖質分析_麥芽糖_Report.html target=_blank>糖質分析_麥芽糖</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素A_α_胡蘿蔔素_Report.html target=_blank>維生素A_α-胡蘿蔔素</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素A_β_胡蘿蔔素_Report.html target=_blank>維生素A_β-胡蘿蔔素</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素A_維生素A總量_IU__Report.html target=_blank>維生素A_維生素A總量(IU)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素A_視網醇_Report.html target=_blank>維生素A_視網醇</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素A_視網醇當量_RE__Report.html target=_blank>維生素A_視網醇當量(RE)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_維生素B1_Report.html target=_blank>維生素B群 & C_維生素B1</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_維生素B12_Report.html target=_blank>維生素B群 & C_維生素B12</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_維生素B2_Report.html target=_blank>維生素B群 & C_維生素B2</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_維生素B6_Report.html target=_blank>維生素B群 & C_維生素B6</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_維生素C_Report.html target=_blank>維生素B群 & C_維生素C</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_菸鹼素_Report.html target=_blank>維生素B群 & C_菸鹼素</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素B群_&_C_葉酸_Report.html target=_blank>維生素B群 & C_葉酸</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素D_維生素D2_Report.html target=_blank>維生素D_維生素D2</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素D_維生素D3_Report.html target=_blank>維生素D_維生素D3</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素D_維生素D總量_IU__Report.html target=_blank>維生素D_維生素D總量(IU)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素D_維生素D總量_ug__Report.html target=_blank>維生素D_維生素D總量(ug)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_α_生育酚_Report.html target=_blank>維生素E_α-生育酚</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_α_維生素E當量_α_TE__Report.html target=_blank>維生素E_α-維生素E當量(α-TE)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_β_生育酚_Report.html target=_blank>維生素E_β-生育酚</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_γ_生育酚_Report.html target=_blank>維生素E_γ-生育酚</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_δ_生育酚_Report.html target=_blank>維生素E_δ-生育酚</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素E_維生素E總量_Report.html target=_blank>維生素E_維生素E總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素K_維生素K1_Report.html target=_blank>維生素K_維生素K1</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素K_維生素K2_MK_4__Report.html target=_blank>維生素K_維生素K2(MK-4)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/維生素K_維生素K2_MK_7__Report.html target=_blank>維生素K_維生素K2(MK-7)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_丙胺酸_Ala__Report.html target=_blank>胺基酸組成_丙胺酸(Ala)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_天門冬胺酸_Asp__Report.html target=_blank>胺基酸組成_天門冬胺酸(Asp)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_水解胺基酸總量_Report.html target=_blank>胺基酸組成_水解胺基酸總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_甘胺酸_Gly__Report.html target=_blank>胺基酸組成_甘胺酸(Gly)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_甲硫胺酸_Met__Report.html target=_blank>胺基酸組成_甲硫胺酸(Met)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_異白胺酸_Ile__Report.html target=_blank>胺基酸組成_異白胺酸(Ile)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_白胺酸_Leu__Report.html target=_blank>胺基酸組成_白胺酸(Leu)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_精胺酸_Arg__Report.html target=_blank>胺基酸組成_精胺酸(Arg)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_組胺酸_His__Report.html target=_blank>胺基酸組成_組胺酸(His)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_絲胺酸_Ser__Report.html target=_blank>胺基酸組成_絲胺酸(Ser)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_纈胺酸_Val__Report.html target=_blank>胺基酸組成_纈胺酸(Val)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_胱胺酸_Cys__Report.html target=_blank>胺基酸組成_胱胺酸(Cys)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_脯胺酸_Pro__Report.html target=_blank>胺基酸組成_脯胺酸(Pro)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_色胺酸_Trp__Report.html target=_blank>胺基酸組成_色胺酸(Trp)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_苯丙胺酸_Phe__Report.html target=_blank>胺基酸組成_苯丙胺酸(Phe)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_酥胺酸_Thr__Report.html target=_blank>胺基酸組成_酥胺酸(Thr)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_酪胺酸_Tyr__Report.html target=_blank>胺基酸組成_酪胺酸(Tyr)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_離胺酸_Lys__Report.html target=_blank>胺基酸組成_離胺酸(Lys)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/胺基酸組成_麩胺酸_Glu__Report.html target=_blank>胺基酸組成_麩胺酸(Glu)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_亞麻油酸_18_2__Report.html target=_blank>脂肪酸組成_亞麻油酸(18:2)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_其他脂肪酸_Report.html target=_blank>脂肪酸組成_其他脂肪酸</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_十七酸_17_0__Report.html target=_blank>脂肪酸組成_十七酸(17:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_十三酸_13_0__Report.html target=_blank>脂肪酸組成_十三酸(13:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_十九酸_19_0__Report.html target=_blank>脂肪酸組成_十九酸(19:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_十五酸_15_0__Report.html target=_blank>脂肪酸組成_十五酸(15:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_十八碳四烯酸_18_4__Report.html target=_blank>脂肪酸組成_十八碳四烯酸(18:4)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_山酸_22_0__Report.html target=_blank>脂肪酸組成_山酸(22:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_己酸_6_0__Report.html target=_blank>脂肪酸組成_己酸(6:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_廿二碳五烯酸_22_5__Report.html target=_blank>脂肪酸組成_廿二碳五烯酸(22:5)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_廿二碳六烯酸_22_6__Report.html target=_blank>脂肪酸組成_廿二碳六烯酸(22:6)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_廿四酸_24_0__Report.html target=_blank>脂肪酸組成_廿四酸(24:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_廿碳五烯酸_20_5__Report.html target=_blank>脂肪酸組成_廿碳五烯酸(20:5)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_月桂酸_12_0__Report.html target=_blank>脂肪酸組成_月桂酸(12:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_棕櫚烯酸_16_1__Report.html target=_blank>脂肪酸組成_棕櫚烯酸(16:1)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_棕櫚酸_16_0__Report.html target=_blank>脂肪酸組成_棕櫚酸(16:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_次亞麻油酸_18_3__Report.html target=_blank>脂肪酸組成_次亞麻油酸(18:3)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_油酸_18_1__Report.html target=_blank>脂肪酸組成_油酸(18:1)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_癸酸_10_0__Report.html target=_blank>脂肪酸組成_癸酸(10:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_硬脂酸_18_0__Report.html target=_blank>脂肪酸組成_硬脂酸(18:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_肉豆蔻烯酸_14_1__Report.html target=_blank>脂肪酸組成_肉豆蔻烯酸(14:1)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_肉豆蔻酸_14_0__Report.html target=_blank>脂肪酸組成_肉豆蔻酸(14:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_脂肪酸M總量_Report.html target=_blank>脂肪酸組成_脂肪酸M總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_脂肪酸P總量_Report.html target=_blank>脂肪酸組成_脂肪酸P總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_脂肪酸S總量_Report.html target=_blank>脂肪酸組成_脂肪酸S總量</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_芥子酸_22_1__Report.html target=_blank>脂肪酸組成_芥子酸(22:1)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_花生油酸_20_4__Report.html target=_blank>脂肪酸組成_花生油酸(20:4)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_花生酸_20_0__Report.html target=_blank>脂肪酸組成_花生酸(20:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_辛酸_8_0__Report.html target=_blank>脂肪酸組成_辛酸(8:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_酪酸_4_0__Report.html target=_blank>脂肪酸組成_酪酸(4:0)</a></div><div class="d-grid gap-2"><a class="btn btn-outline-light" href=./TW_Food/脂肪酸組成_鱈烯酸_20_1__Report.html target=_blank>脂肪酸組成_鱈烯酸(20:1)</a></div><script crossorigin integrity=sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q src=https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js></script>
+        body {
+            background-color: var(--bg-color);
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding-bottom: 50px;
+        }
+
+        .container-main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* --- 1. 標題與導覽區塊 --- */
+        .header-section {
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+        }
+
+        .data-source {
+            font-size: 0.85rem;
+            color: #8b949e;
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .btn-nav {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: #adbac7;
+            padding: 10px 15px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .btn-nav:hover {
+            border-color: #8b949e;
+            background: var(--hover-bg);
+            color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        /* --- 2. 表格容器 (Responsive) --- */
+        /* 僅對大數據表格觸發固定高度與內部陰影 */
+        .table-responsive:has(:is(.all-datas, .partial-datas)) {
+            max-height: 60vh;
+            overflow: auto;
+            position: relative;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: inset 8px 0 8px -8px rgba(0,0,0,0.5);
+        }
+
+        /* --- 3. 表格核心樣式 --- */
+        /* 大數據表格專用：強制寬度、不換行、邊框獨立 (為 Sticky 準備) */
+        .table-responsive table:is(.all-datas, .partial-datas) {
+            width: max-content !important;
+            white-space: nowrap !important;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        /* 普通表格：自動填滿寬度、允許換行 */
+        .table-responsive table:not(.all-datas):not(.partial-datas) {
+            width: 100% !important;
+            white-space: normal;
+            border-collapse: collapse; /* 普通表格用 collapse 邊框較整齊 */
+        }
+
+        /* 通用單元格 (緊湊風格) */
+        .table-responsive th,
+        .table-responsive td {
+            padding: 6px 12px;
+            line-height: 1.4;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* 表頭 Sticky 與配色 */
+        .table-responsive thead th {
+            background-color: var(--hover-bg);
+            color: #f0f6fc;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 15;
+        }
+
+        /* 斑馬紋與滑鼠懸停效果 */
+        .table-responsive tbody tr:nth-child(even) td {
+            background-color: var(--row-alt-bg);
+        }
+
+        .table-responsive tbody tr:hover td {
+            background-color: var(--hover-bg) !important;
+            color: var(--accent-color);
+        }
+
+        /* --- 4. 捲軸美化 (僅針對表格) --- */
+        .table-responsive::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #0d1117;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #3c444d;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        /* 全域捲軸樣式同步 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }</style><body><div class=container-main><div class="header-section text-center"><div class="data-source mb-2">資料來源：<a href="https://consumer.fda.gov.tw/Food/TFND.aspx?nodeID=178" class=text-decoration-none target=_blank>食藥署</a> | <a class=text-decoration-none href=https://data.gov.tw/dataset/8543 target=_blank>開放資料</a></div><h1 class="h3 fw-bold">食品營養分析儀表板</h1></div><div class=nav-grid><a class=btn-nav href=./TW_Food/一般成分_修正熱量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_修正熱量 </a><a class=btn-nav href=./TW_Food/一般成分_水分_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_水分 </a><a class=btn-nav href=./TW_Food/一般成分_灰分_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_灰分 </a><a class=btn-nav href=./TW_Food/一般成分_熱量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_熱量 </a><a class=btn-nav href=./TW_Food/一般成分_粗脂肪_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_粗脂肪 </a><a class=btn-nav href=./TW_Food/一般成分_粗蛋白_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_粗蛋白 </a><a class=btn-nav href=./TW_Food/一般成分_總碳水化合物_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_總碳水化合物 </a><a class=btn-nav href=./TW_Food/一般成分_膳食纖維_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_膳食纖維 </a><a class=btn-nav href=./TW_Food/一般成分_飽和脂肪_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 一般成分_飽和脂肪 </a><a class=btn-nav href=./TW_Food/其他_反式脂肪_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 其他_反式脂肪 </a><a class=btn-nav href=./TW_Food/其他_膽固醇_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 其他_膽固醇 </a><a class=btn-nav href=./TW_Food/其他_酒精含量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 其他_酒精含量 </a><a class=btn-nav href=./TW_Food/礦物質_磷_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_磷 </a><a class=btn-nav href=./TW_Food/礦物質_鈉_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鈉 </a><a class=btn-nav href=./TW_Food/礦物質_鈣_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鈣 </a><a class=btn-nav href=./TW_Food/礦物質_鉀_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鉀 </a><a class=btn-nav href=./TW_Food/礦物質_銅_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_銅 </a><a class=btn-nav href=./TW_Food/礦物質_鋅_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鋅 </a><a class=btn-nav href=./TW_Food/礦物質_錳_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_錳 </a><a class=btn-nav href=./TW_Food/礦物質_鎂_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鎂 </a><a class=btn-nav href=./TW_Food/礦物質_鐵_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 礦物質_鐵 </a><a class=btn-nav href=./TW_Food/糖質分析_乳糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_乳糖 </a><a class=btn-nav href=./TW_Food/糖質分析_半乳糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_半乳糖 </a><a class=btn-nav href=./TW_Food/糖質分析_果糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_果糖 </a><a class=btn-nav href=./TW_Food/糖質分析_糖質總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_糖質總量 </a><a class=btn-nav href=./TW_Food/糖質分析_葡萄糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_葡萄糖 </a><a class=btn-nav href=./TW_Food/糖質分析_蔗糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_蔗糖 </a><a class=btn-nav href=./TW_Food/糖質分析_麥芽糖_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 糖質分析_麥芽糖 </a><a class=btn-nav href=./TW_Food/維生素A_α_胡蘿蔔素_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素A_α-胡蘿蔔素 </a><a class=btn-nav href=./TW_Food/維生素A_β_胡蘿蔔素_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素A_β-胡蘿蔔素 </a><a class=btn-nav href=./TW_Food/維生素A_維生素A總量_IU__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素A_維生素A總量(IU) </a><a class=btn-nav href=./TW_Food/維生素A_視網醇_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素A_視網醇 </a><a class=btn-nav href=./TW_Food/維生素A_視網醇當量_RE__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素A_視網醇當量(RE) </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_維生素B1_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_維生素B1 </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_維生素B12_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_維生素B12 </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_維生素B2_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_維生素B2 </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_維生素B6_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_維生素B6 </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_維生素C_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_維生素C </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_菸鹼素_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_菸鹼素 </a><a class=btn-nav href=./TW_Food/維生素B群_&_C_葉酸_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素B群 & C_葉酸 </a><a class=btn-nav href=./TW_Food/維生素D_維生素D2_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素D_維生素D2 </a><a class=btn-nav href=./TW_Food/維生素D_維生素D3_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素D_維生素D3 </a><a class=btn-nav href=./TW_Food/維生素D_維生素D總量_IU__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素D_維生素D總量(IU) </a><a class=btn-nav href=./TW_Food/維生素D_維生素D總量_ug__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素D_維生素D總量(ug) </a><a class=btn-nav href=./TW_Food/維生素E_α_生育酚_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_α-生育酚 </a><a class=btn-nav href=./TW_Food/維生素E_α_維生素E當量_α_TE__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_α-維生素E當量(α-TE) </a><a class=btn-nav href=./TW_Food/維生素E_β_生育酚_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_β-生育酚 </a><a class=btn-nav href=./TW_Food/維生素E_γ_生育酚_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_γ-生育酚 </a><a class=btn-nav href=./TW_Food/維生素E_δ_生育酚_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_δ-生育酚 </a><a class=btn-nav href=./TW_Food/維生素E_維生素E總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素E_維生素E總量 </a><a class=btn-nav href=./TW_Food/維生素K_維生素K1_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素K_維生素K1 </a><a class=btn-nav href=./TW_Food/維生素K_維生素K2_MK_4__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素K_維生素K2(MK-4) </a><a class=btn-nav href=./TW_Food/維生素K_維生素K2_MK_7__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 維生素K_維生素K2(MK-7) </a><a class=btn-nav href=./TW_Food/胺基酸組成_丙胺酸_Ala__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_丙胺酸(Ala) </a><a class=btn-nav href=./TW_Food/胺基酸組成_天門冬胺酸_Asp__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_天門冬胺酸(Asp) </a><a class=btn-nav href=./TW_Food/胺基酸組成_水解胺基酸總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_水解胺基酸總量 </a><a class=btn-nav href=./TW_Food/胺基酸組成_甘胺酸_Gly__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_甘胺酸(Gly) </a><a class=btn-nav href=./TW_Food/胺基酸組成_甲硫胺酸_Met__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_甲硫胺酸(Met) </a><a class=btn-nav href=./TW_Food/胺基酸組成_異白胺酸_Ile__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_異白胺酸(Ile) </a><a class=btn-nav href=./TW_Food/胺基酸組成_白胺酸_Leu__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_白胺酸(Leu) </a><a class=btn-nav href=./TW_Food/胺基酸組成_精胺酸_Arg__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_精胺酸(Arg) </a><a class=btn-nav href=./TW_Food/胺基酸組成_組胺酸_His__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_組胺酸(His) </a><a class=btn-nav href=./TW_Food/胺基酸組成_絲胺酸_Ser__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_絲胺酸(Ser) </a><a class=btn-nav href=./TW_Food/胺基酸組成_纈胺酸_Val__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_纈胺酸(Val) </a><a class=btn-nav href=./TW_Food/胺基酸組成_胱胺酸_Cys__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_胱胺酸(Cys) </a><a class=btn-nav href=./TW_Food/胺基酸組成_脯胺酸_Pro__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_脯胺酸(Pro) </a><a class=btn-nav href=./TW_Food/胺基酸組成_色胺酸_Trp__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_色胺酸(Trp) </a><a class=btn-nav href=./TW_Food/胺基酸組成_苯丙胺酸_Phe__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_苯丙胺酸(Phe) </a><a class=btn-nav href=./TW_Food/胺基酸組成_酥胺酸_Thr__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_酥胺酸(Thr) </a><a class=btn-nav href=./TW_Food/胺基酸組成_酪胺酸_Tyr__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_酪胺酸(Tyr) </a><a class=btn-nav href=./TW_Food/胺基酸組成_離胺酸_Lys__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_離胺酸(Lys) </a><a class=btn-nav href=./TW_Food/胺基酸組成_麩胺酸_Glu__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 胺基酸組成_麩胺酸(Glu) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_亞麻油酸_18_2__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_亞麻油酸(18:2) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_其他脂肪酸_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_其他脂肪酸 </a><a class=btn-nav href=./TW_Food/脂肪酸組成_十七酸_17_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_十七酸(17:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_十三酸_13_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_十三酸(13:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_十九酸_19_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_十九酸(19:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_十五酸_15_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_十五酸(15:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_十八碳四烯酸_18_4__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_十八碳四烯酸(18:4) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_山酸_22_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_山酸(22:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_己酸_6_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_己酸(6:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_廿二碳五烯酸_22_5__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_廿二碳五烯酸(22:5) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_廿二碳六烯酸_22_6__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_廿二碳六烯酸(22:6) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_廿四酸_24_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_廿四酸(24:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_廿碳五烯酸_20_5__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_廿碳五烯酸(20:5) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_月桂酸_12_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_月桂酸(12:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_棕櫚烯酸_16_1__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_棕櫚烯酸(16:1) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_棕櫚酸_16_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_棕櫚酸(16:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_次亞麻油酸_18_3__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_次亞麻油酸(18:3) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_油酸_18_1__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_油酸(18:1) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_癸酸_10_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_癸酸(10:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_硬脂酸_18_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_硬脂酸(18:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_肉豆蔻烯酸_14_1__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_肉豆蔻烯酸(14:1) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_肉豆蔻酸_14_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_肉豆蔻酸(14:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_脂肪酸M總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_脂肪酸M總量 </a><a class=btn-nav href=./TW_Food/脂肪酸組成_脂肪酸P總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_脂肪酸P總量 </a><a class=btn-nav href=./TW_Food/脂肪酸組成_脂肪酸S總量_Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_脂肪酸S總量 </a><a class=btn-nav href=./TW_Food/脂肪酸組成_芥子酸_22_1__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_芥子酸(22:1) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_花生油酸_20_4__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_花生油酸(20:4) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_花生酸_20_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_花生酸(20:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_辛酸_8_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_辛酸(8:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_酪酸_4_0__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_酪酸(4:0) </a><a class=btn-nav href=./TW_Food/脂肪酸組成_鱈烯酸_20_1__Report.html target=_blank> <i class="bi bi-link-45deg"></i> 脂肪酸組成_鱈烯酸(20:1) </a></div><div class=accordion id=dataAccordion></div></div><script crossorigin integrity=sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI src=https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js></script><script>document.addEventListener('shown.bs.collapse', function (event) {
+        // 只針對剛展開的那個面板進行計算
+        const container = event.target.querySelector('.table-responsive');
+        if (!container) return;
+
+        const table = container.querySelector('table');
+        const rows = Array.from(table.rows);
+
+        // 1. 根據 class 動態決定要固定的欄數
+        let stickyColumns = 0;
+        if (table.classList.contains('all-datas')) {
+            stickyColumns = 3;
+        } else if (table.classList.contains('partial-datas')) {
+            stickyColumns = 2;
+        }
+
+        // 1. 固定上方三列 (縱向滾動)
+        let topOffset = 0;
+        for (let i = 0; i < 3; i++) {
+            if (!rows[i]) continue;
+            const cells = Array.from(rows[i].cells);
+            cells.forEach(cell => {
+                cell.style.position = 'sticky';
+                cell.style.top = topOffset + 'px';
+                cell.style.zIndex = '10';
+                cell.style.backgroundColor = '#21262d';
+            });
+            topOffset += rows[i].offsetHeight; // 自動累加每一行的高度
+        }
+
+        // 2. 固定左側欄 (橫向滾動)
+        // 我們需要先算出每一欄的累積寬度
+        let leftOffsets = [0];
+        const firstRowCells = rows[0].cells;
+        let currentOffset = 0;
+        for (let j = 0; j < stickyColumns; j++) {
+            currentOffset += rows[0].cells[j].offsetWidth;
+            leftOffsets.push(currentOffset);
+        }
+
+        rows.forEach((row, rowIndex) => {
+            for (let j = 0; j < stickyColumns; j++) {
+                const cell = row.cells[j];
+                if (!cell) continue;
+
+                cell.style.position = 'sticky';
+                cell.style.left = leftOffsets[j] + 'px';
+                
+                // 處理層級：左上角 3x3 區域 z-index 要最高 (20)
+                if (rowIndex < 3) {
+                    cell.style.zIndex = '20';
+                    cell.style.backgroundColor = '#21262d';
+                } else {
+                    cell.style.zIndex = '5';
+                    cell.style.backgroundColor = '#161b22';
+                }
+                // 補強右側邊框感
+                cell.style.boxShadow = 'inset -1px -1px 0 #30363d';
+            }
+        });
+    });</script>

@@ -1,4 +1,5 @@
-<!doctype html><html data-bs-theme=dark lang=zh-Hant><title>澱粉類_小芋頭(山芋)_芋頭,芋艿,芋乃,芋仔,青芋,土芝 Report</title><meta charset=UTF-8><meta content="width=device-width,initial-scale=1" name=viewport><link crossorigin href=https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css integrity=sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB rel=stylesheet><style>:root {
+<!doctype html><html data-bs-theme=dark lang=zh-Hant><title>澱粉類_小芋頭(山芋)_芋頭,芋艿,芋乃,芋仔,青芋,土芝 Report</title><meta charset=UTF-8><meta content="width=device-width,initial-scale=1" name=viewport><link crossorigin href=https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css integrity=sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB rel=stylesheet><style>/* --- 0. 全域與變數 --- */
+        :root {
             --bg-color: #0b0e14;
             --card-bg: #161b22;
             --accent-color: #58a6ff;
@@ -61,8 +62,7 @@
             transform: translateY(-2px);
         }
 
-        /* --- 2. 表格容器 (Responsive) --- */
-        /* 僅對大數據表格觸發固定高度與內部陰影 */
+        /* --- 2. 表格容器與渲染優化 (效能核心) --- */
         .table-responsive:has(:is(.all-datas, .partial-datas)) {
             max-height: 60vh;
             overflow: auto;
@@ -72,12 +72,23 @@
             box-shadow: inset 8px 0 8px -8px rgba(0,0,0,0.5);
         }
 
+        /* 渲染優化：解決 22 萬格子的展開卡頓 */
+        .table-responsive tr {
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 33px;
+        }
+
+        .accordion-collapse.collapsing {
+            transition: none !important;
+            display: none;
+        }
+
         /* --- 3. 表格核心樣式 --- */
         /* 大數據表格專用：強制寬度、不換行、邊框獨立 (為 Sticky 準備) */
         .table-responsive table:is(.all-datas, .partial-datas) {
-            width: max-content !important;
+            width: max-content !important; /* 確保 103 欄位不會擠壓 */
             white-space: nowrap !important;
-            border-collapse: separate;
+            border-collapse: separate; /* 必備：Sticky 才不會失效 */
             border-spacing: 0;
         }
 
@@ -85,7 +96,7 @@
         .table-responsive table:not(.all-datas):not(.partial-datas) {
             width: 100% !important;
             white-space: normal;
-            border-collapse: collapse; /* 普通表格用 collapse 邊框較整齊 */
+            border-collapse: collapse;
         }
 
         /* 通用單元格 (緊湊風格) */
@@ -98,27 +109,44 @@
             border-right: 1px solid var(--border-color);
         }
 
-        /* 表頭 Sticky 與配色 */
-        .table-responsive thead th {
-            background-color: var(--hover-bg);
-            color: #f0f6fc;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-            z-index: 15;
+        /* --- 4. 核心固定邏輯 (Top & Left) --- */
+        
+        /* 標題列 Top 固定 (1-3行) */
+        .table-responsive table:is(.all-datas, .partial-datas) thead tr:nth-child(1) th { position: sticky !important; top: 0; z-index: 30; background-color: var(--hover-bg); }
+        .table-responsive table:is(.all-datas, .partial-datas) thead tr:nth-child(2) th { position: sticky !important; top: var(--header-h1, 40px); z-index: 30; background-color: var(--hover-bg); }
+        .table-responsive table:is(.all-datas, .partial-datas) thead tr:nth-child(3) th { position: sticky !important; top: var(--header-h2, 80px); z-index: 30; background-color: var(--hover-bg); }
+
+        /* 左側欄 Left 固定 (1-2欄共通) */
+        .table-responsive table:is(.all-datas, .partial-datas) tr > :is(th, td):nth-child(1) { position: sticky !important; left: 0 !important; z-index: 20; }
+        .table-responsive table:is(.all-datas, .partial-datas) tr > :is(th, td):nth-child(2) { position: sticky !important; left: var(--col-w1, 60px) !important; z-index: 20; }
+
+        /* 第三欄：僅 all-datas 固定 */
+        .table-responsive table.all-datas tr > :is(th, td):nth-child(3) { position: sticky !important; left: var(--col-w2, 120px) !important; z-index: 20; }
+
+        /* 左上角交叉區：高層級 Z-index 防止內容穿透 */
+        .table-responsive table.all-datas thead tr:nth-child(-n+3) th:nth-child(-n+3),
+        .table-responsive table.partial-datas thead tr:nth-child(-n+3) th:nth-child(-n+2) {
+            z-index: 50 !important;
+            background-color: var(--hover-bg) !important;
         }
 
-        /* 斑馬紋與滑鼠懸停效果 */
+        /* --- 5. 背景色與斑馬紋 --- */
         .table-responsive tbody tr:nth-child(even) td {
             background-color: var(--row-alt-bg);
         }
-
+        /* 固定欄位的背景必須強制設定，防止捲動文字重疊 */
+        .table-responsive table:is(.all-datas, .partial-datas) tbody td:nth-child(-n+3) {
+            background-color: var(--card-bg);
+        }
+        .table-responsive table:is(.all-datas, .partial-datas) tbody tr:nth-child(even) td:nth-child(-n+3) {
+            background-color: var(--row-alt-bg);
+        }
         .table-responsive tbody tr:hover td {
             background-color: var(--hover-bg) !important;
             color: var(--accent-color);
         }
 
-        /* --- 4. 捲軸美化 (僅針對表格) --- */
+        /* --- 6. 捲軸美化 (保留所有原始樣式與 Hover) --- */
         .table-responsive::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -149,59 +177,39 @@
         const container = event.target.querySelector('.table-responsive');
         if (!container) return;
 
-        const table = container.querySelector('table');
-        const rows = Array.from(table.rows);
+        const table = container.querySelector('table:is(.all-datas, .partial-datas)');
+        if (!table || table.rows.length === 0) return;
 
-        // 1. 根據 class 動態決定要固定的欄數
-        let stickyColumns = 0;
-        if (table.classList.contains('all-datas')) {
-            stickyColumns = 3;
-        } else if (table.classList.contains('partial-datas')) {
-            stickyColumns = 2;
-        }
-
-        // 1. 固定上方三列 (縱向滾動)
-        let topOffset = 0;
-        for (let i = 0; i < 3; i++) {
-            if (!rows[i]) continue;
-            const cells = Array.from(rows[i].cells);
-            cells.forEach(cell => {
-                cell.style.position = 'sticky';
-                cell.style.top = topOffset + 'px';
-                cell.style.zIndex = '10';
-                cell.style.backgroundColor = '#21262d';
-            });
-            topOffset += rows[i].offsetHeight; // 自動累加每一行的高度
-        }
-
-        // 2. 固定左側欄 (橫向滾動)
-        // 我們需要先算出每一欄的累積寬度
-        let leftOffsets = [0];
-        const firstRowCells = rows[0].cells;
-        let currentOffset = 0;
-        for (let j = 0; j < stickyColumns; j++) {
-            currentOffset += rows[0].cells[j].offsetWidth;
-            leftOffsets.push(currentOffset);
-        }
-
-        rows.forEach((row, rowIndex) => {
-            for (let j = 0; j < stickyColumns; j++) {
-                const cell = row.cells[j];
-                if (!cell) continue;
-
-                cell.style.position = 'sticky';
-                cell.style.left = leftOffsets[j] + 'px';
-                
-                // 處理層級：左上角 3x3 區域 z-index 要最高 (20)
-                if (rowIndex < 3) {
-                    cell.style.zIndex = '20';
-                    cell.style.backgroundColor = '#21262d';
-                } else {
-                    cell.style.zIndex = '5';
-                    cell.style.backgroundColor = '#161b22';
+        // 使用 requestAnimationFrame 確保瀏覽器已完成 Layout 計算，數據最準
+        requestAnimationFrame(() => {
+            // 1. 計算標題列 Top 偏移
+            const headerRows = table.querySelectorAll('thead tr');
+            let currentTop = 0;
+            headerRows.forEach((row, index) => {
+                if (index > 0) {
+                    table.style.setProperty(`--header-h${index}`, currentTop + 'px');
                 }
-                // 補強右側邊框感
-                cell.style.boxShadow = 'inset -1px -1px 0 #30363d';
+                currentTop += row.offsetHeight;
+            });
+
+            // 2. 計算左側欄位 Left 偏移
+            const firstRow = table.rows[0];
+            if (!firstRow) return;
+
+            const isAll = table.classList.contains('all-datas');
+
+            // 先重置變數，避免殘留
+            table.style.removeProperty('--col-w1');
+            table.style.removeProperty('--col-w2');
+
+            if (firstRow.cells[0]) {
+                const w1 = firstRow.cells[0].offsetWidth;
+                table.style.setProperty('--col-w1', w1 + 'px');
+                
+                if (isAll && firstRow.cells[1]) {
+                    const w2 = w1 + firstRow.cells[1].offsetWidth;
+                    table.style.setProperty('--col-w2', w2 + 'px');
+                }
             }
         });
     });</script>

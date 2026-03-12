@@ -20,6 +20,7 @@ from jinja2 import Environment, FileSystemLoader
 from tw_analysis_data import sanitize_filename
 from tw_analysis import merge_dict
 
+HOME = "TW_Food_Report.html"
 
 _t0 = time.time()
 
@@ -168,6 +169,7 @@ def _process_single_detail(item, template_json, detail_folder):
         ),
         graph=json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder),
         title=f"{'_'.join(idx)} Report",
+        home=f"../../{HOME}",
     )
 
     filename = f"{sanitize_filename('_'.join(idx))}_Report.html"
@@ -222,9 +224,16 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
     # 或是依你需求保留必要欄位
     df_sorted = df_shared.sort_values(col, ascending=False)
 
+    # 【新增】複製該營養素欄位到最前面 (位置 0)
+    # 使用 col[1] (分析項) 作為新欄位的名稱，或自訂如 f"當前:{col[1]}"
+    df_display = df_sorted.copy()
+    display_col_name = ("⭐", 分析項, 含量單位)
+    df_display.insert(0, display_col_name, df_sorted[col])
+
     # 2. 產生 HTML 表格 - 全部
-    df_all = df_sorted.reset_index()
-    df_all.index += 1
+    df_all = df_display.reset_index()
+    df_all.index += 1  # 排序從 1 開始
+
     tables = {
         "全部": df_all.to_html(
             classes=[
@@ -233,7 +242,7 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
                 "table-sm",
                 "table-hover",
                 "all-datas",
-            ],  # 加入 table-sm 減小體積
+            ],
             escape=False,
             render_links=True,
         )
@@ -243,8 +252,8 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
     # 由於主進程已做了 sort_index，這裡的 loc 是極速切片
     for category in foods_unique:
         try:
-            if category in df_sorted.index.get_level_values(0):
-                df_sub = df_sorted.loc[category].reset_index()
+            if category in df_display.index.get_level_values(0):
+                df_sub = df_display.loc[category].reset_index()
                 df_sub.index += 1
                 tables[category] = df_sub.to_html(
                     classes=["table", "table-dark", "table-sm", "table-hover", "partial-datas"],
@@ -261,6 +270,7 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
         tables=tables,
         kinds=col,
         title=f"{分析項分類}_{分析項} Report",
+        home=f"../{HOME}",
     )
 
     filename = f"{sanitize_filename(分析項分類)}_{sanitize_filename(分析項)}_Report.html"
@@ -311,8 +321,9 @@ def _build_index_page(links: dict, report_dir: Path, prefix: str) -> None:
         tables={},
         kinds=None,
         title=f"{prefix} Report",
+        home=f"./{HOME}",
     )
-    _write_html(report_dir / f"{prefix}_Report.html", html)
+    _write_html(report_dir / HOME, html)
 
 
 def _write_html(path: Path, html: str) -> None:

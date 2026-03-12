@@ -1,3 +1,4 @@
+import random
 import ssl
 import time
 from pyquery import PyQuery
@@ -61,12 +62,22 @@ async def do_requests(
     semaphore: asyncio.Semaphore,
 ) -> tuple[datetime, str]:
     async with semaphore:
-        await asyncio.sleep(1.0)
+        # 在 Action 這種共用 IP 環境，隨機延遲能有效防封
+        # 產生 0.5 到 2.5 秒之間的隨機浮點數
+        delay = random.uniform(0.5, 2.5)
+        await asyncio.sleep(delay)
         start_time = time.time()
-        async with session.post(url, data=data) as r:
-            text = await r.text()
-            print(f"Post： {time.time()-start_time:.2f} 秒")
-            return request_date, text
+        try:
+            async with session.post(url, data=data) as r:
+                # 建議檢查 status，若非 200 直接拋錯或回傳空值，避免解析錯誤
+                if r.status != 200:
+                    return request_date, ""
+                text = await r.text()
+                print(f"Post： {time.time()-start_time:.2f} 秒")
+                return request_date, text
+        except Exception as e:
+            print(f"Error fetching {request_date}: {e}")
+            return request_date, ""
 
 
 async def get_data(
@@ -114,13 +125,17 @@ async def get_data(
                 current -= timedelta(days=1)
 
             start_time = time.time()
-            # 4.10：as_completed 回傳順序不保證與請求順序一致，
+
+            # 回傳順序不保證與請求順序一致，
             # 依賴後續的 history_list.sort() 確保寫入 CSV 時的正確排序。
-            for task in asyncio.as_completed(tasks):
-                req_date, text = await task
-                val = parse_response(text, fund_query)
-                print(req_date, val)
-                history[req_date] = val
+            for i in range(0, len(tasks), 5):
+                chunk = tasks[i : i + 5]
+                results = await asyncio.gather(*chunk)
+                for req_date, text in results:
+                    val = parse_response(text, fund_query)
+                    print(req_date, val)
+                    history[req_date] = val
+
             print(f"總執行時間： {time.time()-start_time:.2f} 秒")
 
             history_list = [[d, val, val, 0, 0] for d, val in history.items()]
@@ -137,18 +152,28 @@ async def main(fund_query: dict) -> None:
     url = "https://www.sitca.org.tw/ROC/Industry/IN2106.aspx?pid=IN2213_02"
 
     # 4.11：semaphore 提升至 main，未來若多個 fund_query 並行可全域控制總並發數
-    semaphore = asyncio.Semaphore(5)
+    semaphore = asyncio.Semaphore(2)
 
     # 建立一個不進行驗證的 SSL Context
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
 
+    # 設定整體的逾時時間
+    timeout = aiohttp.ClientTimeout(total=300, connect=10, sock_read=20)
+
     async with aiohttp.ClientSession(
-        headers=headers, connector=aiohttp.TCPConnector(ssl=ssl_context)
+        headers={**headers, "Referer": url},
+        connector=aiohttp.TCPConnector(ssl=ssl_context),
+        timeout=timeout,
     ) as session:
-        async with session.get(url) as resp:
-            dom = PyQuery(await resp.text())
+        try:
+            async with session.get(url) as resp:
+                html = await resp.text()
+                dom = PyQuery(html)
+        except asyncio.TimeoutError:
+            print("獲取初始頁面逾時")
+            return
 
         __VIEWSTATE = dom(r"#__VIEWSTATE").val()
         __VIEWSTATEGENERATOR = dom(r"#__VIEWSTATEGENERATOR").val()

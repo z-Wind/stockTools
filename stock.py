@@ -10,6 +10,7 @@ import time
 import json
 import plotly
 
+from functools import cached_property
 from jsmin import jsmin
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -437,6 +438,55 @@ class Stock:
 
         return day_return
 
+    @property
+    def max_drawdown(self) -> float:
+        """
+        計算歷史最大回撤 (Max Drawdown)
+        回傳值為負數，例如 -0.25 代表回撤 25%
+        """
+
+        # 3. 取得最小值即為最大回撤
+        return self.drawdown.min() if not self.drawdown.empty else 0.0
+
+    @cached_property
+    def drawdown(self) -> pd.Series:
+        """
+        計算歷史回撤 DataFrame
+        Index: Date
+        Column: 'drawdown' (負數，例如 -0.05 代表回撤 5%)
+        """
+        if self.history is None or self.history.empty:
+            return pd.DataFrame(columns=["drawdown"])
+
+        temp_df = self.history.set_index("Date")
+        price = temp_df["Adj Close Cal"]
+
+        # 1. 計算累積最大值 (Running Maximum)
+        cumulative_max = price.cummax()
+
+        drawdown_series = (price / cumulative_max) - 1
+
+        return drawdown_series
+
+    @property
+    def year_max_drawdown(self) -> pd.DataFrame:
+        """利用 Groupby 快速計算歷年最大回撤"""
+        if self.history is None or self.history.empty:
+            return pd.DataFrame()
+
+        # 1. 準備計算數據
+        df = self.history[["Date", "Adj Close Cal"]].copy()
+        df["Year"] = df["Date"].dt.year
+
+        # 2. 定義單一序列的 MDD 計算函數
+        def calc_mdd(series):
+            return (series / series.cummax() - 1).min()
+
+        # 3. 分組計算並轉置成要求的格式 (Index: Name, Columns: Year)
+        yearly_mdd = df.groupby("Year")["Adj Close Cal"].apply(calc_mdd)
+
+        return pd.DataFrame([yearly_mdd.values], index=[self.name], columns=yearly_mdd.index).T
+
     def rollback(self, iYear: int) -> pd.DataFrame:
         if self.rollback_map.get(iYear) is not None:
             return self.rollback_map[iYear]
@@ -722,6 +772,7 @@ class Figure:
         # 3.6：快取屬性移至 __init__，避免多個 Figure 實例共用類別層級屬性
         self.intersection_history_val = None
         self.total_return_val = None
+        self.max_drawdown_val = None
 
         # 3.11：使用 deepcopy 避免修改到類別層級的 default_template
         self.default_template = merge_dict(
@@ -1886,6 +1937,105 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
+    def _plotDrawdownViolin(self, data):
+        if not data:
+            return json.dumps({})
+
+        dataList = []
+        buttons = []
+
+        num_symbols = len(data)
+
+        for i, (
+            symbol,
+            drawdown,
+        ) in enumerate(data):
+            start = drawdown.index[0]
+            end = drawdown.index[-1]
+
+            violin_drawdown = {
+                "type": "violin",
+                "name": symbol,
+                "y": drawdown.tolist(),
+                "box": {"visible": True},
+                "meanline": {"visible": True},
+                "visible": i == 0,
+                "showlegend": False,
+            }
+            dataList.append(violin_drawdown)
+
+            visible = [False] * num_symbols
+            visible[i] = True
+
+            title = (
+                f"<b>Drawdown<b><br>" f"{start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}"
+            )
+            if i == 0:
+                title_init = title
+
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                    },
+                ],
+                "label": symbol,
+            }
+            buttons.append(button)
+
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "yaxis": {"tickformat": ".2%"},
+            "hovermode": "x",
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+        }
+
+        config = {
+            "toImageButtonOptions": {
+                "filename": f"Drawdown_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"
+            },
+        }
+
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        # 序列化
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
     def annual_return_bar(self) -> str:
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
@@ -2022,6 +2172,72 @@ class Figure:
             df,
             title=f"<b>Year Regular Saving Plan IRR<b><br><i>{start} ~ {end}<i>",
             filename=f"Year Regular Saving Plan IRR_{start}~{end}",
+        )
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+
+        return graph
+
+    def max_drawdown(self) -> tuple:
+        """
+        修正：計算真正的最大回撤 (MDD)
+        回傳: (開始日期, 結束日期, 包含各標的 MDD 的 DataFrame)
+        """
+        if hasattr(self, "max_drawdown_val") and self.max_drawdown_val is not None:
+            return self.max_drawdown_val
+
+        # 1. 取得交集時間的歷史資料
+        df_history = self.intersection_history()
+        if df_history.empty:
+            return None, None, pd.DataFrame()
+
+        start_date = df_history.index[0]
+        end_date = df_history.index[-1]
+
+        # 2. 計算 MDD (向量化運算)
+        # 計算累積最大值
+        rolling_max = df_history.cummax()
+        # 計算回撤
+        drawdowns = (df_history / rolling_max) - 1
+        # 取得每個欄位（標的）的最小回撤值
+        mdd_series = drawdowns.min()
+
+        # 3. 轉換為繪圖用的格式 (Horizontal DataFrame)
+        df_mdd = mdd_series.to_frame().T
+
+        self.max_drawdown_val = (start_date, end_date, df_mdd)
+        return start_date, end_date, df_mdd
+
+    def max_drawdown_bar(self) -> str:
+        start, end, df = self.max_drawdown()
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
+
+        graph = self._plotBar_without_group(
+            df,
+            title=f"<b>Max Drawdown<b><br><i>{start} ~ {end}<i>",
+            filename=f"Max Drawdown_{start}~{end}",
+        )
+        graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
+        graph = json.dumps(graph)
+        return graph
+
+    def annual_max_drawdown_bar(self) -> str:
+        data = []
+        start = self.stocks[0].history["Date"].iloc[0]
+        end = self.stocks[0].history["Date"].iloc[-1]
+        for st in self.stocks:
+            data.append(st.year_max_drawdown)
+            start = min(start, st.history["Date"].iloc[0])
+            end = max(end, st.history["Date"].iloc[-1])
+
+        df = pd.concat(data, axis=1)
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
+        graph = self._plotBar_with_group(
+            df,
+            title=f"<b>Annual Max Drawdown<b><br><i>{start} ~ {end}<i>",
+            filename=f"Annual Max Drawdown_{start}~{end}",
         )
         graph = self._mergeDict(json.loads(graph), {"layout": {"yaxis": {"tickformat": ".2%"}}})
         graph = json.dumps(graph)
@@ -2526,6 +2742,15 @@ class Figure:
 
         return self._plotRollbackBullBearLine(data), self._plotRollbackBullBearViolin(data)
 
+    def drawdown_graph(self) -> tuple[str, str]:
+        # =========================================================================
+        # area
+        data = []
+        for st in self.stocks:
+            data.append((st.name, st.drawdown))
+
+        return self._plotDrawdownViolin(data)
+
 
 def report(
     symbols,
@@ -2556,6 +2781,8 @@ def report(
         fig.active_vs_passive()
     )
     plots["annualReturn"] = fig.annual_return_bar()
+    plots["maxDrawdown"] = fig.max_drawdown_bar()
+    plots["annualMaxDrawdown"] = fig.annual_max_drawdown_bar()
     plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
@@ -2569,6 +2796,7 @@ def report(
     plots["retire_adj_separate"] = fig.retire_adj_separate_graph()
     plots["history_adj"] = fig.history_adj_graph()
     plots["rollbackBullBear"], plots["rollbackBullBearVolin"] = fig.rollback_bullbear_graph()
+    plots["drawdownViolin"] = fig.drawdown_graph()
 
     # 5.3：改用 _render_template，不再需要 app.app_context()
     jsfolder = f"{prefix}"
@@ -3116,25 +3344,25 @@ def us_stock():
 
 def custom_stock():
     symbols = [
+        # {
+        #     "name": "0050.TW",
+        #     "remark": "元大臺灣50",
+        #     "replaceDiv": True,
+        #     "groups": ["常用", "ETF"],
+        #     "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        # },
         {
-            "name": "0050.TW",
-            "remark": "元大臺灣50",
-            "replaceDiv": True,
+            "name": "^TAIEX",
+            "remark": "臺灣加權報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
             "groups": ["常用", "ETF"],
-            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
-        # {
-        #     "name": "^TAIEX",
-        #     "remark": "臺灣加權報酬指數",
-        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
-        #     "groups": ["常用", "ETF"],
-        # },
-        # {
-        #     "name": "^TAI50I",
-        #     "remark": "臺灣50報酬指數",
-        #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
-        #     "groups": ["常用", "ETF"],
-        # },
+        {
+            "name": "^TAI50I",
+            "remark": "臺灣50報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+            "groups": ["常用", "ETF"],
+        },
         # {
         #     "name": "0050.TW",
         #     "name_suffix": "Fund",

@@ -2036,6 +2036,38 @@ class Figure:
         # 序列化
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
+    def _plotDrawdownsViolin(self, data):
+        if not data:
+            return json.dumps({})
+
+        # 將 [(symbol, series), ...] 轉換為 {symbol: series} 的字典
+        # 並利用 pd.DataFrame 合併，設置 join='inner' 來取得時間交集
+        series_dict = {symbol: drawdown for symbol, drawdown in data}
+        df = pd.concat(series_dict, axis=1, join="inner")
+
+        if df.empty:
+            return json.dumps({})
+
+        # 取得交集後的起訖時間
+        start = df.index[0]
+        end = df.index[-1]
+
+        # 呼叫 _plotViolin (現在 df 的 columns 是各個 symbol)
+        violin = self._plotViolin(
+            df,
+            title=(
+                f"<b>Drawdown<b><br>"
+                f"<i>{start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}<i>"
+            ),
+            filename=f"Drawdown Violin_{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}",
+        )
+
+        # 注入百分比格式
+        violin_dict = json.loads(violin)
+        violin_dict = self._mergeDict(violin_dict, {"layout": {"yaxis": {"tickformat": ".2%"}}})
+
+        return json.dumps(violin_dict)
+
     def annual_return_bar(self) -> str:
         data = []
         start = self.stocks[0].history["Date"].iloc[0]
@@ -2732,8 +2764,6 @@ class Figure:
         return self._plotHistoryAdj(data)
 
     def rollback_bullbear_graph(self) -> tuple[str, str]:
-        # =========================================================================
-        # area
         data = []
         for st in self.stocks:
             df_rollback = st.rollback(self.iYear)
@@ -2743,13 +2773,11 @@ class Figure:
         return self._plotRollbackBullBearLine(data), self._plotRollbackBullBearViolin(data)
 
     def drawdown_graph(self) -> tuple[str, str]:
-        # =========================================================================
-        # area
         data = []
         for st in self.stocks:
             data.append((st.name, st.drawdown))
 
-        return self._plotDrawdownViolin(data)
+        return self._plotDrawdownViolin(data), self._plotDrawdownsViolin(data)
 
 
 def report(
@@ -2796,7 +2824,7 @@ def report(
     plots["retire_adj_separate"] = fig.retire_adj_separate_graph()
     plots["history_adj"] = fig.history_adj_graph()
     plots["rollbackBullBear"], plots["rollbackBullBearVolin"] = fig.rollback_bullbear_graph()
-    plots["drawdownViolin"] = fig.drawdown_graph()
+    plots["drawdownViolin"], plots["drawdownsViolin"] = fig.drawdown_graph()
 
     # 5.3：改用 _render_template，不再需要 app.app_context()
     jsfolder = f"{prefix}"
@@ -3351,6 +3379,7 @@ def custom_stock():
         #     "groups": ["常用", "ETF"],
         #     "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         # },
+        # {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},
         {
             "name": "^TAIEX",
             "remark": "臺灣加權報酬指數",

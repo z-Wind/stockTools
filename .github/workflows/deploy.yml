@@ -1,47 +1,53 @@
 name: Get Data and Deploy
 
 on:
-  #push:
-  #branches: [ main ]
   schedule:
-    - cron: "0 23 * * 1-5"
-
-  # Allows you to run this workflow manually from the Actions tab
+    - cron: "0 23 * * 1-5" # 台北時間週二至週六 07:00 執行
   workflow_dispatch:
 
 env:
-  # Python version to use
   PYTHON_VERSION: 3.12.4
-
-  # Ensures Python uses UTF-8 encoding by default
   PYTHONUTF8: 1
+  TZ: 'Asia/Taipei' # 設定環境變數時區
 
 jobs:
   get-data:
     name: Get Data
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest] # ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # 使用內建快取功能
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Set console encoding to UTF-8 on Windows
-        if: matrix.os == 'windows-latest'
+
+      - name: Fetch Index Data
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python get_extraData.py || echo "Fetch index data failed, but continuing..."
+
+      - name: Fetch Fund Data (Fund)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python get_extraData_fund.py || echo "Fetch fund data failed, but continuing..."
+
+      - name: Fetch Taiwan Data
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python tw_analysis_data.py || echo "Fetch taiwan data failed, but continuing..."
+
+      - name: Update Repository
         shell: bash
-        run: echo "PYTHONIOENCODING=utf-8" >> $GITHUB_ENV
-      - run: python get_extraData.py
-      - run: python get_extraData_fund.py
-      - run: python tw_analysis_data.py
-        # continue-on-error: true
-      - name: Update master
         run: |
           git config --global user.name 'z-Wind'
           git config --global user.email 'zpsyhapcst@gmail.com'
@@ -52,37 +58,58 @@ jobs:
   deploy:
     needs: get-data
     name: Deploy
-    runs-on: ubuntu-latest #windows-latest
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions/setup-python@v4
+
+      # --- Rust 編譯快取 ---
+      - name: Cache Cargo & Maturin
+        uses: actions/cache@v3
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install dependencies
+          path: |
+            ./FFI/rust_pyo3/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - working-directory: ./FFI/rust_pyo3
+      - name: Build and Install Rust Extension
+        working-directory: ./FFI/rust_pyo3
         run: |
           maturin build --release
           python -m pip install ./target/wheels/rust_pyo3-*.whl
-      - name: Stock
+
+      - name: Generate Stock Report
         run: python stock.py
-      - name: TW Analysis
+
+      - name: Run Taiwan Market Analysis
         run: python tw_analysis.py
-        # continue-on-error: true
-      - name: TW Food
+
+      - name: Process Food Industry Data
         run: python tw_food.py
-      - name: Deploy
+
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./report    # The folder the action should deploy.
-          publish_branch: gh-pages # The branch the action should deploy to.
+          publish_dir: ./report
+          publish_branch: gh-pages

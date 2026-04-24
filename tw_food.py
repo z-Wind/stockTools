@@ -9,7 +9,9 @@ import pandas as pd
 import plotly
 import plotly.utils
 import requests
+import warnings  # 引入警告控制
 
+from urllib3.exceptions import InsecureRequestWarning
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from tqdm import tqdm
@@ -23,6 +25,9 @@ from tw_analysis import merge_dict
 HOME = "TW_Food_Report.html"
 
 _t0 = time.time()
+
+# 關閉 InsecureRequestWarning 警告，避免畫面太亂
+warnings.simplefilter("ignore", InsecureRequestWarning)
 
 
 def _log(msg: str) -> None:
@@ -345,7 +350,10 @@ def get_data() -> pd.DataFrame:
         "?method=ExportData&InfoId=20&logType=2"
     )
     _log("下載資料中...")
-    response = requests.get(url)
+
+    # 將 verify 設為 False，略過食藥署損壞的 SSL 驗證
+    response = requests.get(url, verify=False)
+
     response.raise_for_status()  # 明確拋出 HTTP 錯誤，取代靜默失敗
     _log(f"下載完成（{len(response.content) / 1024:.0f} KB），解壓縮與讀取 CSV...")
 

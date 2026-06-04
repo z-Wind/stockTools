@@ -32,19 +32,19 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          python get_extraData.py || echo "Fetch index data failed, but continuing..."
+          python get_extraData.py
 
       - name: Fetch Fund Data (Fund)
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          python get_extraData_fund.py || echo "Fetch fund data failed, but continuing..."
+          python get_extraData_fund.py
 
       - name: Fetch Taiwan Data
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          python tw_analysis_data.py || echo "Fetch taiwan data failed, but continuing..."
+          python tw_analysis_data.py
 
       - name: Update Repository
         shell: bash

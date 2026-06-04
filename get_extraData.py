@@ -109,8 +109,24 @@ def save_twse_ftse_index(
             print(f"{symbol} {date_str} 過濾後無有效資料")
             continue
 
-        # 資料欄位建立
-        df["Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="mixed")
+        # --- 資料欄位建立 ---
+        # 1. 轉換日期：遇到格式錯誤時強制轉為 NaT，而非拋出 Exception 阻斷程式
+        df["Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="mixed", errors="coerce")
+
+        # (選填) 印出格式錯誤的原始資料列，方便 Debug 追蹤
+        invalid_dates = df[df["Date"].isna()]
+        if not invalid_dates.empty:
+            print(f"警告: {date_str} 發現無效日期格式:\n{invalid_dates[['日期']]}") 
+        
+        # 2. 立即剔除 Date 為 NaT (格式錯誤) 的資料列
+        df = df.dropna(subset=["Date"])
+        
+        # 確保過濾後 DataFrame 依舊有資料，若沒資料則安全跳過
+        if df.empty:
+            print(f"{symbol} {date_str} 日期過濾後無有效資料")
+            continue
+
+        # 3. 處理其餘欄位
         df["Close"] = df[symbol].apply(process_data).astype(float)
         df["Adj Close"] = df[reward_symbol].apply(process_data).astype(float)
         df["Dividends"] = 0
@@ -222,9 +238,24 @@ def save_TAIEX_index(s: requests.Session) -> None:
             continue
 
         # ------------------ 4. 欄位清洗與轉換 ------------------
+        # 1. 轉換日期：遇到格式錯誤時強制轉為 NaT，不阻斷程式
         df["Date"] = pd.to_datetime(
-            df["日期"].apply(transform_date), format="mixed"
+            df["日期"].apply(transform_date), format="mixed", errors="coerce"
         )
+
+        # 2. 側錄並印出格式錯誤的原始資料列（方便 Debug）
+        invalid_dates = df[df["Date"].isna()]
+        if not invalid_dates.empty:
+            print(f"警告: {d} 發現無效日期格式，已自動過濾該列:\n{invalid_dates[['日期']]}")
+
+        # 3. 立即剔除 Date 為 NaT 的資料列，保留其他正常日期的資料
+        df = df.dropna(subset=["Date"])
+
+        if df.empty:
+            print(f"{symbol} {d} 日期過濾後無有效資料，跳過")
+            continue
+
+        # 4. 處理其餘欄位
         df["Open"] = df["開盤指數"].apply(process_data).astype(float)
         df["High"] = df["最高指數"].apply(process_data).astype(float)
         df["Low"] = df["最低指數"].apply(process_data).astype(float)

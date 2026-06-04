@@ -357,6 +357,7 @@ def df_教育程度別失業率() -> pd.DataFrame:
         111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04049a111.xml",
         112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04049a112.xml",
         113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04049a113.xml",
+        114: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/236096/mp04049a114.xml",
     }
     xpath = "//教育程度別失業率"
 
@@ -420,6 +421,7 @@ def df_年齡組別失業率() -> pd.DataFrame:
         111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231813/mp04048a111.xml",
         112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04048a112.xml",
         113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04048a113.xml",
+        114: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/236096/mp04048a114.xml",
     }
     xpath = "//年齡組別失業率"
 
@@ -470,6 +472,7 @@ def df_教育程度別失業率_按年齡分() -> pd.DataFrame:
         111: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/231804/mp04068a111.xml",
         112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/233304/mp04068a112.xml",
         113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234748/mp04068a113.xml",
+        114: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/236096//mp04068a114.xml",
     }
     xpath = "//教育程度別失業率_按年齡分"
 
@@ -2742,6 +2745,10 @@ def df_財政統計年報_綜合所得稅結算申報_按淨所得級距別分()
         113: (
             "xlsx",
             "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/113%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xlsx",
+        ),
+        114: (
+            "xlsx", 
+            "https://service.mof.gov.tw/public/Data/statistic/Year_Fin/114%E9%9B%BB%E5%AD%90%E6%9B%B8/htm/33130.xlsx",
         ),
     }
 

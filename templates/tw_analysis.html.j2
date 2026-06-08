@@ -175,7 +175,7 @@
         <div id=家庭收支調查_所得收入者職業別平均每人可支配所得 class="plotly-container"></div>
         <div id=家庭收支調查_所得收入者職業別平均每人受僱人員報酬 class="plotly-container"></div>
 
-        <div id=家庭部門平均每戶資產負債 class="plotly-container"></div>
+        <div id=家庭部門資產結構 class="plotly-container"></div>
 
         <div id=公開資訊觀測站_財務報告附註揭露之員工福利_薪資_資訊 class="plotly-container"></div>
         <div id=公開資訊觀測站_財務報告附註揭露之員工福利_薪資_資訊_排序 class="plotly-container"></div>
@@ -195,8 +195,6 @@
         
         <div id=企業ESG資訊揭露彙總資料_人力發展_非擔任主管職務之全時員工薪資 class="plotly-container"></div>
         <div id=企業ESG資訊揭露彙總資料_人力發展_非擔任主管職務之全時員工薪資_排序 class="plotly-container"></div>
-        <div id=企業ESG資訊揭露彙總資料_人力發展_職業災害人數及比率 class="plotly-container"></div>
-        <div id=企業ESG資訊揭露彙總資料_人力發展_職業災害人數及比率_排序 class="plotly-container"></div>
 
         <div id=歷年受僱員工每人每月總薪資平均數_年 class="plotly-container"></div>
         <div id=歷年受僱員工每人每月總薪資平均數_月 class="plotly-container"></div>
@@ -497,7 +495,7 @@
 
         <datalist id="plotlist">
             <option value="All"></option>
-            {% for key,item in plots.items() %}
+            {% for key in plots_keys %}
             <option value="{{key}}">
             {%- endfor %} 
         </datalist>
@@ -536,7 +534,10 @@
                     } else {
                         // 不畫圖：移除元素
                         const el = typeof root === 'string' ? document.getElementById(root) : root;
-                        if (el) el.remove();
+                        if (el) {
+                            console.log(`[DOM 移除] 不畫圖，已移除元素: id="${el.id}">`);
+                            el.remove();
+                        }
                         return Promise.resolve(null);
                     }
                 };
@@ -553,7 +554,7 @@
         </script>
 
         <!-- 3. 載入各個圖表的 JS (此時內部的 Plotly.newPlot 已被我們攔截) -->
-        {% for key,item in plots.items() %}
+        {% for key in plots_keys %}
         <script src="./{{jsfolder}}/{{key}}.js"></script>
         {%- endfor %}
 

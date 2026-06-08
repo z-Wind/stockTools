@@ -1529,6 +1529,7 @@ def df_家庭部門資產結構() -> pd.DataFrame:
                 # skiprows=5     -> 跳過前 5 列複雜的雙層合併儲存格
                 df_sheet = pd.read_excel(
                     excel_bytes,
+                    engine="calamine",
                     sheet_name=sheet,
                     usecols="A,B,E",
                     skiprows=5,

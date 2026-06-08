@@ -30,3 +30,4 @@ html5lib==1.1
 beautifulsoup4==4.14.3
 maturin==1.12.6
 tqdm==4.67.3
+psutil==7.0.0

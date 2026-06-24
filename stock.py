@@ -812,6 +812,21 @@ class Figure:
                 )
             )
 
+        # === 時間瓶頸偵測與列印邏輯 ===
+        # 使用 sorted() 搭配 lambda，會產生一個全新的複本列表，完全不會污染 self.stocks
+        bottleneck_stocks = sorted(self.stocks, key=lambda s: s.end)
+
+        print("\n" + "=" * 50)
+        print("🚨 [資料時間瓶頸偵測] 結束日期最早的前 5 名股票：")
+        print("=" * 50)
+        for rank, stock in enumerate(bottleneck_stocks[:5], 1):
+            stock_end_str = (
+                stock.end.strftime("%Y-%m-%d") if isinstance(stock.end, datetime) else stock.end
+            )
+            print(f"第 {rank} 名 (最舊): {stock.name} -> 結束日期: {stock_end_str}")
+        print("=" * 50 + "\n")
+        # =======================================================
+
         end = min([stock.end for stock in self.stocks])
         # 3.3：更新 self.end 為實際最小結束日，避免 end 參數被 min() 結果覆蓋而語義不清
         self.end = end.strftime("%Y-%m-%d") if isinstance(end, datetime) else end
@@ -3370,6 +3385,61 @@ def us_stock():
     report(symbols, prefix="US", iYear=2, name_width=6)
 
 
+def tw_0050_stock():
+    symbols = [
+        {
+            "name": "^TAI50I",
+            "remark": "臺灣50報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣50指數"),
+            "groups": ["常用", "Index"],
+        },
+        {
+            "name": "0050.TW",
+            "remark": "元大臺灣50",
+            "replaceDiv": True,
+            "groups": ["常用", "ETF"],
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        },
+        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},
+        {
+            "name": "0050.TW",
+            "name_suffix": "Fund",
+            "remark": "元大台灣卓越50基金",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
+            "replaceDiv": True,
+            "groups": ["常用", "基金"],
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+        },
+        {
+            "name": "0050.TW",
+            "name_suffix": "Fund",
+            "remark": "元大台灣卓越50ETF連結基金-不配息",
+            "fromPath": os.path.join(
+                os.path.dirname(__file__), "extraData", "元大台灣卓越50ETF連結基金-不配息"
+            ),
+            "replaceDiv": False,
+            "groups": ["常用", "基金"],
+        },
+        {
+            "name": "0050.TW",
+            "name_suffix": "Fund",
+            "remark": "元大台灣卓越50基金_股息不投入",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
+            "replaceDiv": True,
+            "groups": ["基金"],
+            "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
+            "calAdjClose": False,
+        },
+        {
+            "name": "^TAIEX",
+            "remark": "臺灣加權報酬指數",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "臺灣加權股價指數"),
+            "groups": ["Index"],
+        },
+    ]
+    report(symbols, start="1911-1-1", prefix="TW_0050", iYear=5, name_width=12)
+
+
 def custom_stock():
     symbols = [
         # {
@@ -3425,5 +3495,6 @@ def custom_stock():
 
 if __name__ == "__main__":
     tw_stock()
+    tw_0050_stock()
     us_stock()
     # custom_stock()

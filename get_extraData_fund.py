@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import aiohttp
 import csv
 import random
@@ -43,39 +44,52 @@ def parse_response(text: str, fund_query: dict) -> float | None:
     解析投信投顧公會網頁，取得指定基金的淨值。
     支援雙重過濾：公司代號 (comid) 與 基金名稱 (filter)。
     """
-    if not text:
+    if not text or not text.strip():
         return None
 
     dom = PyQuery(text)
-    # 同時選取偶數列 (DTeven) 與 奇數列 (DTodd) 以免遺漏
+    # 同時選取偶數列 (DTeven) 與 奇數列 (DTodd)
     rows = dom("tr.DTeven, tr.DTodd")
 
     if not rows:
         return None
 
+    # 若 filter 允許使用者輸入動態正則
     try:
-        # 遍歷每一列進行精確匹配
-        for i in range(len(rows)):
-            row = rows.eq(i)
-            tds = row("td")
-
-            # 欄位索引說明：
-            # index 1: 公司代號 (如 A0005)
-            # index 5: 基金名稱 (如 元大台灣卓越50基金)
-            # index 7: 淨值
-
-            current_comid = tds.eq(1).text().strip()
-            current_name = tds.eq(5).text().strip()
-
-            # 檢查公司代號是否符合，且基金名稱包含 filter 關鍵字
-            if current_comid == fund_query.get("comid") and fund_query["filter"] in current_name:
-                val_text = tds.eq(7).text().replace(",", "").strip()
-                return float(val_text) if val_text else None
-
+        pattern = re.compile(fund_query["filter"])
+    except re.error as e:
+        print(f"Error: Invalid regex pattern in fund {fund_query['name']}: {e}")
         return None
-    except (ValueError, Exception) as e:
-        print(f"Error parsing fund {fund_query['name']}: {e}")
-        return None
+
+    target_comid = fund_query.get("comid")
+
+    for row in rows.items():
+        tds = row("td")
+        if len(tds) < 8:  # 防禦性檢查：確保欄位數量足夠（至少到 index 7）
+            continue
+
+        # 欄位索引說明：
+        # index 1: 公司代號 (如 A0005)
+        # index 5: 基金名稱 (如 元大台灣卓越50基金)
+        # index 7: 淨值
+
+        current_comid = tds.eq(1).text().strip()
+        current_name = tds.eq(5).text().strip()
+
+        # 檢查公司代號是否符合，且基金名稱包含 filter 關鍵字
+        if current_comid == target_comid and pattern.search(current_name):
+            val_text = tds.eq(7).text().replace(",", "").strip()
+
+            if not val_text:
+                return None
+
+            try:
+                return float(val_text)
+            except ValueError:
+                print(f"Warning: Failed to parse float value '{val_text}' for {fund_query['name']}")
+                continue
+
+    return None
 
 
 # --- 非同步核心任務 ---
@@ -247,13 +261,19 @@ async def run_all(queries):
 # --- 執行入口 ---
 fund_querys = [
     {
-        "filter": "台灣卓越50基金",
+        "filter": ".*台灣卓越50基金.*",
         "name": "元大台灣卓越50基金",
         "start_date": datetime(2012, 5, 7, tzinfo=taiwan_timezone),
         "comid": "A0005",
     },
     {
-        "filter": "台灣釆吉50基金",
+        "filter": ".*台灣卓越50ETF連結基金.*不配息.*",
+        "name": "元大台灣卓越50ETF連結基金-不配息",
+        "start_date": datetime(2019, 6, 10, tzinfo=taiwan_timezone),
+        "comid": "A0005",
+    },
+    {
+        "filter": ".*台灣釆吉50基金.*",
         "name": "富邦台灣釆吉50基金",
         "start_date": datetime(2012, 6, 22, tzinfo=taiwan_timezone),
         "comid": "A0010",

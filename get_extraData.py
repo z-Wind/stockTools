@@ -34,9 +34,7 @@ def get_existing_dates(dir_path) -> set[str]:
         return set()
 
     # 計算當月1號的檔名檔名 (e.g., "20260601.csv")
-    current_month_filename = (
-        f"{(datetime.now() + relativedelta(day=1)).strftime('%Y%m%d')}.csv"
-    )
+    current_month_filename = f"{(datetime.now() + relativedelta(day=1)).strftime('%Y%m%d')}.csv"
 
     # 如果最後一個檔案是當月資料，將其刪除以防資料不全
     if csv_files[-1] == current_month_filename:
@@ -111,16 +109,18 @@ def save_twse_ftse_index(
 
         # --- 資料欄位建立 ---
         # 1. 轉換日期：遇到格式錯誤時強制轉為 NaT，而非拋出 Exception 阻斷程式
-        df["Date"] = pd.to_datetime(df["日期"].apply(transform_date), format="mixed", errors="coerce")
+        df["Date"] = pd.to_datetime(
+            df["日期"].apply(transform_date), format="mixed", errors="coerce"
+        )
 
         # (選填) 印出格式錯誤的原始資料列，方便 Debug 追蹤
         invalid_dates = df[df["Date"].isna()]
         if not invalid_dates.empty:
-            print(f"警告: {date_str} 發現無效日期格式:\n{invalid_dates[['日期']]}") 
-        
+            print(f"警告: {date_str} 發現無效日期格式:\n{invalid_dates[['日期']]}")
+
         # 2. 立即剔除 Date 為 NaT (格式錯誤) 的資料列
         df = df.dropna(subset=["Date"])
-        
+
         # 確保過濾後 DataFrame 依舊有資料，若沒資料則安全跳過
         if df.empty:
             print(f"{symbol} {date_str} 日期過濾後無有效資料")
@@ -142,17 +142,21 @@ def save_twse_ftse_index(
         # 禮貌爬蟲，延時放最後，確保下載完才冷卻
         time.sleep(5)
 
+
 # https://www.twse.com.tw/zh/indices/ftse/tai50i.html
 def save_TAI50I_index(s):
     save_twse_ftse_index(s, "臺灣50指數", "TAI50I", start=datetime(2002, 10, 1))
+
 
 # https://www.twse.com.tw/zh/indices/ftse/tai100i.html
 def save_TAI100I_index(s):
     save_twse_ftse_index(s, "臺灣中型100指數", "TAI100I", start=datetime(2004, 11, 1))
 
+
 # https://www.twse.com.tw/zh/indices/ftse/taidividi.html
 def save_TAIDIVIDI_index(s):
     save_twse_ftse_index(s, "臺灣高股息指數", "TAIDIVIDI", start=datetime(2007, 1, 1))
+
 
 # https://www.twse.com.tw/zh/indices/taiex/mi-5min-hist.html
 def save_TAIEX_index(s: requests.Session) -> None:
@@ -208,25 +212,19 @@ def save_TAIEX_index(s: requests.Session) -> None:
             continue
 
         # 使用統一驗證器，自動過濾維護網頁與無資料 JSON
-        is_return_valid, return_text = is_valid_csv_response(
-            c_return, d, f"{symbol}(報酬)"
-        )
+        is_return_valid, return_text = is_valid_csv_response(c_return, d, f"{symbol}(報酬)")
         if not is_return_valid:
             continue
 
         try:
-            totalReturn = pd.read_csv(io.StringIO(return_text), header=1).dropna(
-                axis=1
-            )
+            totalReturn = pd.read_csv(io.StringIO(return_text), header=1).dropna(axis=1)
         except pd.errors.EmptyDataError:
             print(f"{symbol} {d} 報酬指數資料為空，跳過此月")
             continue
 
         # ------------------ 3. 資料合併與對齊 (Merge 最佳實踐) ------------------
         hist.columns = hist.columns.str.replace(r"\s+", "", regex=True)
-        totalReturn.columns = totalReturn.columns.str.replace(
-            r"\s+", "", regex=True
-        )
+        totalReturn.columns = totalReturn.columns.str.replace(r"\s+", "", regex=True)
 
         if "日期" not in hist.columns or "日期" not in totalReturn.columns:
             print(f"{symbol} {d} 欄位解析異常，無法對齊")
@@ -260,9 +258,7 @@ def save_TAIEX_index(s: requests.Session) -> None:
         df["High"] = df["最高指數"].apply(process_data).astype(float)
         df["Low"] = df["最低指數"].apply(process_data).astype(float)
         df["Close"] = df["收盤指數"].apply(process_data).astype(float)
-        df["Adj Close"] = (
-            df["發行量加權股價報酬指數"].apply(process_data).astype(float)
-        )
+        df["Adj Close"] = df["發行量加權股價報酬指數"].apply(process_data).astype(float)
         df["Dividends"] = 0
         df["Stock Splits"] = 0
 
@@ -274,11 +270,12 @@ def save_TAIEX_index(s: requests.Session) -> None:
         # 禮貌爬蟲延時
         time.sleep(5)
 
+
 def is_valid_csv_response(content: bytes, date_str: str, symbol: str) -> tuple[bool, str]:
     """
     檢查證交所回傳的內容是否為有效的 CSV 資料。
     攔截網站維護、假日無資料等非預期網頁。
-    
+
     回傳: (是否有效, 解碼後的文字內容)
     """
     # 1. 優先嘗試用 big5 解碼 (正常 CSV 格式)
@@ -305,6 +302,7 @@ def is_valid_csv_response(content: bytes, date_str: str, symbol: str) -> tuple[b
         return False, ""
 
     return True, text
+
 
 if __name__ == "__main__":
     with requests.Session() as s:

@@ -126,6 +126,30 @@ def save_twse_ftse_index(
             print(f"{symbol} {date_str} 日期過濾後無有效資料")
             continue
 
+        # === 當月份資料嚴格驗證機制 ===
+        # 預期的年與月（從當前迴圈的 day 變數取得）
+        expected_year = day.year
+        expected_month = day.month
+
+        # 檢查是否所有資料行的年、月都與預期相符
+        is_same_year = df["Date"].dt.year == expected_year
+        is_same_month = df["Date"].dt.month == expected_month
+        is_valid_month = is_same_year & is_same_month
+
+        # 如果有任何一筆資料不屬於當月份（.all() 代表必須全部為 True）
+        if not is_valid_month.all():
+            # 找出那些不乖的髒資料日期（方便 Log 追蹤原因）
+            invalid_rows = df[~is_valid_month]
+            distinct_bad_months = invalid_rows["Date"].dt.strftime("%Y-%m").unique().tolist()
+
+            print(
+                f"❌ 嚴重警告: {symbol} {date_str} 請求失敗！"
+                f"下載的資料中夾雜了非當月 ({expected_year}-{expected_month:02d}) 的資料！"
+                f"偵測到異常月份: {distinct_bad_months}。該批次資料全部丟棄，不予儲存。"
+            )
+            continue  # 丟棄全部資料，安全跳過本月
+        # =======================================
+
         # 3. 處理其餘欄位
         df["Close"] = df[symbol].apply(process_data).astype(float)
         df["Adj Close"] = df[reward_symbol].apply(process_data).astype(float)
@@ -252,6 +276,30 @@ def save_TAIEX_index(s: requests.Session) -> None:
         if df.empty:
             print(f"{symbol} {d} 日期過濾後無有效資料，跳過")
             continue
+
+        # === 當月份資料嚴格驗證機制 ===
+        # 預期的年與月（從當前迴圈的 day 變數取得）
+        expected_year = day.year
+        expected_month = day.month
+
+        # 檢查是否所有資料行的年、月都與預期相符
+        is_same_year = df["Date"].dt.year == expected_year
+        is_same_month = df["Date"].dt.month == expected_month
+        is_valid_month = is_same_year & is_same_month
+
+        # 如果有任何一筆資料不屬於當月份（.all() 代表必須全部為 True）
+        if not is_valid_month.all():
+            # 找出那些不乖的髒資料日期（方便 Log 追蹤原因）
+            invalid_rows = df[~is_valid_month]
+            distinct_bad_months = invalid_rows["Date"].dt.strftime("%Y-%m").unique().tolist()
+
+            print(
+                f"❌ 嚴重警告: {symbol} {d} 請求失敗！"
+                f"下載的資料中夾雜了非當月 ({expected_year}-{expected_month:02d}) 的資料！"
+                f"偵測到異常月份: {distinct_bad_months}。該批次資料全部丟棄，不予儲存。"
+            )
+            continue  # 丟棄全部資料，安全跳過本月
+        # =======================================
 
         # 4. 處理其餘欄位
         df["Open"] = df["開盤指數"].apply(process_data).astype(float)

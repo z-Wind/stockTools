@@ -13,7 +13,7 @@ import plotly
 from functools import cached_property
 from jsmin import jsmin
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Counter, List, Optional, Dict, Any
 from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
@@ -2118,6 +2118,8 @@ class Figure:
             )
             data.append(s)
 
+        detect_duplicated(data)
+
         df = pd.concat(data, axis=1, sort=True)
         df = df.dropna()
 
@@ -3017,7 +3019,7 @@ def us_stock():
         {"name": "FLCPX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
         {"name": "FNILX", "remark": "Fidelity 大型股 指數基金", "groups": ["美股", "美大型股"]},
         {"name": "SPY", "remark": "SPDR S&P500", "groups": ["美股", "美大型股"]},
-        {"name": "SPLG", "remark": "SPDR S&P500", "groups": ["美股", "美大型股"]},
+        # {"name": "SPLG", "remark": "SPDR S&P500", "groups": ["美股", "美大型股"]}, # 總是資料太舊
         {"name": "IVV", "remark": "iShares S&P500", "groups": ["美股", "美大型股"]},
         {"name": "SWPPX", "remark": "Schwab S&P500 指數基金", "groups": ["美股", "美大型股"]},
         {"name": "SNXFX", "remark": "Schwab 大型股 指數基金", "groups": ["美股", "美大型股"]},
@@ -3491,6 +3493,92 @@ def custom_stock():
         # },
     ]
     report(symbols, start="1911-1-1", prefix="Custom", iYear=5, name_width=12)
+
+
+def detect_duplicated(data: List[pd.Series]) -> Dict[str, Any]:
+    """檢測 Series 列表中造成 pd.concat(axis=1) 失敗的重複來源。
+
+    Args:
+        data: 包含多個 pd.Series 的列表。
+    """
+    report = {
+        "has_duplicates": False,
+        "internal_index_duplicates": [],  # 個別 Series 內部 Index 重複
+        "series_name_duplicates": {},  # 不同 Series 之間名字重複
+    }
+
+    series_names = []
+
+    for idx, s in enumerate(data):
+        # 確保物件真的是 Series（防禦性程式碼）
+        if not isinstance(s, pd.Series):
+            print(f"⚠️ 警告：data[{idx}] 不是 Series，而是 {type(s)}，已跳過檢查。")
+            continue
+
+        # 1. 檢查單一 Series 內部的 Index 是否有重複標籤
+        if s.index.duplicated().any():
+            dup_indexes = s.index[s.index.duplicated()].unique().tolist()
+            report["internal_index_duplicates"].append(
+                {
+                    "data_index": idx,
+                    "series_name": s.name,
+                    "duplicate_indexes": dup_indexes,
+                }
+            )
+
+        # 收集所有 Series 的名字（用於檢查欄位撞名）
+        # 如果 Series 沒有名字，s.name 會是 None
+        series_names.append(s.name if s.name is not None else f"Unnamed_{idx}")
+
+    # 2. 檢查哪些 Series 的名字重複了（這在 axis=1 合併時會變成重複的 columns）
+    name_counts = Counter(series_names)
+    dup_names = {name: count for name, count in name_counts.items() if count > 1}
+
+    for name, count in dup_names.items():
+        # 找出這個名字出現在哪幾個 Series 中
+        appeared_in = [
+            idx
+            for idx, s in enumerate(data)
+            if s.name == name or (name.startswith("Unnamed_") and s.name is None)
+        ]
+        report["series_name_duplicates"][name] = {
+            "total_appearances": count,
+            "found_in_data_indices": appeared_in,
+        }
+
+    # 3. 判斷是否有任何重複
+    if report["internal_index_duplicates"] or report["series_name_duplicates"]:
+        report["has_duplicates"] = True
+
+    # 4. 輸出報告
+    _print_series_detection_summary(report)
+
+    return report
+
+
+def _print_series_detection_summary(report: Dict[str, Any]) -> None:
+    """輔助函式：格式化輸出 Series 檢測結果。"""
+    if not report["has_duplicates"]:
+        print("✅ 檢查完畢：未偵測到任何重複的 Name 或內部的 Index，請檢查是否為其他非預期錯誤。")
+        return
+
+    print("=== 🔍 pd.Series 重複性檢測報告 ===")
+
+    if report["internal_index_duplicates"]:
+        print("\n❌ 狀況 A：個別 Series 內部的 Index（列標籤）本身就有重複值：")
+        print("  （這會導致 pd.concat 在對齊時不知道該對準哪一列）")
+        for item in report["internal_index_duplicates"]:
+            print(f"  👉 data[{item['data_index']}] (名稱: {item['series_name']})")
+            print(f"     重複的 Index 標籤: {item['duplicate_indexes']}")
+
+    if report["series_name_duplicates"]:
+        print("\n❌ 狀況 B：有不同的 Series 使用了「完全相同」的名稱（Name）：")
+        print("  （這在 axis=1 合併後，會導致 DataFrame 出現重複的欄位名）")
+        for name, info in report["series_name_duplicates"].items():
+            print(f"  👉 Series 名稱 '{name}' 共出現 {info['total_appearances']} 次")
+            print(f"     存在於這些位置: data{info['found_in_data_indices']}")
+
+    print("\n====================================")
 
 
 if __name__ == "__main__":

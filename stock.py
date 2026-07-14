@@ -291,6 +291,7 @@ class Stock:
             self.rawData["Date"].dt.date <= self.end.date()
         )
         self.history = self.rawData[index]
+        self.end = self.history["Date"].iloc[-1]
 
     def set_start_datetime(self, start: datetime) -> None:
         # 4.5：加入邊界驗證
@@ -305,6 +306,7 @@ class Stock:
             self.rawData["Date"].dt.date <= self.end.date()
         )
         self.history = self.rawData[index]
+        self.start = self.history["Date"].iloc[0]
 
     def _calAdjClose(self, df: pd.DataFrame) -> pd.DataFrame:
         div = df[["Dividends"]].copy()
@@ -769,26 +771,24 @@ class Figure:
         image: bool = False,
         name_width: int = 7,
     ) -> None:
-        # 3.6：快取屬性移至 __init__，避免多個 Figure 實例共用類別層級屬性
+        # 快取屬性
         self.intersection_history_val = None
         self.total_return_val = None
         self.max_drawdown_val = None
 
-        # 3.11：使用 deepcopy 避免修改到類別層級的 default_template
+        # 使用 deepcopy 避免修改到類別層級範本
         self.default_template = merge_dict(
             copy.deepcopy(self.theme_template), copy.deepcopy(self.__class__.default_template)
         )
 
-        self.start = start
-        self.end = end
+        self.start = datetime.strptime(start, "%Y-%m-%d")
+        self.end = datetime.strptime(end, "%Y-%m-%d")
         self.prefix = prefix
         self.iYear = iYear
         self.image = image
         self.name_width = name_width
 
-        if datetime.strptime(end, "%Y-%m-%d") < datetime.strptime(
-            start, "%Y-%m-%d"
-        ) + relativedelta(years=iYear):
+        if self.end < self.start + relativedelta(years=iYear):
             raise ValueError(f"{start} - {end} 間隔時間小於 iYear:{iYear}")
 
         self.stocks = []
@@ -812,26 +812,11 @@ class Figure:
                 )
             )
 
-        # === 時間瓶頸偵測與列印邏輯 ===
-        # 使用 sorted() 搭配 lambda，會產生一個全新的複本列表，完全不會污染 self.stocks
-        bottleneck_stocks = sorted(self.stocks, key=lambda s: s.end)
-
-        print("\n" + "=" * 50)
-        print("🚨 [資料時間瓶頸偵測] 結束日期最早的前 5 名股票：")
-        print("=" * 50)
-        for rank, stock in enumerate(bottleneck_stocks[:5], 1):
-            stock_end_str = (
-                stock.end.strftime("%Y-%m-%d") if isinstance(stock.end, datetime) else stock.end
-            )
-            print(f"第 {rank} 名 (最舊): {stock.name} -> 結束日期: {stock_end_str}")
-        print("=" * 50 + "\n")
-        # =======================================================
-
-        end = min([stock.end for stock in self.stocks])
-        # 3.3：更新 self.end 為實際最小結束日，避免 end 參數被 min() 結果覆蓋而語義不清
-        self.end = end.strftime("%Y-%m-%d") if isinstance(end, datetime) else end
+        # 結束日設定為統一，以比較像年報酬率等需終點一致的
+        end_min = min([stock.end for stock in self.stocks])
+        self.end = end_min
         for stock in self.stocks:
-            stock.set_end_datetime(end)
+            stock.set_end_datetime(end_min)
 
     def _mergeDict(self, a, b, path=None, overwrite=True):
         """3.1：委派至模組層級的 merge_dict，保留向後相容介面。"""
@@ -2085,16 +2070,14 @@ class Figure:
 
     def annual_return_bar(self) -> str:
         data = []
-        start = self.stocks[0].history["Date"].iloc[0]
-        end = self.stocks[0].history["Date"].iloc[-1]
+        start = self.stocks[0].start
         for st in self.stocks:
             data.append(st.yearReturn)
-            start = min(start, st.history["Date"].iloc[0])
-            end = max(end, st.history["Date"].iloc[-1])
+            start = min(start, st.start)
 
         df = pd.concat(data, axis=1)
         start = start.strftime("%Y-%m-%d")
-        end = end.strftime("%Y-%m-%d")
+        end = self.end.strftime("%Y-%m-%d")
         graph = self._plotBar_with_group(
             df,
             title=f"<b>Annual Return<b><br><i>{start} ~ {end}<i>",
@@ -2109,23 +2092,115 @@ class Figure:
         if self.intersection_history_val is not None:
             return self.intersection_history_val
 
-        data = []
+        # 1. 建立各個股票的 Series 清單
+        series_list = []
         for st in self.stocks:
             s = pd.Series(
-                data=st.history["Adj Close Cal"].values,
-                index=st.history["Date"],
+                data=st.rawData["Adj Close Cal"].values,
+                index=st.rawData["Date"],
                 name=st.name,
             )
-            data.append(s)
+            series_list.append(s)
 
-        detect_duplicated(data)
+        detect_duplicated(series_list)
 
-        df = pd.concat(data, axis=1, sort=True)
-        df = df.dropna()
+        # 2. 進行多欄位外聯集 (Outer Join)
+        raw_df = pd.concat(series_list, axis=1, sort=True)
 
-        self.intersection_history_val = df
+        # 3. 取得【實質全體交集結果】與其實際截止日
+        df_intersect = raw_df.dropna()
+        current_intersect_end = df_intersect.index.max() if not df_intersect.empty else None
 
-        return df
+        # 4. 執行交集瓶頸偵測（不重複造輪子，直接利用現成的 raw_df 進行模擬）
+        self._detect_intersection_bottleneck(raw_df, current_intersect_end)
+
+        self.intersection_history_val = df_intersect
+        return df_intersect
+
+    def _detect_intersection_bottleneck(self, raw_df: pd.DataFrame, current_intersect_end) -> None:
+        """輔助私有方法：利用已拼接的 DataFrame 進行留一交叉驗證，揪出斷層元兇"""
+
+        def get_last_date(stock):
+            try:
+                if (
+                    hasattr(stock, "rawData")
+                    and stock.rawData is not None
+                    and len(stock.rawData) >= 3
+                ):
+                    return (
+                        stock.rawData["Date"].iloc[-3],
+                        stock.rawData["Date"].iloc[-2],
+                        stock.rawData["Date"].iloc[-1],
+                    )
+            except (KeyError, IndexError):
+                pass
+            return None
+
+        bottleneck_scores = []
+
+        # 遍歷每檔股票，模擬「踢掉該欄位」後剩餘欄位的 dropna() 截止日
+        for stock in self.stocks:
+            if stock.name not in raw_df.columns:
+                continue
+
+            # 模擬剔除當前股票欄位後的其餘子集
+            other_columns = [col for col in raw_df.columns if col != stock.name]
+
+            if other_columns:
+                # 直接利用 Pandas 進行其餘股票的交集截止日模擬，速度極快
+                simulated_end = raw_df[other_columns].dropna().index.max()
+            else:
+                simulated_end = current_intersect_end
+
+            # 計算推進效益天數
+            improvement_days = 0
+            if simulated_end and current_intersect_end:
+                improvement_days = (simulated_end - current_intersect_end).days
+
+            bottleneck_scores.append((stock, improvement_days, simulated_end))
+
+        # 依據改進天數由大到小排序
+        bottleneck_scores.sort(key=lambda x: x[1], reverse=True)
+
+        print("\n" + "=" * 100)
+        print(
+            f"🚨 [實質交集殺手偵測] 目前全體交集截止日僅到: {current_intersect_end.strftime('%Y-%m-%d') if current_intersect_end else 'N/A'}"
+        )
+        print("以下股票若被剔除，全體交集截止日將能大幅往後推進：")
+        print("=" * 100)
+
+        for rank, (stock, imp_days, new_end) in enumerate(bottleneck_scores[:5], 1):
+            stock_third_dt, stock_second_dt, sotck_end_dt = get_last_date(stock)
+
+            stock_end_str = (
+                sotck_end_dt.strftime("%Y-%m-%d")
+                if isinstance(sotck_end_dt, datetime)
+                else str(sotck_end_dt)
+            )
+            stock_second_str = (
+                stock_second_dt.strftime("%Y-%m-%d")
+                if isinstance(stock_second_dt, datetime)
+                else str(stock_second_dt)
+            )
+            stock_third_str = (
+                stock_third_dt.strftime("%Y-%m-%d")
+                if isinstance(stock_third_dt, datetime)
+                else str(stock_third_dt)
+            )
+            new_end_str = new_end.strftime("%Y-%m-%d") if isinstance(new_end, datetime) else "無解"
+
+            if imp_days > 0:
+                status_str = (
+                    f"❌ 罪魁禍首 (踢掉它，全體交集可推進至 -> {new_end_str}，多賺 {imp_days} 天)"
+                )
+            else:
+                status_str = "✅ 符合大部隊時間軸 (剔除它無助於推進交集)"
+
+            print(
+                f"第 {rank} 名: {stock.symbol:<16} -> 倒數三日 {stock_third_str:<10} {stock_second_str:<10} {stock_end_str:<10} | {status_str}"
+            )
+
+        print("=" * 100 + "\n")
 
     def total_return(self) -> tuple:
         if self.total_return_val is not None:
@@ -2273,16 +2348,14 @@ class Figure:
 
     def annual_max_drawdown_bar(self) -> str:
         data = []
-        start = self.stocks[0].history["Date"].iloc[0]
-        end = self.stocks[0].history["Date"].iloc[-1]
+        start = self.stocks[0].start
         for st in self.stocks:
             data.append(st.year_max_drawdown)
-            start = min(start, st.history["Date"].iloc[0])
-            end = max(end, st.history["Date"].iloc[-1])
+            start = min(start, st.start)
 
         df = pd.concat(data, axis=1)
         start = start.strftime("%Y-%m-%d")
-        end = end.strftime("%Y-%m-%d")
+        end = self.end.strftime("%Y-%m-%d")
         graph = self._plotBar_with_group(
             df,
             title=f"<b>Annual Max Drawdown<b><br><i>{start} ~ {end}<i>",
@@ -3414,7 +3487,7 @@ def tw_0050_stock():
         },
         {
             "name": "0050.TW",
-            "name_suffix": "Fund",
+            "name_suffix": "Link",
             "remark": "元大台灣卓越50ETF連結基金-不配息",
             "fromPath": os.path.join(
                 os.path.dirname(__file__), "extraData", "元大台灣卓越50ETF連結基金-不配息"
@@ -3424,7 +3497,7 @@ def tw_0050_stock():
         },
         {
             "name": "0050.TW",
-            "name_suffix": "Fund",
+            "name_suffix": "Fund_ND",
             "remark": "元大台灣卓越50基金_股息不投入",
             "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
             "replaceDiv": True,
@@ -3475,7 +3548,7 @@ def custom_stock():
         # },
         # {
         #     "name": "0050.TW",
-        #     "name_suffix": "Fund",
+        #     "name_suffix": "Fund_ND",
         #     "remark": "元大台灣卓越50基金_股息不投入",
         #     "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "元大台灣卓越50基金"),
         #     "replaceDiv": True,

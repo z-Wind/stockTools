@@ -3486,6 +3486,14 @@ def tw_0050_stock():
             "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
         {
+            "name": "006208.TW",
+            "name_suffix": "Fund",
+            "remark": "富邦台灣釆吉50基金",
+            "fromPath": os.path.join(os.path.dirname(__file__), "extraData", "富邦台灣釆吉50基金"),
+            "replaceDiv": True,
+            "groups": ["常用", "基金"],
+        },
+        {
             "name": "0050.TW",
             "name_suffix": "Link",
             "remark": "元大台灣卓越50ETF連結基金-不配息",

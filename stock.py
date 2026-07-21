@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import re
 import warnings
@@ -20,6 +21,8 @@ from dateutil.relativedelta import relativedelta
 from jinja2 import Environment, FileSystemLoader
 
 from FFI import rust_pyo3
+
+logger = logging.getLogger(__name__)
 
 _jinja_env = None  # type: Optional[Environment]
 
@@ -75,8 +78,9 @@ def merge_dict(a: Dict, b: Dict, path: Optional[list] = None, overwrite: bool = 
             elif a[key] == b[key]:
                 pass  # same leaf value
             elif not overwrite:
-                print(
-                    f"Conflict at {'.'.join(path + [str(key)])} and overwrite is False. Keeping original value."
+                logger.warning(
+                    "Conflict at %s and overwrite is False. Keeping original value.",
+                    ".".join(path + [str(key)]),
                 )
         else:
             a[key] = b[key]
@@ -115,7 +119,7 @@ class Stock:
         Date     |   Close |  Adj Close   |   Dividends  |    Stock Splits
         %Y-%m-%d |   Float |  Float       |   Float      |    Int
         """
-        print("\n================================================================\n")
+        logger.debug("\n================================================================\n")
 
         # 2.1：實例屬性（原本定義在類別層級，多實例間會共用，已修正）
         self.start = datetime.strptime("1970-01-02", "%Y-%m-%d")
@@ -145,29 +149,43 @@ class Stock:
         self.history = self._getHistory(fromPath)
 
     def _getDiv_TW(self) -> dict:
-        try:
-            dom = PyQuery(
-                url=f"https://tw.stock.yahoo.com/quote/{self.symbol}/dividend",
-                headers=headers,
-            )
-            data = dom(r"#layout-col1 ul.List\(n\)")
+        """5.6：股息資料取得失敗時改為重試後 raise，而非靜默回傳空值。
 
-            replaceDiv = {}
-            for i in data.find(r"li.List\(n\)").items():
-                date = i.find("div > div:nth-child(7)").text()
-                if re.search(r"\d{4}/\d{2}/\d{2}", date) is None:
-                    continue
+        replaceDiv=True 代表呼叫端明確要求「用這份股息資料取代原始資料」，
+        若取得失敗卻悄悄回傳 {}，會讓後續 _calAdjClose 誤以為此股票沒有股息，
+        產生錯誤但不會被發現的調整收盤價。因此比照 _getHistory_yahoo 的重試
+        策略：暫時性錯誤（網路逾時等）重試幾次，仍失敗就中止整個 report，
+        讓問題在產生當下被看見，而不是流入報表數字裡。
+        """
+        n = 0
+        last_error: Optional[Exception] = None
+        while n <= 5:
+            try:
+                dom = PyQuery(
+                    url=f"https://tw.stock.yahoo.com/quote/{self.symbol}/dividend",
+                    headers=headers,
+                )
+                data = dom(r"#layout-col1 ul.List\(n\)")
 
-                date += " 00:00:00+08:00"
-                div = float(i.find("div > div:nth-child(3)").text())
-                replaceDiv[date] = div
-        except Exception as e:
-            # 5.5：股息資料取得失敗時改為 warning，避免靜默回傳空值導致計算錯誤
-            warnings.warn(f"{self.symbol} 股息資料取得失敗：{e}")
-            return {}
+                replaceDiv = {}
+                for i in data.find(r"li.List\(n\)").items():
+                    date = i.find("div > div:nth-child(7)").text()
+                    if re.search(r"\d{4}/\d{2}/\d{2}", date) is None:
+                        continue
 
-        print(self.name, "replaceDiv:", replaceDiv)
-        return replaceDiv
+                    date += " 00:00:00+08:00"
+                    div = float(i.find("div > div:nth-child(3)").text())
+                    replaceDiv[date] = div
+
+                logger.info("%s replaceDiv: %s", self.name, replaceDiv)
+                return replaceDiv
+            except Exception as e:
+                last_error = e
+                warnings.warn(f"{self.symbol} 股息資料取得失敗（第 {n + 1} 次）：{e}")
+                time.sleep(60)
+                n += 1
+
+        raise RuntimeError(f"{self.symbol}: 股息資料取得失敗，重試 {n} 次後放棄：{last_error}")
 
     def _getData(self, path):
         # 需有以下資訊
@@ -240,7 +258,7 @@ class Stock:
         # 檢查 date 是否重覆
         df = hist[hist.index.duplicated(keep=False)]
         if not df.empty:
-            print(self.name, df)
+            logger.warning("%s duplicated dates:\n%s", self.name, df)
             if not self.dateDuplcatedCombine:
                 raise ValueError(f"{self.name}: 發現重複日期，請設定 dateDuplcatedCombine=True")
             else:
@@ -334,9 +352,7 @@ class Stock:
 
         split = split.reset_index()
 
-        print(self.name)
-        print(split)
-        print(div)
+        logger.debug("%s\nsplit:\n%s\ndiv:\n%s", self.name, split, div)
 
         data = df.copy()
 
@@ -350,7 +366,9 @@ class Stock:
         data = data[data["Close"].notna()]
 
         if div.empty:
-            print("empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'")
+            logger.info(
+                "%s: empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'", self.name
+            )
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
             return data
 
@@ -2162,12 +2180,13 @@ class Figure:
         # 依據改進天數由大到小排序
         bottleneck_scores.sort(key=lambda x: x[1], reverse=True)
 
-        print("\n" + "=" * 100)
-        print(
-            f"🚨 [實質交集殺手偵測] 目前全體交集截止日僅到: {current_intersect_end.strftime('%Y-%m-%d') if current_intersect_end else 'N/A'}"
-        )
-        print("以下股票若被剔除，全體交集截止日將能大幅往後推進：")
-        print("=" * 100)
+        report_lines = [
+            "\n" + "=" * 100,
+            f"🚨 [實質交集殺手偵測] 目前全體交集截止日僅到: "
+            f"{current_intersect_end.strftime('%Y-%m-%d') if current_intersect_end else 'N/A'}",
+            "以下股票若被剔除，全體交集截止日將能大幅往後推進：",
+            "=" * 100,
+        ]
 
         for rank, (stock, imp_days, new_end) in enumerate(bottleneck_scores[:5], 1):
             stock_third_dt, stock_second_dt, sotck_end_dt = get_last_date(stock)
@@ -2196,11 +2215,12 @@ class Figure:
             else:
                 status_str = "✅ 符合大部隊時間軸 (剔除它無助於推進交集)"
 
-            print(
+            report_lines.append(
                 f"第 {rank} 名: {stock.symbol + stock.name_suffix:<16} -> 倒數三日 {stock_third_str:<10} {stock_second_str:<10} {stock_end_str:<10} | {status_str}"
             )
 
-        print("=" * 100 + "\n")
+        report_lines.append("=" * 100 + "\n")
+        logger.info("\n".join(report_lines))
 
     def total_return(self) -> tuple:
         if self.total_return_val is not None:
@@ -2594,26 +2614,66 @@ class Figure:
 
         return total_return, annual_return
 
-    def growth_separate(self, init_money: int) -> str:
+    def _growth_retire_graph(
+        self,
+        init_money: int,
+        init_expense: int,
+        inflation_percent: int,
+        inflation_adjusted: bool,
+        separate: bool,
+        title_template: str,
+        filename_template: str,
+    ) -> str:
+        """4.9：growth()/retire_graph()/retire_adj_graph() 及其 *_separate 版本
+        共用的核心邏輯（原本 6 個方法幾乎逐行重複，僅差在起始日對齊方式與
+        inflation 參數），抽出後 6 個公開方法只剩下各自的標題與參數設定。
+
+        Args:
+            separate: True = 每檔股票各自從自己的起始日開始模擬；
+                      False = 全部對齊到 intersection_history 的共同起始日。
+        """
         data = []
-        start = self.stocks[0].start
-        for st in self.stocks:
-            df = st.retire(
-                st.start.year, st.end.year, init_money, init_expense=0, inflation_percent=0
-            )
-            data.append(df)
-            start = min(start, st.start)
+        if separate:
+            start = self.stocks[0].start
+            for st in self.stocks:
+                df = st.retire(
+                    st.start.year,
+                    st.end.year,
+                    init_money,
+                    init_expense,
+                    inflation_percent,
+                    inflation_adjusted=inflation_adjusted,
+                )
+                data.append(df)
+                start = min(start, st.start)
+        else:
+            df_intersection = self.intersection_history()
+            start = df_intersection.index[0]
+            end = df_intersection.index[-1]
+            for st in self.stocks:
+                tmp = st.start
+                st.set_start_datetime(start)
+                df = st.retire(
+                    start.year,
+                    end.year,
+                    init_money,
+                    init_expense,
+                    inflation_percent,
+                    inflation_adjusted=inflation_adjusted,
+                )
+                data.append(df)
+                st.set_start_datetime(tmp)
 
         df = pd.concat(data, axis="columns")
         df = df.sort_index()
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
+        start_str = start.strftime("%Y-%m-%d")
+        end_str = df.index[-1]
+        df = df.T.sort_values(by=[end_str], ascending=False).T
 
         lines = self._plotLine_without_markers(
             df,
-            title=(f"<b>Growth Separate of {init_money}<b><br>" f"<i>{start} ~ {end}<i>"),
-            filename=f"Growth_Separate_of_{init_money}_{start}~{end}",
+            title=title_template.format(start=start_str, end=end_str),
+            filename=filename_template.format(start=start_str, end=end_str),
             additional_layout={"xaxis": {"type": "category"}},
         )
         lines = self._mergeDict(
@@ -2624,219 +2684,129 @@ class Figure:
                 }
             },
         )
-        lines = json.dumps(lines)
-
-        return lines
-
-    def retire_separate_graph(self) -> str:
-        init_money = 10000000
-        init_expense = 400000
-        inflation_percent = 3
-        data = []
-        start = self.stocks[0].start
-        for st in self.stocks:
-            df = st.retire(st.start.year, st.end.year, init_money, init_expense, inflation_percent)
-            data.append(df)
-            start = min(start, st.start)
-
-        df = pd.concat(data, axis="columns")
-        df = df.sort_index()
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
-
-        lines = self._plotLine_without_markers(
-            df,
-            title=(
-                f"<b>Retire Simulation Separate<b><br>"
-                f"<b>initial money: {init_money}<b><br>"
-                f"<b>initial expense: {init_expense}<b><br>"
-                f"<b>inflation: {inflation_percent}%<b><br>"
-                f"<i>{start} ~ {end}<i>"
-            ),
-            filename=f"Retire Simulation Separate_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
-            additional_layout={"xaxis": {"type": "category"}},
-        )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
-        )
-        lines = json.dumps(lines)
-
-        return lines
-
-    def retire_adj_separate_graph(self) -> str:
-        init_money = 10000000
-        init_expense = 400000
-        inflation_percent = 3
-        data = []
-        start = self.stocks[0].start
-        for st in self.stocks:
-            df = st.retire_adj(
-                st.start.year, st.end.year, init_money, init_expense, inflation_percent
-            )
-            data.append(df)
-            start = min(start, st.start)
-
-        df = pd.concat(data, axis="columns")
-        df = df.sort_index()
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
-
-        lines = self._plotLine_without_markers(
-            df,
-            title=(
-                f"<b>Retire Simulation Separate (Inflation adjusted)<b><br>"
-                f"<b>initial money: {init_money}<b><br>"
-                f"<b>initial expense: {init_expense}<b><br>"
-                f"<b>inflation: {inflation_percent}%<b><br>"
-                f"<i>{start} ~ {end}<i>"
-            ),
-            filename=f"Retire Simulation Separate_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
-            additional_layout={"xaxis": {"type": "category"}},
-        )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
-        )
-        lines = json.dumps(lines)
-
-        return lines
+        return json.dumps(lines)
 
     def growth(self, init_money: int) -> str:
-        df = self.intersection_history()
-        start = df.index[0]
-        end = df.index[-1]
-
-        data = []
-        for st in self.stocks:
-            tmp = st.start
-            st.set_start_datetime(start)
-            df = st.retire(start.year, end.year, init_money, init_expense=0, inflation_percent=0)
-            data.append(df)
-            st.set_start_datetime(tmp)
-
-        df = pd.concat(data, axis="columns")
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
-
-        lines = self._plotLine_without_markers(
-            df,
-            title=(f"<b>Growth of {init_money}<b><br>" f"<i>{start} ~ {end}<i>"),
-            filename=f"Growth_of_{init_money}_{start}~{end}",
-            additional_layout={"xaxis": {"type": "category"}},
+        return self._growth_retire_graph(
+            init_money,
+            init_expense=0,
+            inflation_percent=0,
+            inflation_adjusted=False,
+            separate=False,
+            title_template=f"<b>Growth of {init_money}<b><br><i>{{start}} ~ {{end}}<i>",
+            filename_template=f"Growth_of_{init_money}_{{start}}~{{end}}",
         )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
-        )
-        lines = json.dumps(lines)
 
-        return lines
+    def growth_separate(self, init_money: int) -> str:
+        return self._growth_retire_graph(
+            init_money,
+            init_expense=0,
+            inflation_percent=0,
+            inflation_adjusted=False,
+            separate=True,
+            title_template=f"<b>Growth Separate of {init_money}<b><br><i>{{start}} ~ {{end}}<i>",
+            filename_template=f"Growth_Separate_of_{init_money}_{{start}}~{{end}}",
+        )
 
     def retire_graph(self) -> str:
-        df = self.intersection_history()
-        start = df.index[0]
-        end = df.index[-1]
-
-        init_money = 10000000
-        init_expense = 400000
-        inflation_percent = 3
-        data = []
-        for st in self.stocks:
-            tmp = st.start
-            st.set_start_datetime(start)
-            df = st.retire(start.year, end.year, init_money, init_expense, inflation_percent)
-            data.append(df)
-            st.set_start_datetime(tmp)
-
-        df = pd.concat(data, axis="columns")
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
-
-        lines = self._plotLine_without_markers(
-            df,
-            title=(
-                f"<b>Retire Simulation<b><br>"
-                f"<b>initial money: {init_money}<b><br>"
-                f"<b>initial expense: {init_expense}<b><br>"
-                f"<b>inflation: {inflation_percent}%<b><br>"
-                f"<i>{start} ~ {end}<i>"
-            ),
-            filename=f"Retire Simulation_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
-            additional_layout={"xaxis": {"type": "category"}},
+        init_money = DEFAULT_RETIRE_INIT_MONEY
+        init_expense = DEFAULT_RETIRE_INIT_EXPENSE
+        inflation_percent = DEFAULT_RETIRE_INFLATION_PERCENT
+        title = (
+            f"<b>Retire Simulation<b><br>"
+            f"<b>initial money: {init_money}<b><br>"
+            f"<b>initial expense: {init_expense}<b><br>"
+            f"<b>inflation: {inflation_percent}%<b><br>"
+            f"<i>{{start}} ~ {{end}}<i>"
         )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
+        filename = (
+            f"Retire Simulation_money {init_money}_expense {init_expense}"
+            f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        lines = json.dumps(lines)
+        return self._growth_retire_graph(
+            init_money,
+            init_expense,
+            inflation_percent,
+            inflation_adjusted=False,
+            separate=False,
+            title_template=title,
+            filename_template=filename,
+        )
 
-        return lines
+    def retire_separate_graph(self) -> str:
+        init_money = DEFAULT_RETIRE_INIT_MONEY
+        init_expense = DEFAULT_RETIRE_INIT_EXPENSE
+        inflation_percent = DEFAULT_RETIRE_INFLATION_PERCENT
+        title = (
+            f"<b>Retire Simulation Separate<b><br>"
+            f"<b>initial money: {init_money}<b><br>"
+            f"<b>initial expense: {init_expense}<b><br>"
+            f"<b>inflation: {inflation_percent}%<b><br>"
+            f"<i>{{start}} ~ {{end}}<i>"
+        )
+        filename = (
+            f"Retire Simulation Separate_money {init_money}_expense {init_expense}"
+            f"_inflation {inflation_percent}%_{{start}}~{{end}}"
+        )
+        return self._growth_retire_graph(
+            init_money,
+            init_expense,
+            inflation_percent,
+            inflation_adjusted=False,
+            separate=True,
+            title_template=title,
+            filename_template=filename,
+        )
 
     def retire_adj_graph(self) -> str:
-        df = self.intersection_history()
-        start = df.index[0]
-        end = df.index[-1]
-
-        init_money = 10000000
-        init_expense = 400000
-        inflation_percent = 3
-        data = []
-        for st in self.stocks:
-            tmp = st.start
-            st.set_start_datetime(start)
-            df = st.retire_adj(start.year, end.year, init_money, init_expense, inflation_percent)
-            data.append(df)
-            st.set_start_datetime(tmp)
-
-        df = pd.concat(data, axis="columns")
-        start = start.strftime("%Y-%m-%d")
-        end = df.index[-1]
-        df = df.T.sort_values(by=[end], ascending=False).T
-
-        lines = self._plotLine_without_markers(
-            df,
-            title=(
-                f"<b>Retire Simulation (Inflation adjusted)<b><br>"
-                f"<b>initial money: {init_money}<b><br>"
-                f"<b>initial expense: {init_expense}<b><br>"
-                f"<b>inflation: {inflation_percent}%<b><br>"
-                f"<i>{start} ~ {end}<i>"
-            ),
-            filename=f"Retire Simulation_money {init_money}_expense {init_expense}_inflation {inflation_percent}%_{start}~{end}",
-            additional_layout={"xaxis": {"type": "category"}},
+        init_money = DEFAULT_RETIRE_INIT_MONEY
+        init_expense = DEFAULT_RETIRE_INIT_EXPENSE
+        inflation_percent = DEFAULT_RETIRE_INFLATION_PERCENT
+        title = (
+            f"<b>Retire Simulation (Inflation adjusted)<b><br>"
+            f"<b>initial money: {init_money}<b><br>"
+            f"<b>initial expense: {init_expense}<b><br>"
+            f"<b>inflation: {inflation_percent}%<b><br>"
+            f"<i>{{start}} ~ {{end}}<i>"
         )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
+        filename = (
+            f"Retire Simulation_money {init_money}_expense {init_expense}"
+            f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        lines = json.dumps(lines)
+        return self._growth_retire_graph(
+            init_money,
+            init_expense,
+            inflation_percent,
+            inflation_adjusted=True,
+            separate=False,
+            title_template=title,
+            filename_template=filename,
+        )
 
-        return lines
+    def retire_adj_separate_graph(self) -> str:
+        init_money = DEFAULT_RETIRE_INIT_MONEY
+        init_expense = DEFAULT_RETIRE_INIT_EXPENSE
+        inflation_percent = DEFAULT_RETIRE_INFLATION_PERCENT
+        title = (
+            f"<b>Retire Simulation Separate (Inflation adjusted)<b><br>"
+            f"<b>initial money: {init_money}<b><br>"
+            f"<b>initial expense: {init_expense}<b><br>"
+            f"<b>inflation: {inflation_percent}%<b><br>"
+            f"<i>{{start}} ~ {{end}}<i>"
+        )
+        filename = (
+            f"Retire Simulation Separate_money {init_money}_expense {init_expense}"
+            f"_inflation {inflation_percent}%_{{start}}~{{end}}"
+        )
+        return self._growth_retire_graph(
+            init_money,
+            init_expense,
+            inflation_percent,
+            inflation_adjusted=True,
+            separate=True,
+            title_template=title,
+            filename_template=filename,
+        )
 
     def history_adj_graph(self) -> str:
         data = []
@@ -3593,7 +3563,7 @@ def detect_duplicated(data: List[pd.Series]) -> Dict[str, Any]:
     for idx, s in enumerate(data):
         # 確保物件真的是 Series（防禦性程式碼）
         if not isinstance(s, pd.Series):
-            print(f"⚠️ 警告：data[{idx}] 不是 Series，而是 {type(s)}，已跳過檢查。")
+            logger.warning("data[%d] 不是 Series，而是 %s，已跳過檢查。", idx, type(s))
             continue
 
         # 1. 檢查單一 Series 內部的 Index 是否有重複標籤
@@ -3640,29 +3610,36 @@ def detect_duplicated(data: List[pd.Series]) -> Dict[str, Any]:
 def _print_series_detection_summary(report: Dict[str, Any]) -> None:
     """輔助函式：格式化輸出 Series 檢測結果。"""
     if not report["has_duplicates"]:
-        print("✅ 檢查完畢：未偵測到任何重複的 Name 或內部的 Index，請檢查是否為其他非預期錯誤。")
+        logger.debug(
+            "✅ 檢查完畢：未偵測到任何重複的 Name 或內部的 Index，請檢查是否為其他非預期錯誤。"
+        )
         return
 
-    print("=== 🔍 pd.Series 重複性檢測報告 ===")
+    lines = ["=== 🔍 pd.Series 重複性檢測報告 ==="]
 
     if report["internal_index_duplicates"]:
-        print("\n❌ 狀況 A：個別 Series 內部的 Index（列標籤）本身就有重複值：")
-        print("  （這會導致 pd.concat 在對齊時不知道該對準哪一列）")
+        lines.append("\n❌ 狀況 A：個別 Series 內部的 Index（列標籤）本身就有重複值：")
+        lines.append("  （這會導致 pd.concat 在對齊時不知道該對準哪一列）")
         for item in report["internal_index_duplicates"]:
-            print(f"  👉 data[{item['data_index']}] (名稱: {item['series_name']})")
-            print(f"     重複的 Index 標籤: {item['duplicate_indexes']}")
+            lines.append(f"  👉 data[{item['data_index']}] (名稱: {item['series_name']})")
+            lines.append(f"     重複的 Index 標籤: {item['duplicate_indexes']}")
 
     if report["series_name_duplicates"]:
-        print("\n❌ 狀況 B：有不同的 Series 使用了「完全相同」的名稱（Name）：")
-        print("  （這在 axis=1 合併後，會導致 DataFrame 出現重複的欄位名）")
+        lines.append("\n❌ 狀況 B：有不同的 Series 使用了「完全相同」的名稱（Name）：")
+        lines.append("  （這在 axis=1 合併後，會導致 DataFrame 出現重複的欄位名）")
         for name, info in report["series_name_duplicates"].items():
-            print(f"  👉 Series 名稱 '{name}' 共出現 {info['total_appearances']} 次")
-            print(f"     存在於這些位置: data{info['found_in_data_indices']}")
+            lines.append(f"  👉 Series 名稱 '{name}' 共出現 {info['total_appearances']} 次")
+            lines.append(f"     存在於這些位置: data{info['found_in_data_indices']}")
 
-    print("\n====================================")
+    lines.append("\n====================================")
+    logger.warning("\n".join(lines))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     tw_stock()
     tw_0050_stock()
     us_stock()

@@ -813,10 +813,10 @@ class Figure:
             )
 
         # 結束日設定為統一，以比較像年報酬率等需終點一致的
-        end_min = min([stock.end for stock in self.stocks])
-        self.end = end_min
+        df_intersection = self.intersection_history()
+        self.end = df_intersection.index.max()
         for stock in self.stocks:
-            stock.set_end_datetime(end_min)
+            stock.set_end_datetime(self.end)
 
     def _mergeDict(self, a, b, path=None, overwrite=True):
         """3.1：委派至模組層級的 merge_dict，保留向後相容介面。"""
@@ -2197,7 +2197,7 @@ class Figure:
                 status_str = "✅ 符合大部隊時間軸 (剔除它無助於推進交集)"
 
             print(
-                f"第 {rank} 名: {stock.symbol:<16} -> 倒數三日 {stock_third_str:<10} {stock_second_str:<10} {stock_end_str:<10} | {status_str}"
+                f"第 {rank} 名: {stock.symbol + stock.name_suffix:<16} -> 倒數三日 {stock_third_str:<10} {stock_second_str:<10} {stock_end_str:<10} | {status_str}"
             )
 
         print("=" * 100 + "\n")

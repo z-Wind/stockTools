@@ -12,6 +12,7 @@ import warnings
 import sys
 import threading
 import gc
+import os
 
 from datetime import datetime
 from pyquery import PyQuery
@@ -164,12 +165,6 @@ def read_excel_with_cache(
     return df
 
 
-# data =========================================================
-
-
-# https://data.gov.tw/dataset/6019 消費者物價基本分類指數
-
-
 def _make_df_csv_simple(
     url: str, index_col: str, columns_remove_patt: str
 ) -> "Callable[[], pd.DataFrame]":
@@ -187,6 +182,23 @@ def _make_df_csv_simple(
     return _loader
 
 
+def print_update_required_warning(key: str):
+    """自動辨識環境並列印最顯眼的更新提示"""
+    # 檢查是否在 GitHub Actions 環境中
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        print(f"::warning:: 🔄 [更新提示] 請檢查並更新：{key}")
+    else:
+        # 本地端：使用 ANSI 亮黃色與紅底黑字
+        YELLOW = "\033[93m"
+        BG_RED = "\033[41;37m"
+        RESET = "\033[0m"
+        print(f"\n{YELLOW}⚠️ [更新提示] {RESET}請更新：{BG_RED} {key} {RESET}\n")
+
+
+# data =========================================================
+
+
+# https://data.gov.tw/dataset/6019 消費者物價基本分類指數
 def df_消費者物價基本分類指數() -> pd.DataFrame:
     url = "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230555/pr0101a1m.xml"
     xpath = "//Obs"
@@ -290,7 +302,7 @@ def df_人力資源調查重要指標() -> pd.DataFrame:
     xpath = "//人力資源調查重要指標"
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, url in urls.items():
@@ -366,7 +378,7 @@ def df_教育程度別失業率() -> pd.DataFrame:
     xpath = "//教育程度別失業率"
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, url in urls.items():
@@ -430,7 +442,7 @@ def df_年齡組別失業率() -> pd.DataFrame:
     xpath = "//年齡組別失業率"
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, url in urls.items():
@@ -481,7 +493,7 @@ def df_教育程度別失業率_按年齡分() -> pd.DataFrame:
     xpath = "//教育程度別失業率_按年齡分"
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, url in urls.items():
@@ -1310,7 +1322,7 @@ def df_家庭收支調查_所得收入者人數按性別及可支配所得組別
         and datetime.now().month > 7
         and datetime.now().day > 20
     ):
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     return df, year + 1911
 
@@ -1577,7 +1589,7 @@ def df_家庭部門資產結構() -> pd.DataFrame:
     )
 
     if int(df.columns[-1]) + 2 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     return df
 
@@ -2127,7 +2139,7 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
     lastyear = max(urls.keys())
 
     if lastyear + 1911 + 1 < datetime.now().year and datetime.now().month > 11:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df_總薪資中位數_全體受僱員工按特性別分_集合 = []
     df_總薪資中位數_本國籍全時受僱員工按特性別分_集合 = []
@@ -2445,7 +2457,7 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
     lastyear = max(url.keys())
 
     if lastyear + 1911 + 1 < datetime.now().year and datetime.now().month > 8:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = read_xml_with_cache(
         EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
@@ -2484,7 +2496,7 @@ def df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行
     lastyear = max(url.keys())
 
     if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 10:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = read_xml_with_cache(
         EXTRA_DATA_DIR / key / f"{lastyear}.xml.gz",
@@ -2560,7 +2572,7 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
     lastyear = max(url.keys())
 
     if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 10:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year in range(106, lastyear + 1):
@@ -2808,7 +2820,7 @@ def df_財政統計年報_綜合所得稅結算申報_按淨所得級距別分()
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 4:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, (filetype, url) in urls.items():
@@ -2927,10 +2939,11 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別() -
         111: "https://events.bli.gov.tw/report/attachment_file/report/year/111/h40040.csv",
         112: "https://events.bli.gov.tw/report/attachment_file/report/year/112/h40040.csv",
         113: "https://events.bli.gov.tw/report/attachment_file/report/year/113/h40040.csv",
+        114: "https://events.bli.gov.tw/report/attachment_file/report/year/114/h40030.csv",
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 6:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for year, url in urls.items():
@@ -2942,10 +2955,7 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別() -
             with gzip.open(path, "wb") as f:
                 f.write(r.content)
 
-        if year in [111, 112, 113]:
-            data = pd.read_csv(path, compression="gzip", skiprows=list(range(0, 6)), header=None)
-            data = data.iloc[:23, [0, 4]]
-        elif year in [97, 99]:
+        if year in [97, 99]:
             data = pd.read_csv(
                 path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
             )
@@ -2989,6 +2999,9 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別() -
                 path, compression="gzip", skiprows=list(range(0, 11)), header=None, encoding="BIG5"
             )
             data = data.iloc[:23, [0, 2]]
+        else:  # if year in [111, 112, 113, 114]:
+            data = pd.read_csv(path, compression="gzip", skiprows=list(range(0, 6)), header=None)
+            data = data.iloc[:23, [0, 4]]
 
         data.columns = ["地區", "平均提繳工資"]
         data["年度"] = year + 1911  # 轉西元
@@ -3060,13 +3073,14 @@ def df_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況(
         111: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-1UF",
         112: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-LF0",
         113: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-s48",
+        114: "https://apiservice.mol.gov.tw/OdService/download/A17010000J-000121-QLa",
     }
 
     if (
         max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
         and datetime.now().month > 6
     ):
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -3091,13 +3105,14 @@ def df_勞工退休金平均提繳工資_按行業別() -> pd.DataFrame:
         111: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-o9Y",
         112: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-UFg",
         113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-2d5",
+        114: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030156-YtV",
     }
 
     if (
         max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
         and datetime.now().month > 6
     ):
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -3122,13 +3137,14 @@ def df_勞工退休金平均提繳工資_按年齡組別() -> pd.DataFrame:
         111: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-wAG",
         112: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-jwL",
         113: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-ESm",
+        114: "https://apiservice.mol.gov.tw/OdService/download/A17000000J-030157-6hh",
     }
 
     if (
         max([x for x in urls.keys() if isinstance(x, int)]) + 1911 + 1 < datetime.now().year
         and datetime.now().month > 6
     ):
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -4052,7 +4068,7 @@ def df_結婚對數按婚姻類型_性別及年齡分_按登記() -> pd.DataFram
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -4156,7 +4172,7 @@ def df_嬰兒出生數按性別_生父原屬國籍_地區_年齡及教育程度�
     }
 
     if max(urls.keys()) + 1911 + 2 < datetime.now().year and datetime.now().month > 3:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -4263,7 +4279,7 @@ def df_嬰兒出生數按生母年齡及出生身分分_按登記() -> pd.DataFr
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -4300,7 +4316,7 @@ def df_嬰兒出生數按性別_胎次及生母年齡分_按登記() -> pd.DataF
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():
@@ -4333,7 +4349,7 @@ def df_嬰兒出生數按嬰兒性別及出生胎別分_按登記() -> pd.DataFr
     }
 
     if max(urls.keys()) + 1911 + 1 < datetime.now().year and datetime.now().month > 3:
-        print(f"請更新 {key}")
+        print_update_required_warning(key)
 
     df = []
     for filename, url in urls.items():

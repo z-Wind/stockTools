@@ -3948,8 +3948,8 @@ def plot_勞工退休金提繳統計年報_按地區_行業及規模別(plots) -
     )
 
 
-def plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別_按地區_行業及規模別(plots) -> None:
-    key = "歷史_勞工退休金提繳統計年報_按地區_行業及規模別-按地區、行業及規模別"
+def plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別(plots) -> None:
+    key = "歷史_勞工退休金提繳統計年報-按地區、行業及規模別"
     key = sanitize_filename(key)
     df = df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別()
 
@@ -7330,7 +7330,7 @@ def main():
         lambda p=plots: plot_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表(p),
         lambda p=plots: plot_財政統計年報_綜合所得稅結算申報_按淨所得級距別分(p),
         lambda p=plots: plot_勞工退休金提繳統計年報_按地區_行業及規模別(p),
-        lambda p=plots: plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別_按地區_行業及規模別(p),
+        lambda p=plots: plot_歷史_勞工退休金提繳統計年報_按地區_行業及規模別(p),
         lambda p=plots: plot_勞工退休準備金專戶餘額統計(p),
         lambda p=plots: plot_勞工退休準備金提撥率統計(p),
         lambda p=plots: plot_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概況(p),

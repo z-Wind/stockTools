@@ -154,8 +154,12 @@ def read_excel_with_cache(
 
     if not path.is_file():
         r = _get_session().get(url, verify=False)
-        with gzip.open(path, "wb") as f:
-            f.write(r.content)
+        if r.status_code == 200:
+            with gzip.open(path, "wb") as f:
+                f.write(r.content)
+        else:
+            # 如果失敗（例如 404、500 等），不寫入檔案，並拋出錯誤讓外層迴圈跳過
+            raise ConnectionError(f"下載失敗，HTTP 狀態碼: {r.status_code}，網址: {url}")
 
     with gzip.open(path, "rb") as f_gz:
         excel_bytes = io.BytesIO(f_gz.read())
@@ -1293,38 +1297,75 @@ def df_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性別
 # https://www.stat.gov.tw/cp.aspx?n=3913 主計總處統計專區 -> 家庭收支調查 -> 統計表 -> 性別指標
 def df_家庭收支調查_所得收入者人數按性別及可支配所得組別分() -> pd.DataFrame:
     key = "家庭收支調查-所得收入者人數按性別及可支配所得組別分"
-    year = 113
-    url = f"https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2015/gender{year}.xls"
+    start_year = 90
+    end_year = datetime.today().year - 1911
+    url_year = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/10315/2015/gender{year}.xls"
 
-    df = read_excel_with_cache(
-        EXTRA_DATA_DIR / key / f"{year}.xlsx.gz",
-        url,
-        lambda excel_bytes: pd.read_excel(
-            excel_bytes,
-            engine="calamine",
-            skiprows=3,
-            nrows=44,
-            usecols=range(0, 4),
-            sheet_name=10,
-        ),
-    )
+    all_dfs = []
 
-    df.columns = ["可支配所得組別", "合計", "男", "女"]
-    df = df.dropna()
-    df["合計"] = df["合計"].astype(int)
-    df["男"] = df["男"].astype(int)
-    df["女"] = df["女"].astype(int)
+    for y in range(start_year, end_year + 1):
+        url = url_year.format(year=y)
+        try:
+            raw_df = read_excel_with_cache(
+                EXTRA_DATA_DIR / key / f"{y}.xls.gz",
+                url,
+                lambda excel_bytes: pd.read_excel(
+                    excel_bytes,
+                    engine="calamine",
+                    skiprows=3,
+                    usecols=range(0, 4),
+                    sheet_name=10,
+                ),
+            )
 
-    df = df.set_index("可支配所得組別")
+            raw_df.columns = ["可支配所得組別", "合計", "男", "女"]
+            raw_df["可支配所得組別"] = (
+                raw_df["可支配所得組別"]
+                .fillna("")
+                .astype(str)
+                .str.replace(r"\s+", "", regex=True)
+            )
 
-    if (
-        year + 1911 + 1 < datetime.now().year
-        and datetime.now().month > 7
-        and datetime.now().day > 20
-    ):
-        print_update_required_warning(key)
+            clean_rows = []
+            for idx, row in raw_df.iterrows():
+                label = row["可支配所得組別"]
+                if not label:
+                    continue
+                # 碰到主計總處底部的備註、註解，動態截斷
+                if "註" in label or "說明" in label or "資料來源" in label:
+                    break
+                # 只保留有效的級距與總計
+                if any(k in label for k in ["未滿", "～", "~", "以上", "總計"]):
+                    clean_rows.append(row)
 
-    return df, year + 1911
+            if not clean_rows:
+                continue
+
+            df_year = pd.DataFrame(clean_rows)
+            df_year["年份"] = y + 1911
+
+            # 確保數值型態正確
+            for col in ["合計", "男", "女"]:
+                df_year[col] = (
+                    pd.to_numeric(df_year[col], errors="coerce")
+                    .fillna(0)
+                    .astype(int)
+                )
+
+            all_dfs.append(df_year)
+
+        except Exception as e:
+            print(f"跳過/忽略民國 {y} 年數據，原因: {e}")
+            continue
+
+    if not all_dfs:
+        raise ValueError("未成功抓取到任何年度的資料。")
+
+    # 合併所有歷史資料，並設定複合索引
+    df_total = pd.concat(all_dfs, ignore_index=True)
+    df_total = df_total.set_index(["年份", "可支配所得組別"])
+
+    return df_total
 
 
 # https://data.gov.tw/dataset/9423 家庭收支調查-平均每戶可支配所得按經濟戶長性別分

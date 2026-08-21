@@ -2140,16 +2140,158 @@ def plot_家庭收支調查_家庭戶數按所得總額組別及經濟戶長性�
     )
 
 
+def parse_income_intervals(df_single_year: pd.DataFrame, target_col: str):
+    upper_bounds = []
+    counts = []
+
+    df_intervals = df_single_year[df_single_year.index != "總計"]
+
+    for label, row in df_intervals.iterrows():
+        count = row[target_col]
+        nums = [int(s) for s in re.findall(r"\d+", label.replace(",", ""))]
+
+        if not nums:
+            continue
+
+        if "未滿" in label:
+            upper_bounds.append(nums[0])
+        elif "～" in label or "~" in label:
+            upper_bounds.append(nums[1] if len(nums) > 1 else nums[0])
+        elif "及以上" in label or "以上" in label:
+            upper_bounds.append(nums[0] * 1.5)
+
+        counts.append(count)
+
+    counts = np.array(counts)
+    cum_counts = np.cumsum(counts)
+    total = cum_counts[-1] if len(cum_counts) > 0 and cum_counts[-1] > 0 else 1
+    cum_pct = cum_counts / total
+
+    return np.insert(upper_bounds, 0, 0), np.insert(cum_pct, 0, 0)
+
+
 def plot_家庭收支調查_所得收入者人數按性別及可支配所得組別分(plots) -> None:
     key = "家庭收支調查-所得收入者人數按性別及可支配所得組別分"
     key = sanitize_filename(key)
-    df, last_year = df_家庭收支調查_所得收入者人數按性別及可支配所得組別分()
+    df_all = df_家庭收支調查_所得收入者人數按性別及可支配所得組別分()
 
-    idx = [i for i in df.index if i != "總計"]
+    available_years = df_all.index.get_level_values("年份").unique().sort_values().tolist()
+    last_year = available_years[-1]
+
+    # ------------------------------------------
+    # 圖一：最新單年度男女長條圖
+    # ------------------------------------------
+    df_latest = df_all.xs(last_year, level="年份")
+    idx_no_total = [i for i in df_latest.index if i != "總計"]
+
     plots[key] = plot_bar_group(
-        df.loc[idx, :],
+        df_latest.loc[idx_no_total, :],
         title=f"{key}-人數 {last_year}年",
     )
+
+    # ------------------------------------------
+    # 圖二：多年度（90至最新成功年）所得演變趨勢圖
+    # ------------------------------------------
+    target_pcts = [0.9, 0.7, 0.5, 0.3, 0.1]
+    pct_labels = {
+        0.9: "頂層富裕門檻 (P90 上限)",
+        0.7: "中高所得門檻 (P70 上限)",
+        0.5: "中位數：中產階級核心 (P50 上限)",
+        0.3: "中低所得門檻 (P30 上限)",
+        0.1: "底層低收門檻 (P10 上限)",
+    }
+    pct_colors = {
+        0.9: "#d9534f",  # 紅色
+        0.7: "#f0ad4e",  # 橘色
+        0.5: "#aa66cc",  # 紫色 (亮點標示中位數)
+        0.3: "#337ab7",  # 藍色
+        0.1: "#5cb85c",  # 綠色
+    }
+
+    categories = ["合計", "男", "女"]
+    history_trends = {cat: {pct: [] for pct in target_pcts} for cat in categories}
+    valid_years = []
+
+    # 計算 合計、男、女 的歷史趨勢
+    for y in available_years:
+        df_year = df_all.xs(y, level="年份")
+        for cat in categories:
+            bounds, cum_pct = parse_income_intervals(df_year, target_col=cat)
+            if len(bounds) <= 1:
+                continue
+            for pct in target_pcts:
+                income_val = np.interp(pct, cum_pct, bounds)
+                history_trends[cat][pct].append(int(income_val))
+        valid_years.append(y)
+
+    # 建立 3 群組 x 5 條線 = 15 條線的 Trace 清單
+    data_list = []
+
+    for cat in categories:
+        is_default = cat == "合計"
+        for pct in target_pcts:
+            trace = {
+                "type": "scatter",
+                "mode": "lines+markers",
+                "name": pct_labels[pct] if cat == "合計" else f"{cat}性-{pct_labels[pct]}",
+                "x": valid_years,
+                "y": history_trends[cat][pct],
+                # 突顯中位數 P50 的線條與圖點
+                "line": {"color": pct_colors[pct], "width": 3 if pct == 0.5 else 2},
+                "marker": {"size": 8 if pct == 0.5 else 6},
+                "visible": is_default,
+            }
+            data_list.append(trace)
+
+    updatemenus = [
+        {
+            "buttons": [
+                {
+                    "args": [{"visible": [True] * 5 + [False] * 5 + [False] * 5}],
+                    "label": "📊 全體總計",
+                    "method": "restyle",
+                },
+                {
+                    "args": [{"visible": [False] * 5 + [True] * 5 + [False] * 5}],
+                    "label": "👨 男性所得趨勢",
+                    "method": "restyle",
+                },
+                {
+                    "args": [{"visible": [False] * 5 + [False] * 5 + [True] * 5}],
+                    "label": "👩 女性所得趨勢",
+                    "method": "restyle",
+                },
+            ],
+            "direction": "down",
+            "showactive": True,
+            "x": 0.05,
+            "xanchor": "left",
+            "y": 0.99,
+            "yanchor": "top",
+        }
+    ]
+
+    layout = {
+        "title": {
+            "text": f"{key} {available_years[0]}-{last_year}年度 所得趨勢演變 (百分位數標準化)"
+        },
+        "hovermode": "x unified",
+        "xaxis": {"title": {"text": "年份"}},
+        "yaxis": {"title": {"text": "可支配所得分界上限 (新台幣元)", "tickformat": ",d"}},
+        "updatemenus": updatemenus,
+        "legend": {
+            "traceorder": "normal",
+            "yanchor": "top",
+            "y": 0.99,
+            "xanchor": "left",
+            "x": 1.02,
+        },
+    }
+
+    graph = {"data": data_list, "layout": layout}
+    graph = merge_dict(copy.deepcopy(default_template), graph)
+
+    plots[f"{key}_跨年度趨勢比較"] = plotly_json_dump(graph)
 
 
 def plot_家庭收支調查_平均每戶可支配所得按經濟戶長性別分(plots) -> None:

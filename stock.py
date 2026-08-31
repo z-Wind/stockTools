@@ -14,7 +14,7 @@ import plotly
 from functools import cached_property
 from jsmin import jsmin
 from datetime import datetime
-from typing import Counter, List, Optional, Dict, Any
+from typing import Counter, List, Optional, Dict, Any, Union
 from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
@@ -601,31 +601,73 @@ class Stock:
             inflation_adjusted=True,
         )
 
-    def dollar_cost_averaging(self) -> pd.DataFrame:
-        money = DEFAULT_DCA_MONEY
-        invested_years = set()  # 4.7：原名 check，改為語義更清楚的 invested_years
-        shares = 0
-        cost = 0
-        result = {"date": [], "cost": [], "profit": []}
+    def dollar_cost_averaging(
+        self,
+        money: float = DEFAULT_DCA_MONEY,
+        frequency: str = "A",
+        start_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
+        end_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
+    ) -> pd.DataFrame:
+        """定期定額（DCA）資產模擬計算（支援自訂時間區間）。
 
-        for _, data in self.history.iterrows():
-            price = data["Adj Close Cal"]
-            date = data["Date"]
-            year = date.year
+        Args:
+            money: 每次固定投入的金額。
+            frequency: 投入頻率 ("M": 月, "Q": 季, "A": 年)。
+            start_date: 定期定額開始日期 (例如 "2020-01-01")，預設為 self.history 的起點。
+            end_date: 定期定額結束日期 (例如 "2023-12-31")，預設為 self.history 的終點。
+        """
+        if self.history is None or self.history.empty:
+            return pd.DataFrame(columns=["cost", "shares", "value", "profit", "roi"])
 
-            if year not in invested_years:
-                shares += money / price
-                cost += money
-                invested_years.add(year)
+        # 1. 複製並過濾指定的時間區間
+        df_daily = self.history[["Date", "Adj Close Cal"]].copy()
+        df_daily = df_daily.sort_values("Date").reset_index(drop=True)
 
-            result["date"].append(date)
-            result["cost"].append(cost)
-            result["profit"].append(shares * price - cost)
+        if start_date is not None:
+            ts_start = pd.to_datetime(start_date)
+            df_daily = df_daily[df_daily["Date"] >= ts_start]
+        if end_date is not None:
+            ts_end = pd.to_datetime(end_date)
+            df_daily = df_daily[df_daily["Date"] <= ts_end]
 
-        df = pd.DataFrame(result)
-        df = df.set_index("date")
+        if df_daily.empty:
+            return pd.DataFrame(columns=["cost", "shares", "value", "profit", "roi"])
 
-        return df
+        # 重新排序與重設索引，確保後續向量化計算的連續性
+        df_daily = df_daily.sort_values("Date").reset_index(drop=True)
+
+        # 2. 根據頻率定義時間分組欄位
+        if frequency == "M":
+            groupby_cols = [df_daily["Date"].dt.year, df_daily["Date"].dt.month]
+        elif frequency == "Q":
+            groupby_cols = [df_daily["Date"].dt.year, df_daily["Date"].dt.quarter]
+        elif frequency == "A":
+            groupby_cols = [df_daily["Date"].dt.year]
+        else:
+            raise ValueError("不支援的頻率！請使用 'M' (月), 'Q' (季), 或 'A' (年)")
+
+        # 3. 找出每個週期的「第一個交易日」索引
+        invest_indices = df_daily.groupby(groupby_cols, as_index=False).head(1).index
+
+        # 4. 建立與每日資料等長的投入金額與股數陣列
+        invest_money = np.zeros(len(df_daily))
+        invest_shares = np.zeros(len(df_daily))
+
+        # 5. 只在扣款日索引填入固定金額，並計算當天買進的股數
+        prices = df_daily["Adj Close Cal"].values
+        invest_money[invest_indices] = money
+        invest_shares[invest_indices] = money / prices[invest_indices]
+
+        # 6. 使用 NumPy 向量化累積求和
+        df_daily["cost"] = np.cumsum(invest_money)
+        df_daily["shares"] = np.cumsum(invest_shares)
+
+        # 7. 計算每日市值與報酬率
+        df_daily["value"] = df_daily["shares"] * df_daily["Adj Close Cal"]
+        df_daily["profit"] = df_daily["value"] - df_daily["cost"]
+        df_daily["roi"] = np.where(df_daily["cost"] > 0, df_daily["profit"] / df_daily["cost"], 0.0)
+
+        return df_daily.set_index("Date")[["cost", "shares", "value", "profit", "roi"]]
 
     def identify_bull_bear_markets(
         self,
@@ -2839,6 +2881,240 @@ class Figure:
 
         return self._plotDrawdownViolin(data), self._plotDrawdownsViolin(data)
 
+    def _dca_month_graph(
+        self,
+        money: float,
+        frequency: str,
+        separate: bool,
+        title_template: str,
+        filename_template: str,
+    ) -> str:
+        """生成定期定額資產增長對比圖表的 JSON 設定。
+
+        Args:
+            money: 每次固定投入的金額。
+            frequency: 投入頻率 ("M": 月, "Q": 季, "A": 年)。
+            separate: True = 每檔股票各自從自己的起始日開始模擬；
+                      False = 全部對齊到 intersection_history 的共同起始日。
+        """
+        data = []
+        start_date = None
+
+        if separate:
+            # 1. 各自獨立時間區間模式
+            for st in self.stocks:
+                df = st.dollar_cost_averaging(money, frequency)
+                if df.empty:
+                    continue
+                # 只抽取當前資產總市值 (value) 欄位，並用股票名稱命名，避免 concat 衝突
+                data.append(df["value"].to_frame(st.name))
+
+                # 安全地動態更新全域最早起始時間
+                st_start = pd.to_datetime(st.start)
+                if start_date is None or st_start < start_date:
+                    start_date = st_start
+        else:
+            # 2. 共同交集時間區間模式
+            df_intersection = self.intersection_history()
+            if df_intersection.empty:
+                raise ValueError("各股票之間沒有共同的歷史交易時間交集！")
+
+            start_date = pd.to_datetime(df_intersection.index[0])
+            end_date = pd.to_datetime(df_intersection.index[-1])
+
+            for st in self.stocks:
+                df = st.dollar_cost_averaging(money, frequency, start_date, end_date)
+                if df.empty:
+                    continue
+                data.append(df["value"].to_frame(st.name))
+
+        if not data:
+            raise ValueError("所有股票的定期定額模擬結果皆為空，無法繪製圖表！")
+
+        # 合併所有股票的 value 序列，並依時間軸排序
+        df_merged = pd.concat(data, axis="columns", sort=False)
+        df_merged = df_merged.sort_index()
+
+        # 格式化日期字串用於填入 Template
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = df_merged.index[-1].strftime("%Y-%m-%d")
+
+        # 依照最後一天的資產市值由大到小排序欄位（這會讓圖表的 Legend 標籤順序與線條高低一致，視覺體驗極佳）
+        last_valid_row = df_merged.index[-1]
+        df_merged = df_merged.T.sort_values(by=[last_valid_row], ascending=False).T
+
+        # 呼叫底層繪圖工具
+        lines = self._plotLine_without_markers(
+            df_merged,
+            title=title_template.format(start=start_str, end=end_str),
+            filename=filename_template.format(start=start_str, end=end_str),
+            additional_layout={
+                "xaxis": {
+                    "type": "date",
+                    "tickformat": "%Y-%m-%d",
+                    "nticks": 15,  # 限制畫面上最多出現大約 15 個日期標籤，避免擁擠
+                }
+            },
+        )
+
+        # 融入自訂 Layout 配置
+        lines_dict = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        return json.dumps(lines_dict)
+
+    def dca_month(self, money: int) -> str:
+        return self._dca_month_graph(
+            money=money,
+            frequency="M",
+            separate=False,
+            title_template=f"<b>DCA Month Separate of {money}<b><br><i>{{start}} ~ {{end}}<i>",
+            filename_template=f"DCA_Month_Separate_of_{money}_{{start}}~{{end}}",
+        )
+
+    def dca_month_individual(self, money: int) -> str:
+        """生成單獨股票定期定額曲線切換圖表 (Dropdown 模式)。
+
+        Args:
+            money: 每次固定投入的金額。
+        """
+        dataList = []
+        buttons = []
+        title_init = ""
+        global_start_str = ""
+        global_end_str = ""
+
+        # 這裡假設該類別有存放 Stock 物件的清單，例如 self.stocks
+        for i, st in enumerate(self.stocks):
+            # 1. 計算該檔股票獨立的每月定期定額數據
+            df_dca = st.dollar_cost_averaging(money, frequency="M")
+            if df_dca.empty:
+                continue
+
+            start_str = df_dca.index[0].strftime("%Y-%m-%d")
+            end_str = df_dca.index[-1].strftime("%Y-%m-%d")
+
+            if i == 0:
+                global_start_str = start_str
+                global_end_str = end_str
+
+            # 2. 建立線條物件：X軸使用真正的 DatetimeIndex，不再使用 category 字串
+            line_dca_value = {
+                "type": "scatter",
+                "mode": "lines",
+                "name": "市值",
+                "x": df_dca.index,
+                "y": df_dca["value"],
+                "visible": i == 0,  # 預設只顯示第一檔股票
+                "showlegend": True,
+            }
+
+            line_dca_cost = {
+                "type": "scatter",
+                "mode": "lines",
+                "name": "成本",
+                "x": df_dca.index,
+                "y": df_dca["cost"],
+                "visible": i == 0,
+                "line": {"dash": "dash"},  # 成本線用虛線表示
+                "showlegend": True,
+            }
+
+            # 每檔股票包含兩條線（市值、成本）
+            graphs = [line_dca_value, line_dca_cost]
+            dataList.extend(graphs)
+
+            # 3. 動態計算按鈕的可見性遮罩 (Visibility Mask)
+            graphs_num = len(graphs)  # 這裡固定是 2
+            total_graphs = graphs_num * len(self.stocks)
+            visible = [False] * total_graphs
+
+            # 將目前這檔股票對應的兩條線設為 True
+            for j in range(graphs_num):
+                visible[i * graphs_num + j] = True
+
+            title = f"<b>DCA Month (每月投入 {money})<b><br><i>{start_str} ~ {end_str}<i>"
+            if i == 0:
+                title_init = title
+
+            # 4. 封裝 Plotly Dropdown 按鈕
+            button = {
+                "method": "update",
+                "args": [
+                    {"visible": visible},
+                    {
+                        "title.text": title,
+                    },
+                ],
+                "label": st.name,
+            }
+            buttons.append(button)
+
+        # 5. 定義整體 Layout
+        layout = {
+            "title": {
+                "text": title_init,
+                "x": None,
+                "y": None,
+            },
+            "hovermode": "x unified",  # 滑鼠移上去時，同時顯示成本與市值的提示框
+            "xaxis": {
+                "type": "date",
+                "tickformat": "%Y-%m-%d",
+            },
+            "yaxis": {
+                "title": "金額 (元)",
+                "type": "linear",  # 定期定額資產通常用線性座標看絕對金額更直觀
+            },
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+        }
+
+        config = {
+            "toImageButtonOptions": {
+                "filename": f"DCA_Individual_{global_start_str}~{global_end_str}"
+            },
+        }
+
+        # 6. 整合預設 Template 與深層複製
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        # 自動相容可能存在的多軸配置
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                n = int(str.split(key, "axis", 1)[1])
+                axis_n = max(axis_n, n)
+
+        for i in range(2, axis_n + 1):
+            key = f"xaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            )
+            key = f"yaxis{i}"
+            graph["layout"][key] = self._mergeDict(
+                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            )
+
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
 
 def report(
     symbols,
@@ -2878,6 +3154,8 @@ def report(
     plots["dailyInvestBullBear"] = fig.daily_invest_bull_bear_graph()
     plots["growth_of_10000"] = fig.growth(10000)
     plots["growth_of_10000_separate"] = fig.growth_separate(10000)
+    plots["dca_month_10000"] = fig.dca_month(10000)
+    plots["dca_month_individual_10000"] = fig.dca_month_individual(10000)
     plots["retire"] = fig.retire_graph()
     plots["retire_separate"] = fig.retire_separate_graph()
     plots["retire_adj"] = fig.retire_adj_graph()

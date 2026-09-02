@@ -2973,8 +2973,8 @@ class Figure:
             money=money,
             frequency="M",
             separate=False,
-            title_template=f"<b>DCA Month Separate of {money}<b><br><i>{{start}} ~ {{end}}<i>",
-            filename_template=f"DCA_Month_Separate_of_{money}_{{start}}~{{end}}",
+            title_template=f"<b>DCA Month of {money}<b><br><i>{{start}} ~ {{end}}<i>",
+            filename_template=f"DCA_Month_of_{money}_{{start}}~{{end}}",
         )
 
     def dca_month_individual(self, money: int) -> str:

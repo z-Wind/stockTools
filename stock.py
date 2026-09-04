@@ -367,7 +367,8 @@ class Stock:
 
         if div.empty:
             logger.info(
-                "%s: empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'", self.name
+                "%s: empty Dividends, so fill out 'Adj Close Cal' by 'Adj Close'",
+                self.name,
             )
             data.loc[:, "Adj Close Cal"] = data["Adj Close"]
             return data
@@ -838,7 +839,8 @@ class Figure:
 
         # 使用 deepcopy 避免修改到類別層級範本
         self.default_template = merge_dict(
-            copy.deepcopy(self.theme_template), copy.deepcopy(self.__class__.default_template)
+            copy.deepcopy(self.theme_template),
+            copy.deepcopy(self.__class__.default_template),
         )
 
         self.start = datetime.strptime(start, "%Y-%m-%d")
@@ -883,14 +885,20 @@ class Figure:
         return merge_dict(a, b, path, overwrite)
 
     def _group_button(self, symbols):
-        symbol_map = {}
-        for s in self.stocks:
-            symbol_map[s.name] = s.groups
+        symbol_map = {s.name: s.groups for s in self.stocks}
 
         group_map = {}
+        # 紀錄哪些索引位置屬於「非股票的基準參考線」（如公用成本線）
+        baseline_indices = []
+
         for i, symbol in enumerate(symbols):
-            symbol = symbol.removeprefix("A ").removeprefix("P ")
-            for group in symbol_map[symbol]:
+            clean_symbol = symbol.removeprefix("A ").removeprefix("P ")
+
+            if clean_symbol not in symbol_map:
+                baseline_indices.append(i)
+                continue
+
+            for group in symbol_map[clean_symbol]:
                 arr = group_map.get(group, [False] * len(symbols))
                 arr[i] = True
                 group_map[group] = arr
@@ -900,20 +908,32 @@ class Figure:
         # "args": [{"visible": True}, arr]
         # 提供所有設定
         # "args": [{"visible": ["legendonly"] * len(symbols)}],
+        all_visible = [True] * len(symbols)
+        legend_only = ["legendonly"] * len(symbols)
+
         buttons = [
             {
-                "args": [{"visible": [True] * len(symbols)}],
-                "args2": [{"visible": ["legendonly"] * len(symbols)}],
+                "args": [{"visible": all_visible}],
+                "args2": [{"visible": legend_only}],
                 "label": "All",
                 "method": "restyle",
             },
         ]
 
         for group, arr in group_map.items():
+            # 遍歷所有基準參考線索引，不論切換到哪個群組，皆強制保持可見
+            for idx in baseline_indices:
+                arr[idx] = True
+
+            # 計算 args2 反向切換時的遮罩（基準線依然保持 True 可見）
+            args2_visible = [
+                not elem if idx not in baseline_indices else True for idx, elem in enumerate(arr)
+            ]
+
             buttons.append(
                 {
                     "args": [{"visible": arr}],
-                    "args2": [{"visible": [not elem for elem in arr]}],
+                    "args2": [{"visible": args2_visible}],
                     "label": group,
                     "method": "restyle",
                 },
@@ -993,7 +1013,11 @@ class Figure:
         )
 
     def _plotArea(
-        self, df: pd.DataFrame, title: str, filename: str, additional_layout: Optional[Dict] = None
+        self,
+        df: pd.DataFrame,
+        title: str,
+        filename: str,
+        additional_layout: Optional[Dict] = None,
     ) -> str:
         """3.2 面積圖（fill=tozeroy）。"""
         data_list, symbols = [], []
@@ -1014,7 +1038,11 @@ class Figure:
         )
 
     def _plotLine_without_markers(
-        self, df: pd.DataFrame, title: str, filename: str, additional_layout: Optional[Dict] = None
+        self,
+        df: pd.DataFrame,
+        title: str,
+        filename: str,
+        additional_layout: Optional[Dict] = None,
     ) -> str:
         """3.2 折線圖（mode=lines，無標記點）。"""
         data_list, symbols = [], []
@@ -1204,7 +1232,10 @@ class Figure:
                 visible[i * graphs_num + j] = True
 
             title = f"<b>Daily Return Analysis<b><br><i>{start} ~ {end}<i>"
-            return_range_daily = [min(df_daily["Return"]) - 0.01, max(df_daily["Return"]) + 0.01]
+            return_range_daily = [
+                min(df_daily["Return"]) - 0.01,
+                max(df_daily["Return"]) + 0.01,
+            ]
             return_range_rollback = [min(df_rollback) - 0.01, max(df_rollback) + 0.01]
             if i == 0:
                 title_init = title
@@ -2881,6 +2912,30 @@ class Figure:
 
         return self._plotDrawdownViolin(data), self._plotDrawdownsViolin(data)
 
+    def _prepare_dca_datasets(
+        self,
+        money: float,
+        frequency: str,
+        start_date: Optional[pd.Timestamp] = None,
+        end_date: Optional[pd.Timestamp] = None,
+    ) -> pd.DataFrame:
+        """核心數據抽取工具：計算各股票的 DCA 數據，整合回傳一個 MultiIndex 欄位的大表。"""
+        data_dict = {}
+        for st in self.stocks:
+            # 這裡接收到的 start_date / end_date 都是乾淨的單一 Timestamp 物件或 None
+            df = st.dollar_cost_averaging(money, frequency, start_date, end_date)
+            if df.empty:
+                continue
+            # 只抽取繪圖需要的欄位
+            data_dict[st.name] = df[["value", "cost", "profit"]]
+
+        if not data_dict:
+            raise ValueError("所有股票的定期定額模擬結果皆為空！")
+
+        # 合併並調換欄位順序，讓外層是指標 (value/cost/profit)，內層是股票名稱
+        df_all = pd.concat(data_dict, axis="columns", sort=False).sort_index()
+        return df_all.swaplevel(axis="columns").sort_index(axis="columns")
+
     def _dca_month_graph(
         self,
         money: float,
@@ -2889,188 +2944,125 @@ class Figure:
         title_template: str,
         filename_template: str,
     ) -> str:
-        """生成定期定額資產增長對比圖表的 JSON 設定。
-
-        Args:
-            money: 每次固定投入的金額。
-            frequency: 投入頻率 ("M": 月, "Q": 季, "A": 年)。
-            separate: True = 每檔股票各自從自己的起始日開始模擬；
-                      False = 全部對齊到 intersection_history 的共同起始日。
-        """
-        data = []
-        start_date = None
-
-        if separate:
-            # 1. 各自獨立時間區間模式
-            for st in self.stocks:
-                df = st.dollar_cost_averaging(money, frequency)
-                if df.empty:
-                    continue
-                # 只抽取當前資產總市值 (value) 欄位，並用股票名稱命名，避免 concat 衝突
-                data.append(df["value"].to_frame(st.name))
-
-                # 安全地動態更新全域最早起始時間
-                st_start = pd.to_datetime(st.start)
-                if start_date is None or st_start < start_date:
-                    start_date = st_start
-        else:
-            # 2. 共同交集時間區間模式
+        """生成定期定額資產增長對比圖表的 JSON 設定。"""
+        start_date, end_date = None, None
+        if not separate:
             df_intersection = self.intersection_history()
             if df_intersection.empty:
                 raise ValueError("各股票之間沒有共同的歷史交易時間交集！")
 
-            start_date = pd.to_datetime(df_intersection.index[0])
-            end_date = pd.to_datetime(df_intersection.index[-1])
+            start_date = df_intersection.index[0]
+            end_date = df_intersection.index[-1]
 
-            for st in self.stocks:
-                df = st.dollar_cost_averaging(money, frequency, start_date, end_date)
-                if df.empty:
-                    continue
-                data.append(df["value"].to_frame(st.name))
+        # 1. 取得大表
+        df_all = self._prepare_dca_datasets(money, frequency, start_date, end_date)
 
-        if not data:
-            raise ValueError("所有股票的定期定額模擬結果皆為空，無法繪製圖表！")
+        # 2. 根據場景切下需要的指標
+        df_plot = df_all["profit"] if separate else df_all["value"]
+        y_axis_title = "絕對獲利金額 (元)" if separate else "資產市值 / 成本 (元)"
 
-        # 合併所有股票的 value 序列，並依時間軸排序
-        df_merged = pd.concat(data, axis="columns", sort=False)
-        df_merged = df_merged.sort_index()
+        # 3. 依據最後一天數據由大到小排序欄位
+        last_valid_row = df_plot.index[-1]
+        df_plot = df_plot.T.sort_values(by=[last_valid_row], ascending=False).T
 
-        # 格式化日期字串用於填入 Template
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = df_merged.index[-1].strftime("%Y-%m-%d")
+        start_str = df_all.index[0].strftime("%Y-%m-%d")
+        end_str = df_all.index[-1].strftime("%Y-%m-%d")
 
-        # 依照最後一天的資產市值由大到小排序欄位（這會讓圖表的 Legend 標籤順序與線條高低一致，視覺體驗極佳）
-        last_valid_row = df_merged.index[-1]
-        df_merged = df_merged.T.sort_values(by=[last_valid_row], ascending=False).T
+        cost_line_name = "累積成本"
 
-        # 呼叫底層繪圖工具
+        if not separate:
+            df_plot = df_plot.copy()
+            df_plot[cost_line_name] = df_all["cost"].iloc[:, 0].dropna()
+
         lines = self._plotLine_without_markers(
-            df_merged,
+            df_plot,
             title=title_template.format(start=start_str, end=end_str),
             filename=filename_template.format(start=start_str, end=end_str),
             additional_layout={
-                "xaxis": {
-                    "type": "date",
-                    "tickformat": "%Y-%m-%d",
-                    "nticks": 15,  # 限制畫面上最多出現大約 15 個日期標籤，避免擁擠
-                }
+                "xaxis": {"type": "date", "tickformat": "%Y-%m-%d", "nticks": 15},
+                "yaxis": {"title": {"text": y_axis_title}},
             },
         )
+        lines_dict = json.loads(lines)
 
-        # 融入自訂 Layout 配置
-        lines_dict = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
-        )
+        if not separate:
+            for trace in lines_dict["data"]:
+                if trace["name"] == cost_line_name:
+                    trace["line"] = {"dash": "dash", "color": "#7F7F7F"}
+                    break
+
+        lines_dict = self._mergeDict(lines_dict, {"layout": {"title": {"x": 0.08}}})
         return json.dumps(lines_dict)
 
-    def dca_month(self, money: int) -> str:
-        return self._dca_month_graph(
-            money=money,
-            frequency="M",
-            separate=False,
-            title_template=f"<b>DCA Month of {money}<b><br><i>{{start}} ~ {{end}}<i>",
-            filename_template=f"DCA_Month_of_{money}_{{start}}~{{end}}",
-        )
-
     def dca_month_individual(self, money: int) -> str:
-        """生成單獨股票定期定額曲線切換圖表 (Dropdown 模式)。
+        """生成單獨股票定期定額曲線切換圖表 (Dropdown 模式)。"""
 
-        Args:
-            money: 每次固定投入的金額。
-        """
+        df_all = self._prepare_dca_datasets(money, frequency="M")
+        stock_names = df_all["value"].columns.tolist()
+
         dataList = []
         buttons = []
         title_init = ""
-        global_start_str = ""
-        global_end_str = ""
 
-        # 這裡假設該類別有存放 Stock 物件的清單，例如 self.stocks
-        for i, st in enumerate(self.stocks):
-            # 1. 計算該檔股票獨立的每月定期定額數據
-            df_dca = st.dollar_cost_averaging(money, frequency="M")
-            if df_dca.empty:
-                continue
+        # 2. 遍歷每檔股票，建立市值與成本線
+        for i, name in enumerate(stock_names):
+            # 去除因為時間不一致產生的 NaN，只留下該股票有交易的時間
+            v_series = df_all["value"][name].dropna()
+            c_series = df_all["cost"][name].dropna()
 
-            start_str = df_dca.index[0].strftime("%Y-%m-%d")
-            end_str = df_dca.index[-1].strftime("%Y-%m-%d")
+            start_str = v_series.index[0].strftime("%Y-%m-%d")
+            end_str = v_series.index[-1].strftime("%Y-%m-%d")
 
-            if i == 0:
-                global_start_str = start_str
-                global_end_str = end_str
-
-            # 2. 建立線條物件：X軸使用真正的 DatetimeIndex，不再使用 category 字串
+            # 建立 Trace 物件
             line_dca_value = {
                 "type": "scatter",
                 "mode": "lines",
                 "name": "市值",
-                "x": df_dca.index,
-                "y": df_dca["value"],
-                "visible": i == 0,  # 預設只顯示第一檔股票
+                "x": v_series.index,
+                "y": v_series.values,
+                "visible": i == 0,
                 "showlegend": True,
             }
-
             line_dca_cost = {
                 "type": "scatter",
                 "mode": "lines",
                 "name": "成本",
-                "x": df_dca.index,
-                "y": df_dca["cost"],
+                "x": c_series.index,
+                "y": c_series.values,
                 "visible": i == 0,
-                "line": {"dash": "dash"},  # 成本線用虛線表示
+                "line": {"dash": "dash"},
                 "showlegend": True,
             }
+            dataList.extend([line_dca_value, line_dca_cost])
 
-            # 每檔股票包含兩條線（市值、成本）
-            graphs = [line_dca_value, line_dca_cost]
-            dataList.extend(graphs)
-
-            # 3. 動態計算按鈕的可見性遮罩 (Visibility Mask)
-            graphs_num = len(graphs)  # 這裡固定是 2
-            total_graphs = graphs_num * len(self.stocks)
+            # 3. 計算遮罩 (Visibility Mask)
+            total_graphs = 2 * len(stock_names)
             visible = [False] * total_graphs
-
-            # 將目前這檔股票對應的兩條線設為 True
-            for j in range(graphs_num):
-                visible[i * graphs_num + j] = True
+            visible[i * 2] = True  # 市值可見
+            visible[i * 2 + 1] = True  # 成本可見
 
             title = f"<b>DCA Month (每月投入 {money})<b><br><i>{start_str} ~ {end_str}<i>"
             if i == 0:
                 title_init = title
 
-            # 4. 封裝 Plotly Dropdown 按鈕
-            button = {
-                "method": "update",
-                "args": [
-                    {"visible": visible},
-                    {
-                        "title.text": title,
-                    },
-                ],
-                "label": st.name,
-            }
-            buttons.append(button)
+            # 4. 建立 Plotly Dropdown 按鈕
+            buttons.append(
+                {
+                    "method": "update",
+                    "label": name,
+                    "args": [{"visible": visible}, {"title.text": title}],
+                }
+            )
 
-        # 5. 定義整體 Layout
+        # 5. 整體 Layout 定義
+        global_start_str = df_all.index[0].strftime("%Y-%m-%d")
+        global_end_str = df_all.index[-1].strftime("%Y-%m-%d")
+
         layout = {
-            "title": {
-                "text": title_init,
-                "x": None,
-                "y": None,
-            },
-            "hovermode": "x unified",  # 滑鼠移上去時，同時顯示成本與市值的提示框
-            "xaxis": {
-                "type": "date",
-                "tickformat": "%Y-%m-%d",
-            },
-            "yaxis": {
-                "title": "金額 (元)",
-                "type": "linear",  # 定期定額資產通常用線性座標看絕對金額更直觀
-            },
+            "title": {"text": title_init, "x": None, "y": None},
+            "hovermode": "x unified",
+            "xaxis": {"type": "date", "tickformat": "%Y-%m-%d"},
+            "yaxis": {"title": {"text": "金額 (元)"}, "type": "linear"},
             "updatemenus": [
                 {
                     "x": 0,
@@ -3085,35 +3077,40 @@ class Figure:
                 }
             ],
         }
-
         config = {
             "toImageButtonOptions": {
                 "filename": f"DCA_Individual_{global_start_str}~{global_end_str}"
-            },
+            }
         }
 
-        # 6. 整合預設 Template 與深層複製
+        # 6. 整合 Template 與多軸自動配置
         graph = {"data": dataList, "layout": layout, "config": config}
         graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
 
-        # 自動相容可能存在的多軸配置
         axis_n = 0
         for key in graph["layout"].keys():
             if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
-                n = int(str.split(key, "axis", 1)[1])
-                axis_n = max(axis_n, n)
+                axis_n = max(axis_n, int(key.split("axis", 1)[1]))
 
         for i in range(2, axis_n + 1):
-            key = f"xaxis{i}"
-            graph["layout"][key] = self._mergeDict(
-                graph["layout"].get(key, {}), self.default_template["layout"]["xaxis"]
+            graph["layout"][f"xaxis{i}"] = self._mergeDict(
+                graph["layout"].get(f"xaxis{i}", {}), self.default_template["layout"]["xaxis"]
             )
-            key = f"yaxis{i}"
-            graph["layout"][key] = self._mergeDict(
-                graph["layout"].get(key, {}), self.default_template["layout"]["yaxis"]
+            graph["layout"][f"yaxis{i}"] = self._mergeDict(
+                graph["layout"].get(f"yaxis{i}", {}), self.default_template["layout"]["yaxis"]
             )
 
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
+    def dca_month(self, money: int) -> str:
+        """保持原有接口，預設為時間相同的多檔對比圖。"""
+        return self._dca_month_graph(
+            money=money,
+            frequency="M",
+            separate=False,
+            title_template=f"<b>DCA Month of {money}<b><br><i>{{start}} ~ {{end}}<i>",
+            filename_template=f"DCA_Month_of_{money}_{{start}}~{{end}}",
+        )
 
 
 def report(
@@ -3266,11 +3263,36 @@ def tw_stock():
             "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
         {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
-        {"name": "00675L.TW", "remark": "富邦臺灣加權正2", "replaceDiv": True, "groups": ["日正"]},
-        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},
-        {"name": "0051.TW", "remark": "元大中型100", "replaceDiv": True, "groups": ["ETF"]},
-        {"name": "006204.TW", "remark": "永豐臺灣加權", "replaceDiv": True, "groups": ["ETF"]},
-        {"name": "0056.TW", "remark": "元大高股息", "replaceDiv": True, "groups": ["ETF"]},
+        {
+            "name": "00675L.TW",
+            "remark": "富邦臺灣加權正2",
+            "replaceDiv": True,
+            "groups": ["日正"],
+        },
+        {
+            "name": "006208.TW",
+            "remark": "富邦台50",
+            "replaceDiv": True,
+            "groups": ["常用", "ETF"],
+        },
+        {
+            "name": "0051.TW",
+            "remark": "元大中型100",
+            "replaceDiv": True,
+            "groups": ["ETF"],
+        },
+        {
+            "name": "006204.TW",
+            "remark": "永豐臺灣加權",
+            "replaceDiv": True,
+            "groups": ["ETF"],
+        },
+        {
+            "name": "0056.TW",
+            "remark": "元大高股息",
+            "replaceDiv": True,
+            "groups": ["ETF"],
+        },
         {
             "name": "0056.TW",
             "remark": "元大高股息_股息不投入",
@@ -3279,7 +3301,12 @@ def tw_stock():
             "calAdjClose": False,
         },
         # =================================================================================
-        {"name": "2412.TW", "remark": "中華電信", "replaceDiv": True, "groups": ["個股"]},
+        {
+            "name": "2412.TW",
+            "remark": "中華電信",
+            "replaceDiv": True,
+            "groups": ["個股"],
+        },
         {"name": "2002.TW", "remark": "中鋼", "replaceDiv": True, "groups": ["個股"]},
         {
             "name": "2330.TW",
@@ -3289,7 +3316,12 @@ def tw_stock():
             "groups": ["個股"],
         },
         {"name": "2317.TW", "remark": "鴻海", "replaceDiv": True, "groups": ["個股"]},
-        {"name": "6505.TW", "remark": "台塑石化", "replaceDiv": True, "groups": ["個股"]},
+        {
+            "name": "6505.TW",
+            "remark": "台塑石化",
+            "replaceDiv": True,
+            "groups": ["個股"],
+        },
         {"name": "3481.TW", "remark": "群創", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2303.TW", "remark": "聯電", "replaceDiv": True, "groups": ["個股"]},
         {"name": "2308.TW", "remark": "台達電", "replaceDiv": True, "groups": ["個股"]},
@@ -3329,23 +3361,51 @@ def us_stock():
         },
         # =================================================================================
         {"name": "^GSPC", "remark": "S&P500指數", "groups": ["美股", "美大型股"]},
-        {"name": "^SP500TR", "remark": "S&P500報酬指數", "groups": ["美股", "美大型股"]},
+        {
+            "name": "^SP500TR",
+            "remark": "S&P500報酬指數",
+            "groups": ["美股", "美大型股"],
+        },
         {
             "name": "^SP500TR",
             "remark": "S&P500報酬指數_日正2",
             "daily_return_mul": 2,
             "groups": ["美股", "美大型股", "日正"],
         },
-        {"name": "FXAIX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
-        {"name": "FLCPX", "remark": "Fidelity S&P500 指數基金", "groups": ["美股", "美大型股"]},
-        {"name": "FNILX", "remark": "Fidelity 大型股 指數基金", "groups": ["美股", "美大型股"]},
+        {
+            "name": "FXAIX",
+            "remark": "Fidelity S&P500 指數基金",
+            "groups": ["美股", "美大型股"],
+        },
+        {
+            "name": "FLCPX",
+            "remark": "Fidelity S&P500 指數基金",
+            "groups": ["美股", "美大型股"],
+        },
+        {
+            "name": "FNILX",
+            "remark": "Fidelity 大型股 指數基金",
+            "groups": ["美股", "美大型股"],
+        },
         {"name": "SPY", "remark": "SPDR S&P500", "groups": ["美股", "美大型股"]},
         # {"name": "SPLG", "remark": "SPDR S&P500", "groups": ["美股", "美大型股"]}, # 總是資料太舊
         {"name": "IVV", "remark": "iShares S&P500", "groups": ["美股", "美大型股"]},
-        {"name": "SWPPX", "remark": "Schwab S&P500 指數基金", "groups": ["美股", "美大型股"]},
-        {"name": "SNXFX", "remark": "Schwab 大型股 指數基金", "groups": ["美股", "美大型股"]},
+        {
+            "name": "SWPPX",
+            "remark": "Schwab S&P500 指數基金",
+            "groups": ["美股", "美大型股"],
+        },
+        {
+            "name": "SNXFX",
+            "remark": "Schwab 大型股 指數基金",
+            "groups": ["美股", "美大型股"],
+        },
         {"name": "SCHX", "remark": "Schwab 大型股", "groups": ["美股", "美大型股"]},
-        {"name": "VV", "remark": "Vanguard 大型股", "groups": ["美股", "美大型股", "Vanguard"]},
+        {
+            "name": "VV",
+            "remark": "Vanguard 大型股",
+            "groups": ["美股", "美大型股", "Vanguard"],
+        },
         {
             "name": "VLCAX",
             "remark": "Vanguard 大型股 指數基金",
@@ -3379,8 +3439,16 @@ def us_stock():
             "daily_return_mul": 2,
             "groups": ["美股", "那斯達克", "日正"],
         },
-        {"name": "QQQ", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
-        {"name": "QQQM", "remark": "Invesco 那斯達克100", "groups": ["美股", "那斯達克"]},
+        {
+            "name": "QQQ",
+            "remark": "Invesco 那斯達克100",
+            "groups": ["美股", "那斯達克"],
+        },
+        {
+            "name": "QQQM",
+            "remark": "Invesco 那斯達克100",
+            "groups": ["美股", "那斯達克"],
+        },
         {
             "name": "QLD",
             "remark": "ProShares 那斯達克100_真實日正2",
@@ -3398,7 +3466,11 @@ def us_stock():
         {"name": "UDOW", "remark": "ProShares 道瓊_真實日正3", "groups": ["日正"]},
         # =================================================================================
         {"name": "IWV", "remark": "iShares 羅素3000", "groups": ["美股", "羅素"]},
-        {"name": "VTHR", "remark": "Vanguard 羅素3000", "groups": ["美股", "Vanguard", "羅素"]},
+        {
+            "name": "VTHR",
+            "remark": "Vanguard 羅素3000",
+            "groups": ["美股", "Vanguard", "羅素"],
+        },
         # =================================================================================
         {"name": "ITOT", "remark": "iShares 美股", "groups": ["美股"]},
         {"name": "SPTM", "remark": "SPDR 美股", "groups": ["美股"]},
@@ -3406,7 +3478,11 @@ def us_stock():
         {"name": "FSKAX", "remark": "Fidelity 美股 指數基金", "groups": ["美股"]},
         {"name": "SWTSX", "remark": "Schwab 美股 指數基金", "groups": ["美股"]},
         {"name": "SCHB", "remark": "Schwab 美股", "groups": ["美股"]},
-        {"name": "VTI", "remark": "Vanguard 美股", "groups": ["常用", "美股", "Vanguard"]},
+        {
+            "name": "VTI",
+            "remark": "Vanguard 美股",
+            "groups": ["常用", "美股", "Vanguard"],
+        },
         {
             "name": "VTSAX",
             "remark": "Vanguard 美股 指數基金",
@@ -3419,22 +3495,46 @@ def us_stock():
             "groups": ["日正"],
         },
         # =================================================================================
-        {"name": "AVUV", "remark": "Avantis 美小型價值股", "groups": ["美股", "美小型價值股"]},
+        {
+            "name": "AVUV",
+            "remark": "Avantis 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
         {
             "name": "BOSVX",
             "remark": "Bridgeway Omni 美小型價值股 指數基金",
             "groups": ["美股", "美小型價值股"],
         },
-        {"name": "DFAT", "remark": "Dimensional 美小型價值股", "groups": ["美股", "美小型價值股"]},
-        {"name": "DFSV", "remark": "Dimensional 美小型價值股", "groups": ["美股", "美小型價值股"]},
+        {
+            "name": "DFAT",
+            "remark": "Dimensional 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
+        {
+            "name": "DFSV",
+            "remark": "Dimensional 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
         {
             "name": "FISVX",
             "remark": "Fidelity 美小型價值股 指數基金",
             "groups": ["美股", "美小型價值股"],
         },
-        {"name": "IJS", "remark": "iShares 美小型價值股", "groups": ["美股", "美小型價值股"]},
-        {"name": "ISCV", "remark": "iShares 美小型價值股", "groups": ["美股", "美小型價值股"]},
-        {"name": "SLYV", "remark": "SPDR 美小型價值股", "groups": ["美股", "美小型價值股"]},
+        {
+            "name": "IJS",
+            "remark": "iShares 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
+        {
+            "name": "ISCV",
+            "remark": "iShares 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
+        {
+            "name": "SLYV",
+            "remark": "SPDR 美小型價值股",
+            "groups": ["美股", "美小型價值股"],
+        },
         {
             "name": "VTWV",
             "remark": "Vanguard 美小型價值股",
@@ -3456,12 +3556,32 @@ def us_stock():
             "groups": ["美股", "美小型價值股", "Vanguard"],
         },
         # =================================================================================
-        {"name": "VYM", "remark": "Vanguard 高股利收益ETF", "groups": ["Vanguard", "高股息"]},
-        {"name": "VIG", "remark": "Vanguard 股利增值", "groups": ["Vanguard", "高股息"]},
+        {
+            "name": "VYM",
+            "remark": "Vanguard 高股利收益ETF",
+            "groups": ["Vanguard", "高股息"],
+        },
+        {
+            "name": "VIG",
+            "remark": "Vanguard 股利增值",
+            "groups": ["Vanguard", "高股息"],
+        },
         # =================================================================================
-        {"name": "EFA", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
-        {"name": "IDEV", "remark": "iShares 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
-        {"name": "SPDW", "remark": "SPDR 已開發國家大中型股排美", "groups": ["已開發國家排美"]},
+        {
+            "name": "EFA",
+            "remark": "iShares 已開發國家大中型股排美",
+            "groups": ["已開發國家排美"],
+        },
+        {
+            "name": "IDEV",
+            "remark": "iShares 已開發國家大中型股排美",
+            "groups": ["已開發國家排美"],
+        },
+        {
+            "name": "SPDW",
+            "remark": "SPDR 已開發國家大中型股排美",
+            "groups": ["已開發國家排美"],
+        },
         {
             "name": "IEFA",
             "remark": "iShares 已開發國家大中小型股排美",
@@ -3485,7 +3605,11 @@ def us_stock():
         },
         # =================================================================================
         {"name": "IPAC", "remark": "iShares 太平洋股", "groups": ["太平洋股"]},
-        {"name": "VPL", "remark": "Vanguard 太平洋股", "groups": ["常用", "太平洋股", "Vanguard"]},
+        {
+            "name": "VPL",
+            "remark": "Vanguard 太平洋股",
+            "groups": ["常用", "太平洋股", "Vanguard"],
+        },
         {
             "name": "VPADX",
             "remark": "Vanguard 太平洋股 指數基金",
@@ -3500,7 +3624,11 @@ def us_stock():
         # =================================================================================
         {"name": "IEUR", "remark": "iShares 歐股", "groups": ["歐股"]},
         {"name": "SPEU", "remark": "SPDR 歐股", "groups": ["歐股"]},
-        {"name": "VGK", "remark": "Vanguard 歐股", "groups": ["常用", "歐股", "Vanguard"]},
+        {
+            "name": "VGK",
+            "remark": "Vanguard 歐股",
+            "groups": ["常用", "歐股", "Vanguard"],
+        },
         {
             "name": "VEUSX",
             "remark": "Vanguard 歐股 指數基金",
@@ -3513,9 +3641,17 @@ def us_stock():
             "groups": ["日正"],
         },
         # =================================================================================
-        {"name": "FPADX", "remark": "Fidelity 新興市場大中型股 指數基金", "groups": ["新興市場"]},
+        {
+            "name": "FPADX",
+            "remark": "Fidelity 新興市場大中型股 指數基金",
+            "groups": ["新興市場"],
+        },
         {"name": "EEM", "remark": "iShares 新興市場大中型股", "groups": ["新興市場"]},
-        {"name": "IEMG", "remark": "iShares 新興市場大中小型股", "groups": ["新興市場"]},
+        {
+            "name": "IEMG",
+            "remark": "iShares 新興市場大中小型股",
+            "groups": ["新興市場"],
+        },
         {"name": "SPEM", "remark": "SPDR 新興市場大中小型股", "groups": ["新興市場"]},
         {"name": "SCHE", "remark": "Schwab 新興市場大中小型股", "groups": ["新興市場"]},
         {
@@ -3540,7 +3676,11 @@ def us_stock():
             "groups": ["日正"],
         },
         # =================================================================================
-        {"name": "IXUS", "remark": "iShares 國際大中小型股排美", "groups": ["國際股排美"]},
+        {
+            "name": "IXUS",
+            "remark": "iShares 國際大中小型股排美",
+            "groups": ["國際股排美"],
+        },
         {
             "name": "FZILX",
             "remark": "Fidelity 國際大中小型股排美 指數基金",
@@ -3551,8 +3691,16 @@ def us_stock():
             "remark": "Fidelity 國際大中小型股排美 指數基金",
             "groups": ["國際股排美"],
         },
-        {"name": "SWISX", "remark": "Schwab 國際大中小型股排美 指數基金", "groups": ["國際股排美"]},
-        {"name": "SCHF", "remark": "Schwab 國際大中小型股排美", "groups": ["國際股排美"]},
+        {
+            "name": "SWISX",
+            "remark": "Schwab 國際大中小型股排美 指數基金",
+            "groups": ["國際股排美"],
+        },
+        {
+            "name": "SCHF",
+            "remark": "Schwab 國際大中小型股排美",
+            "groups": ["國際股排美"],
+        },
         {
             "name": "VXUS",
             "remark": "Vanguard 國際大中小型股排美",
@@ -3586,9 +3734,21 @@ def us_stock():
             "remark": "Fidelity 短期美國庫債 指數基金",
             "groups": ["美債", "短期美國債"],
         },
-        {"name": "SGOV", "remark": "iShares 短期美國庫債", "groups": ["美債", "短期美國債"]},
-        {"name": "SHV", "remark": "iShares 短期美國庫債", "groups": ["美債", "短期美國債"]},
-        {"name": "SCHO", "remark": "Schwab 短期美國庫債", "groups": ["美債", "短期美國債"]},
+        {
+            "name": "SGOV",
+            "remark": "iShares 短期美國庫債",
+            "groups": ["美債", "短期美國債"],
+        },
+        {
+            "name": "SHV",
+            "remark": "iShares 短期美國庫債",
+            "groups": ["美債", "短期美國債"],
+        },
+        {
+            "name": "SCHO",
+            "remark": "Schwab 短期美國庫債",
+            "groups": ["美債", "短期美國債"],
+        },
         {
             "name": "VSBSX",
             "remark": "Vanguard 短期美國庫債 指數基金",
@@ -3605,20 +3765,36 @@ def us_stock():
             "remark": "Fidelity 美抗通膨公債 指數基金",
             "groups": ["美債", "美抗通膨公債"],
         },
-        {"name": "STIP", "remark": "iShares 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {
+            "name": "STIP",
+            "remark": "iShares 美抗通膨公債",
+            "groups": ["美債", "美抗通膨公債"],
+        },
         {
             "name": "TIP",
             "remark": "iShares 美抗通膨公債",
             "groups": ["常用", "美債", "美抗通膨公債"],
         },
-        {"name": "LTPZ", "remark": "PIMCO 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
-        {"name": "SCHP", "remark": "Schwab 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {
+            "name": "LTPZ",
+            "remark": "PIMCO 美抗通膨公債",
+            "groups": ["美債", "美抗通膨公債"],
+        },
+        {
+            "name": "SCHP",
+            "remark": "Schwab 美抗通膨公債",
+            "groups": ["美債", "美抗通膨公債"],
+        },
         {
             "name": "SWRSX",
             "remark": "Schwab 美抗通膨公債 指數基金",
             "groups": ["美債", "美抗通膨公債"],
         },
-        {"name": "SPIP", "remark": "SPDR 美抗通膨公債", "groups": ["美債", "美抗通膨公債"]},
+        {
+            "name": "SPIP",
+            "remark": "SPDR 美抗通膨公債",
+            "groups": ["美債", "美抗通膨公債"],
+        },
         {
             "name": "VAIPX",
             "remark": "Vanguard 美抗通膨公債 指數基金",
@@ -3640,7 +3816,11 @@ def us_stock():
         {"name": "AGG", "remark": "iShares 美債", "groups": ["美債"]},
         {"name": "SWAGX", "remark": "Schwab 美債 指數基金", "groups": ["美債"]},
         {"name": "SPAB", "remark": "SPDR 美債", "groups": ["美債"]},
-        {"name": "BND", "remark": "Vanguard 美債", "groups": ["常用", "美債", "Vanguard"]},
+        {
+            "name": "BND",
+            "remark": "Vanguard 美債",
+            "groups": ["常用", "美債", "Vanguard"],
+        },
         {
             "name": "VBTLX",
             "remark": "Vanguard 美債 指數基金",
@@ -3653,7 +3833,11 @@ def us_stock():
             "groups": ["日正"],
         },
         # =================================================================================
-        {"name": "IAGG", "remark": "iShares 國際債美元避險排美", "groups": ["國際債排美"]},
+        {
+            "name": "IAGG",
+            "remark": "iShares 國際債美元避險排美",
+            "groups": ["國際債排美"],
+        },
         {
             "name": "BNDX",
             "remark": "Vanguard 國際債美元避險排美",
@@ -3665,7 +3849,11 @@ def us_stock():
             "daily_return_mul": 2,
             "groups": ["日正"],
         },
-        {"name": "BWX", "remark": "SPDR 國際政府債排美", "groups": ["常用", "國際債排美"]},
+        {
+            "name": "BWX",
+            "remark": "SPDR 國際政府債排美",
+            "groups": ["常用", "國際債排美"],
+        },
         {
             "name": "BWX",
             "remark": "SPDR 國際政府債排美報酬_日正2",
@@ -3680,7 +3868,11 @@ def us_stock():
         {"name": "XLRE", "remark": "SPDR 美房地產", "groups": ["美房地產"]},
         {"name": "SCHH", "remark": "Schwab 美房地產", "groups": ["美房地產"]},
         {"name": "RWR", "remark": "SPDR 美房地產", "groups": ["美房地產"]},
-        {"name": "VNQ", "remark": "Vanguard 美房地產", "groups": ["美房地產", "Vanguard"]},
+        {
+            "name": "VNQ",
+            "remark": "Vanguard 美房地產",
+            "groups": ["美房地產", "Vanguard"],
+        },
         {
             "name": "VGSLX",
             "remark": "Vanguard 美房地產 指數基金",
@@ -3723,7 +3915,12 @@ def tw_0050_stock():
             "groups": ["常用", "ETF"],
             "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
-        {"name": "006208.TW", "remark": "富邦台50", "replaceDiv": True, "groups": ["常用", "ETF"]},
+        {
+            "name": "006208.TW",
+            "remark": "富邦台50",
+            "replaceDiv": True,
+            "groups": ["常用", "ETF"],
+        },
         {
             "name": "0050.TW",
             "name_suffix": "Fund",
@@ -3746,7 +3943,9 @@ def tw_0050_stock():
             "name_suffix": "Link",
             "remark": "元大台灣卓越50ETF連結基金-不配息",
             "fromPath": os.path.join(
-                os.path.dirname(__file__), "extraData", "元大台灣卓越50ETF連結基金-不配息"
+                os.path.dirname(__file__),
+                "extraData",
+                "元大台灣卓越50ETF連結基金-不配息",
             ),
             "replaceDiv": False,
             "groups": ["常用", "基金"],

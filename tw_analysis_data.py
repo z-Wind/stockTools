@@ -1320,10 +1320,7 @@ def df_家庭收支調查_所得收入者人數按性別及可支配所得組別
 
             raw_df.columns = ["可支配所得組別", "合計", "男", "女"]
             raw_df["可支配所得組別"] = (
-                raw_df["可支配所得組別"]
-                .fillna("")
-                .astype(str)
-                .str.replace(r"\s+", "", regex=True)
+                raw_df["可支配所得組別"].fillna("").astype(str).str.replace(r"\s+", "", regex=True)
             )
 
             clean_rows = []
@@ -1346,11 +1343,7 @@ def df_家庭收支調查_所得收入者人數按性別及可支配所得組別
 
             # 確保數值型態正確
             for col in ["合計", "男", "女"]:
-                df_year[col] = (
-                    pd.to_numeric(df_year[col], errors="coerce")
-                    .fillna(0)
-                    .astype(int)
-                )
+                df_year[col] = pd.to_numeric(df_year[col], errors="coerce").fillna(0).astype(int)
 
             all_dfs.append(df_year)
 
@@ -1959,7 +1952,15 @@ def df_工業及服務業全體受僱員工全年總薪資統計表() -> pd.Data
         val_columns = list(
             itertools.product(
                 ["平均數", "中位數"],
-                ["全體", "男", "女", "國中及以下", "高級中等(高中、高職)", "專科及大學", "研究所"],
+                [
+                    "全體",
+                    "男",
+                    "女",
+                    "國中及以下",
+                    "高級中等(高中、高職)",
+                    "專科及大學",
+                    "研究所",
+                ],
             )
         )
         data.columns = ["行業"] + val_columns
@@ -2497,7 +2498,7 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
     url = {113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234463/mp05044a113.xml"}
     lastyear = max(url.keys())
 
-    if lastyear + 1911 + 1 < datetime.now().year and datetime.now().month > 8:
+    if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 1:
         print_update_required_warning(key)
 
     df = read_xml_with_cache(
@@ -2756,7 +2757,16 @@ def df_綜稅總所得各縣市申報統計分析表() -> pd.DataFrame:
     df["納稅單位(戶)"] = df["納稅單位(戶)"].astype(int)
 
     df.loc[
-        :, ["綜合所得總額", "平均數", "中位數", "第一分位數", "第三分位數", "標準差", "變異係數"]
+        :,
+        [
+            "綜合所得總額",
+            "平均數",
+            "中位數",
+            "第一分位數",
+            "第三分位數",
+            "標準差",
+            "變異係數",
+        ],
     ] *= 1000
 
     return df
@@ -2804,7 +2814,16 @@ def df_綜稅綜合所得總額全國各縣市鄉鎮村里統計分析表() -> p
     df["鄉鎮"] = split[1].str.strip()
 
     df.loc[
-        :, ["綜合所得總額", "平均數", "中位數", "第一分位數", "第三分位數", "標準差", "變異係數"]
+        :,
+        [
+            "綜合所得總額",
+            "平均數",
+            "中位數",
+            "第一分位數",
+            "第三分位數",
+            "標準差",
+            "變異係數",
+        ],
     ] *= 1000
     df["年度"] = df["年度"].astype(str)
 
@@ -2998,12 +3017,20 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別() -
 
         if year in [97, 99]:
             data = pd.read_csv(
-                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 10)),
+                header=None,
+                encoding="BIG5",
             )
             data = data.iloc[:28, [0, 3]]
         elif year in [100, 101]:
             data = pd.read_csv(
-                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 10)),
+                header=None,
+                encoding="BIG5",
             )
             data = data.iloc[:23, [0, 3]]
         elif year in [96, 98]:
@@ -3027,17 +3054,29 @@ def df_歷史_勞工退休金提繳統計年報_按地區_行業及規模別() -
             data = data.iloc[:23, [0, 3]]
         elif year in [104, 106]:
             data = pd.read_csv(
-                path, compression="gzip", skiprows=list(range(0, 10)), header=None, encoding="BIG5"
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 10)),
+                header=None,
+                encoding="BIG5",
             )
             data = data.iloc[:23, [0, 2]]
         elif year in [103, 105]:
             data = pd.read_csv(
-                path, compression="gzip", skiprows=list(range(0, 9)), header=None, encoding="BIG5"
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 9)),
+                header=None,
+                encoding="BIG5",
             )
             data = data.iloc[:23, [0, 2]]
         elif year in [107, 108, 109, 110]:
             data = pd.read_csv(
-                path, compression="gzip", skiprows=list(range(0, 11)), header=None, encoding="BIG5"
+                path,
+                compression="gzip",
+                skiprows=list(range(0, 11)),
+                header=None,
+                encoding="BIG5",
             )
             data = data.iloc[:23, [0, 2]]
         else:  # if year in [111, 112, 113, 114]:
@@ -3812,7 +3851,14 @@ def df_現住人口性別_年齡_婚姻狀況() -> pd.DataFrame:
             return None
 
         # 2. 只需要繪圖相關欄位，立刻丟棄其他無用文字欄位，暴省記憶體
-        keep_cols = ["statistic_yyy", "population", "site_id", "marital_status", "sex", "age"]
+        keep_cols = [
+            "statistic_yyy",
+            "population",
+            "site_id",
+            "marital_status",
+            "sex",
+            "age",
+        ]
         data = data[[c for c in keep_cols if c in data.columns]].copy()
 
         # 3. 類型轉換與壓縮 (Object 轉為 int/category 記憶體可省 90%)
@@ -4630,7 +4676,8 @@ def 查詢_證券編碼(symbols):
     interval = 1000
     for i in range(0, len(symbols), interval):
         r = _get_session().get(
-            url, params={"owncode": ",".join(symbols[i : i + interval]), "stockname": ""}
+            url,
+            params={"owncode": ",".join(symbols[i : i + interval]), "stockname": ""},
         )
         try:
             data = pd.read_html(io.StringIO(r.text), encoding="big5")[0]
@@ -4757,7 +4804,14 @@ def df_投信投顧公會基金費用比率() -> pd.DataFrame:
                     )[0]
 
                     if 2001 <= year and year <= 2004:
-                        費用項目 = ["手續費", "交易稅", "經理費", "保管費", "其他項費用", "合計"]
+                        費用項目 = [
+                            "手續費",
+                            "交易稅",
+                            "經理費",
+                            "保管費",
+                            "其他項費用",
+                            "合計",
+                        ]
                     elif year <= 2021:
                         費用項目 = [
                             "手續費",

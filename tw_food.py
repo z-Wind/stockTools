@@ -208,7 +208,9 @@ def _build_detail_pages(df: pd.DataFrame, subreport_folder: Path) -> dict:
         # 使用 tqdm 顯示進度
         results = list(
             tqdm(
-                executor.map(worker, tasks), total=len(tasks), desc="[Parallel] Generating Details"
+                executor.map(worker, tasks),
+                total=len(tasks),
+                desc="[Parallel] Generating Details",
             )
         )
 
@@ -261,7 +263,13 @@ def _process_single_nutrient(col_info, df_shared, foods_unique, subreport_folder
                 df_sub = df_display.loc[category].reset_index()
                 df_sub.index += 1
                 tables[category] = df_sub.to_html(
-                    classes=["table", "table-dark", "table-sm", "table-hover", "partial-datas"],
+                    classes=[
+                        "table",
+                        "table-dark",
+                        "table-sm",
+                        "table-hover",
+                        "partial-datas",
+                    ],
                     escape=False,
                     render_links=True,
                 )

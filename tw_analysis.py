@@ -76,7 +76,10 @@ default_template = merge_dict(
             "margin": {"b": 135},
             # "autosize": False,
             "title": {"font": {"family": "Times New Roman"}, "x": 0.05, "y": 0.9},
-            "font": {"family": "Courier New", "color": "#ffffff"},  # White font for dark background
+            "font": {
+                "family": "Courier New",
+                "color": "#ffffff",
+            },  # White font for dark background
             "xaxis": {
                 "tickfont": {"family": "Courier New", "size": 14},
                 "automargin": True,
@@ -427,7 +430,9 @@ def plot_pyramid(
 
 
 def plot_histogram(
-    df: pd.DataFrame, title: Optional[str] = None, additional_layout: Optional[Dict] = None
+    df: pd.DataFrame,
+    title: Optional[str] = None,
+    additional_layout: Optional[Dict] = None,
 ) -> str:
     data_list = []
     for idx in df.index:
@@ -588,7 +593,8 @@ def _prepare_index_plots(
         }
     ]
     base_layout = merge_dict(
-        {"updatemenus": updatemenus}, copy.deepcopy(additional_layout) if additional_layout else {}
+        {"updatemenus": updatemenus},
+        copy.deepcopy(additional_layout) if additional_layout else {},
     )
 
     pivot_raw = df[df["TYPE"] == "原始值"].pivot_table(
@@ -937,7 +943,10 @@ def plot_教育程度別失業率(plots) -> None:
     ]
 
     df_類別_地區 = df.pivot_table(
-        values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
+        values=num_columns,
+        index="年度",
+        columns="按地區別分_District_or_region",
+        sort=False,
     )
 
     buttons_kinds = [
@@ -1053,7 +1062,10 @@ def plot_年齡組別失業率(plots) -> None:
     ]
 
     df_年齡_地區 = df.pivot_table(
-        values=num_columns, index="年度", columns="按地區別分_District_or_region", sort=False
+        values=num_columns,
+        index="年度",
+        columns="按地區別分_District_or_region",
+        sort=False,
     )
 
     buttons_kinds = [
@@ -1645,7 +1657,9 @@ def plot_家庭收支調查_農家與非農家平均每戶可支配所得_所得
     )
 
 
-def plot_家庭收支調查_農家與非農家平均每戶消費支出_非消費支出及經常性支出(plots) -> None:
+def plot_家庭收支調查_農家與非農家平均每戶消費支出_非消費支出及經常性支出(
+    plots,
+) -> None:
     年_plot(
         plots,
         key="家庭收支調查-農家與非農家平均每戶消費支出、非消費支出及經常性支出",
@@ -2029,7 +2043,9 @@ def plot_家庭收支調查_所得收入者各縣市別平均每人受僱人員�
     )
 
 
-def plot_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率(plots) -> None:
+def plot_家庭收支調查_性別統計指標_可支配所得按戶數五等分位經濟戶長性別比率(
+    plots,
+) -> None:
     年_plot(
         plots,
         key="家庭收支調查-性別統計指標-可支配所得按戶數五等分位經濟戶長性別比率",
@@ -2233,7 +2249,7 @@ def plot_家庭收支調查_所得收入者人數按性別及可支配所得組�
             trace = {
                 "type": "scatter",
                 "mode": "lines+markers",
-                "name": pct_labels[pct] if cat == "合計" else f"{cat}性-{pct_labels[pct]}",
+                "name": (pct_labels[pct] if cat == "合計" else f"{cat}性-{pct_labels[pct]}"),
                 "x": valid_years,
                 "y": history_trends[cat][pct],
                 # 突顯中位數 P50 的線條與圖點
@@ -2893,7 +2909,9 @@ def plot_公開資訊觀測站_非擔任主管職務之全時員工薪資資訊(
     plots[f"{key}_公司_產業_排序"] = plotly_json_dump(graph)
 
 
-def plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董事酬金相關資訊(plots) -> None:
+def plot_企業ESG資訊揭露彙總資料_人力發展_vs_公司合併報表董事酬金相關資訊(
+    plots,
+) -> None:
     key = "企業ESG資訊揭露彙總資料-人力發展 vs 公司合併報表董事酬金相關資訊"
     key = sanitize_filename(key)
     df_ESG = df_企業ESG資訊揭露彙總資料_人力發展()
@@ -3329,12 +3347,17 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots) -> 
 
     years = df_按性別及教育程度分["年度"].unique().tolist()
     df = df_按性別及教育程度分.pivot_table(
-        index=["行業", "年度"], columns=["統計", "性別教育程度"], values="值", sort=False
+        index=["行業", "年度"],
+        columns=["統計", "性別教育程度"],
+        values="值",
+        sort=False,
     )
 
     df.columns = [f"{統計}_{教育程度}" for 統計, 教育程度 in df.columns]
     plots[f"{key}_行業及教育程度"] = plot_bar_stack_multi_index(
-        df, f"{key}_行業及教育程度 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+        df,
+        f"{key}_行業及教育程度 {years[0]}~{years[-1]}年",
+        additional_layout={"barmode": "group"},
     )
 
     years = df_按年齡別分["年度"].unique().tolist()
@@ -3343,7 +3366,9 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots) -> 
     )
     df.columns = [f"{統計}_{年齡別}" for 統計, 年齡別 in df.columns]
     plots[f"{key}_行業及年齡別"] = plot_bar_stack_multi_index(
-        df, f"{key}_行業及年齡別 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+        df,
+        f"{key}_行業及年齡別 {years[0]}~{years[-1]}年",
+        additional_layout={"barmode": "group"},
     )
 
     years = df_按員工特性["年度"].unique().tolist()
@@ -3352,7 +3377,9 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots) -> 
     )
     df.columns = [f"{統計}_{性別}" for 統計, 性別 in df.columns]
     plots[f"{key}_員工特性"] = plot_bar_stack_multi_index(
-        df, f"{key}_員工特性 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+        df,
+        f"{key}_員工特性 {years[0]}~{years[-1]}年",
+        additional_layout={"barmode": "group"},
     )
 
     years = df_按年齡及教育程度分["年度"].unique().tolist()
@@ -3361,7 +3388,9 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots) -> 
     )
     df.columns = [f"{統計}_{教育程度}" for 統計, 教育程度 in df.columns]
     plots[f"{key}_年齡及教育程度"] = plot_bar_stack_multi_index(
-        df, f"{key}_年齡及教育程度 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+        df,
+        f"{key}_年齡及教育程度 {years[0]}~{years[-1]}年",
+        additional_layout={"barmode": "group"},
     )
 
     years = df_按工作場所所在縣市別及年齡別分["年度"].unique().tolist()
@@ -3370,7 +3399,9 @@ def plot_工業及服務業全體受僱員工全年總薪資統計表(plots) -> 
     )
     df.columns = [f"{統計}_{縣市}" for 統計, 縣市 in df.columns]
     plots[f"{key}_年齡及縣市"] = plot_bar_stack_multi_index(
-        df, f"{key}_年齡及縣市 {years[0]}~{years[-1]}年", additional_layout={"barmode": "group"}
+        df,
+        f"{key}_年齡及縣市 {years[0]}~{years[-1]}年",
+        additional_layout={"barmode": "group"},
     )
 
 
@@ -3457,7 +3488,9 @@ def plot_工業及服務業每人每月工時_時_(plots) -> None:
     )
 
 
-def plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分(plots) -> None:
+def plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分(
+    plots,
+) -> None:
     key = "各業廠商僱用職缺按月計薪者每人每月平均最低薪資－按職類及員工規模分"
     key = sanitize_filename(key)
     df, lastyear = df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按職類及員工規模分()
@@ -3559,7 +3592,9 @@ def plot_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_�
     ]
 
     plots[f"{key}_排列"] = plot_bar_group(
-        df_output.T, f"{key}_排列 {lastyear}年", additional_layout={"updatemenus": updatemenus}
+        df_output.T,
+        f"{key}_排列 {lastyear}年",
+        additional_layout={"updatemenus": updatemenus},
     )
 
 
@@ -3712,7 +3747,8 @@ def plot_公司合併報表董事酬金相關資訊(plots) -> None:
     )
     plots[f"{key}_董事酬金_排序"] = plot_lines_bars(
         df_董事酬金.sort_values(
-            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"], ascending=False
+            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"],
+            ascending=False,
         ),
         title=f"{key}_董事酬金_排序 出表日期:{date_pub}",
         lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
@@ -3760,7 +3796,8 @@ def plot_公司合併報表董事酬金相關資訊(plots) -> None:
     )
     plots[f"{key}_董事酬金_產業類別_排序"] = plot_lines_bars(
         df_董事酬金_產業類別.sort_values(
-            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"], ascending=False
+            ["平均每位董事酬金-加計兼任員工酬金", "平均每位董事酬金-董事酬金"],
+            ascending=False,
         ),
         title=f"{key}_董事酬金_產業類別_排序 出表日期:{date_pub}",
         lines_left_axis=["平均每位董事酬金-加計兼任員工酬金"],
@@ -4106,7 +4143,10 @@ def plot_勞工退休準備金專戶餘額統計(plots) -> None:
     df = df_勞工退休準備金專戶餘額統計()
 
     df = df.pivot_table(
-        values=["家數", "佔總數比率"], index="年度", columns="專戶餘額（級距）", sort=False
+        values=["家數", "佔總數比率"],
+        index="年度",
+        columns="專戶餘額（級距）",
+        sort=False,
     )
 
     plots[f"{key}_佔總數比率"] = plot_bar_group(
@@ -4125,7 +4165,10 @@ def plot_勞工退休準備金提撥率統計(plots) -> None:
     df = df_勞工退休準備金提撥率統計()
 
     df = df.pivot_table(
-        values=["家數", "佔總數比率"], index="年度", columns="提撥率（級距）", sort=False
+        values=["家數", "佔總數比率"],
+        index="年度",
+        columns="提撥率（級距）",
+        sort=False,
     )
 
     plots[f"{key}_佔總數比率"] = plot_bar_group(
@@ -4146,7 +4189,9 @@ def plot_勞工退休金提繳單位_提繳人數_提繳工資_提繳金額概�
     df = df.pivot_table(values="提繳工資平均金額", index="年度/底", sort=False)
 
     plots[f"{key}"] = plot_line(
-        df, f"{key} {df.index[0]}~{df.index[-1]}年", additional_layout={"showlegend": True}
+        df,
+        f"{key} {df.index[0]}~{df.index[-1]}年",
+        additional_layout={"showlegend": True},
     )
 
 
@@ -4332,7 +4377,12 @@ def plot_全國賦稅收入實徵淨額與預算數之比較(plots, items) -> No
     data = df.drop(["項目別"], axis=1)
     for values, col in zip(columns, columns_revise):
         df_item = data.pivot_table(
-            index="時間", columns="類別", values=values, sort=False, aggfunc="sum", fill_value=0
+            index="時間",
+            columns="類別",
+            values=values,
+            sort=False,
+            aggfunc="sum",
+            fill_value=0,
         )
 
         plots[f"{key}_{col}"] = plot_line(
@@ -5568,13 +5618,19 @@ def plot_動態資料統計表_含同婚_(plots) -> None:
             values="婚姻自然增加數_合計", index=index, aggfunc="sum", sort=False
         )
         plots[f"{key}_總和_婚姻自然增加數_{suffix}"] = plot_line(
-            df_total, f"{key}_總和_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+            df_total,
+            f"{key}_總和_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
         df_區域別 = df.pivot_table(
-            values="婚姻自然增加數_合計", index=index, columns="縣市", aggfunc="sum", sort=False
+            values="婚姻自然增加數_合計",
+            index=index,
+            columns="縣市",
+            aggfunc="sum",
+            sort=False,
         )
         plots[f"{key}_區域別_婚姻自然增加數_{suffix}"] = plot_line(
-            df_區域別, f"{key}_區域別_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+            df_區域別,
+            f"{key}_區域別_婚姻自然增加數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
         df_total = df.pivot_table(
@@ -5607,7 +5663,8 @@ def plot_動態資料統計表_含同婚_(plots) -> None:
         )
         df_區域別.columns = [f"{類別}_{縣市}" for 類別, 縣市 in df_區域別.columns]
         plots[f"{key}_區域別_結婚對數_{suffix}"] = plot_line(
-            df_區域別, f"{key}_區域別_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+            df_區域別,
+            f"{key}_區域別_結婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
         df_total = df.pivot_table(
@@ -5640,7 +5697,8 @@ def plot_動態資料統計表_含同婚_(plots) -> None:
         )
         df_區域別.columns = [f"{類別}_{縣市}" for 類別, 縣市 in df_區域別.columns]
         plots[f"{key}_區域別_離婚對數_{suffix}"] = plot_line(
-            df_區域別, f"{key}_區域別_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}"
+            df_區域別,
+            f"{key}_區域別_離婚對數_{suffix} {yearsmonths[0]}~{yearsmonths[-1]}",
         )
 
 
@@ -5716,7 +5774,11 @@ def plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育
     # 【圖 3】：區域別總合趨勢圖
     # ========================================================================
     df_區域別 = df.pivot_table(
-        values="number_of_marry", index="year", columns="縣市", aggfunc="sum", sort=False
+        values="number_of_marry",
+        index="year",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
@@ -5882,7 +5944,11 @@ def plot_結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育
 
     # 7. 原屬國籍
     df_原屬國籍 = df.pivot_table(
-        values="number_of_marry", index="year", columns="nation", aggfunc="sum", sort=False
+        values="number_of_marry",
+        index="year",
+        columns="nation",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
@@ -6059,14 +6125,22 @@ def plot_嬰兒出生數按性別_生母原屬國籍_地區__年齡及教育程�
     )
 
     df_區域別 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="birth_sex", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="birth_sex",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_性別"] = plot_line(
         df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
@@ -6095,14 +6169,22 @@ def plot_嬰兒出生數按性別_生母原屬國籍_地區__年齡及教育程�
     )
 
     df_年齡 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="mother_age",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡"] = plot_line(
         df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
     )
 
     df_年齡_縣市 = df.pivot_table(
-        values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
+        values="birth_count",
+        index="mother_age",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡_縣市"] = plot_line(df_年齡_縣市, f"{key}_年齡_縣市 {years[0]}~{years[-1]}年")
 
@@ -6136,7 +6218,11 @@ def plot_嬰兒出生數按性別_生父原屬國籍_地區__年齡及教育程�
     )
 
     df_性別 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="出生者性別",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_性別"] = plot_line(
         df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
@@ -6165,7 +6251,11 @@ def plot_嬰兒出生數按性別_生父原屬國籍_地區__年齡及教育程�
     )
 
     df_年齡 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="生父年齡", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="生父年齡",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡"] = plot_line(
         df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
@@ -6201,14 +6291,22 @@ def plot_嬰兒出生數按嬰兒性別及生父母年齡分_按登記_(plots) -
     )
 
     df_區域別 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
     )
 
     df_性別 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="sex", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="sex",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_性別"] = plot_line(
         df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
@@ -6226,21 +6324,33 @@ def plot_嬰兒出生數按嬰兒性別及生父母年齡分_按登記_(plots) -
     )
 
     df_生母年齡 = df.pivot_table(
-        values="birth_count", index="statistic_yyy", columns="mother_age", aggfunc="sum", sort=False
+        values="birth_count",
+        index="statistic_yyy",
+        columns="mother_age",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_生母年齡"] = plot_line(
         df_生母年齡, f"{key}_生母年齡 {df_生母年齡.index[0]}~{df_生母年齡.index[-1]}年"
     )
 
     df_生母年齡_縣市 = df.pivot_table(
-        values="birth_count", index="mother_age", columns="縣市", aggfunc="sum", sort=False
+        values="birth_count",
+        index="mother_age",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_生母年齡_縣市"] = plot_line(
         df_生母年齡_縣市, f"{key}_生母年齡_縣市 {years[0]}~{years[-1]}年"
     )
 
     df_生父年齡_縣市 = df.pivot_table(
-        values="birth_count", index="father_age", columns="縣市", aggfunc="sum", sort=False
+        values="birth_count",
+        index="father_age",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_生父年齡_縣市"] = plot_line(
         df_生父年齡_縣市, f"{key}_生父年齡_縣市 {years[0]}~{years[-1]}年"
@@ -6280,21 +6390,33 @@ def plot_嬰兒出生數按生母年齡及出生身分分_按登記_(plots) -> N
     )
 
     df_身分 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="出生身分", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="出生身分",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_身分"] = plot_line(
         df_身分, f"{key}_身分 {df_身分.index[0]}~{df_身分.index[-1]}年"
     )
 
     df_年齡 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="生母年齡",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡"] = plot_line(
         df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
     )
 
     df_年齡_身分 = df.pivot_table(
-        values="嬰兒出生數", index="生母年齡", columns="出生身分", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="生母年齡",
+        columns="出生身分",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡_身分"] = plot_line(df_年齡_身分, f"{key}_年齡_身分 {years[0]}~{years[-1]}年")
 
@@ -6326,7 +6448,11 @@ def plot_嬰兒出生數按性別_胎次及生母年齡分_按登記_(plots) -> 
     )
 
     df_性別 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="出生者性別", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="出生者性別",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_性別"] = plot_line(
         df_性別, f"{key}_性別 {df_性別.index[0]}~{df_性別.index[-1]}年"
@@ -6340,7 +6466,11 @@ def plot_嬰兒出生數按性別_胎次及生母年齡分_按登記_(plots) -> 
     )
 
     df_年齡 = df.pivot_table(
-        values="嬰兒出生數", index="統計年度", columns="生母年齡", aggfunc="sum", sort=False
+        values="嬰兒出生數",
+        index="統計年度",
+        columns="生母年齡",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡"] = plot_line(
         df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"
@@ -6390,7 +6520,9 @@ def plot_嬰兒胎次_vs_綜稅綜合所得總額(plots) -> None:
     df = df[~df["按照別"].isna()]
     df = df[~df["綜合所得總額"].isna()]
     df["所得平均數區間"] = pd.cut(
-        df["平均數"] / 10000, [0] + list(range(50, 201, 10)) + [300, np.inf], right=False
+        df["平均數"] / 10000,
+        [0] + list(range(50, 201, 10)) + [300, np.inf],
+        right=False,
     )
 
     years = sorted(df["統計年度"].unique().tolist())
@@ -6522,7 +6654,9 @@ def plot_嬰兒出生數按嬰兒性別及出生胎別分_按登記_(plots) -> N
     )
 
 
-def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(plots) -> None:
+def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地區_及教育程度分_按登記_(
+    plots,
+) -> None:
     key = "離婚/終止結婚人數按婚姻類型、性別、年齡、原屬國籍（地區）及教育程度分(按登記)"
     key = sanitize_filename(key)
 
@@ -6601,7 +6735,11 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
     # 【原本圖 3】：區域別總合趨勢圖
     # ========================================================================
     df_區域別 = df_raw.pivot_table(
-        values="divorce_count", index="statistic_yyy", columns="縣市", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="statistic_yyy",
+        columns="縣市",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_區域別"] = plot_line(
         df_區域別, f"{key}_區域別 {df_區域別.index[0]}~{df_區域別.index[-1]}年"
@@ -6756,7 +6894,11 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
 
     # 7. 原屬國籍
     df_原屬國籍 = df_raw.pivot_table(
-        values="divorce_count", index="statistic_yyy", columns="nation", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="statistic_yyy",
+        columns="nation",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_原屬國籍"] = plot_line(
         df_原屬國籍, f"{key}_原屬國籍 {df_原屬國籍.index[0]}~{df_原屬國籍.index[-1]}年"
@@ -6766,7 +6908,11 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
 
     # 8. 教育程度
     df_教育程度 = df_raw.pivot_table(
-        values="divorce_count", index="statistic_yyy", columns="edu", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="statistic_yyy",
+        columns="edu",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_教育程度"] = plot_line(
         df_教育程度, f"{key}_教育程度 {df_教育程度.index[0]}~{df_教育程度.index[-1]}年"
@@ -6776,7 +6922,11 @@ def plot_離婚_終止結婚人數按婚姻類型_性別_年齡_原屬國籍_地
 
     # 9. 年齡
     df_年齡 = df_raw.pivot_table(
-        values="divorce_count", index="statistic_yyy", columns="age", aggfunc="sum", sort=False
+        values="divorce_count",
+        index="statistic_yyy",
+        columns="age",
+        aggfunc="sum",
+        sort=False,
     )
     plots[f"{key}_年齡"] = plot_line(
         df_年齡, f"{key}_年齡 {df_年齡.index[0]}~{df_年齡.index[-1]}年"

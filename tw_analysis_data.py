@@ -847,11 +847,14 @@ def df_家庭收支調查_戶內人數別平均每戶受僱人員報酬() -> pd.
 # https://data.gov.tw/dataset/9559 家庭收支調查-家庭戶數按戶內人口規模別之分配
 def df_家庭收支調查_家庭戶數按戶內人口規模別之分配() -> pd.DataFrame:
     """3.4：委派至 _make_df_csv_simple 工廠函式。"""
-    return _make_df_csv_simple(
+    df = _make_df_csv_simple(
         "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/232214/017-%E5%AE%B6%E5%BA%AD%E6%88%B6%E6%95%B8%E6%8C%89%E6%88%B6%E5%85%A7%E4%BA%BA%E5%8F%A3%E8%A6%8F%E6%A8%A1%E5%88%A5%E4%B9%8B%E5%88%86%E9%85%8D.csv",
         "年",
         r"\(%\)",
     )()
+    df = df / 100
+
+    return df
 
 
 # https://data.gov.tw/dataset/22236 家庭收支調查-農家平均每戶所得總額按來自農業與非農業分

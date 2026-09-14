@@ -14,7 +14,7 @@ import plotly
 from functools import cached_property
 from jsmin import jsmin
 from datetime import datetime
-from typing import Counter, List, Optional, Dict, Any, Union
+from typing import Counter, List, Optional, Dict, Any, Tuple, Union
 from pyxirr import xirr
 from pyquery import PyQuery
 from dateutil.relativedelta import relativedelta
@@ -604,8 +604,8 @@ class Stock:
 
     def dollar_cost_averaging(
         self,
-        money: float = DEFAULT_DCA_MONEY,
-        frequency: str = "A",
+        money: float,
+        frequency: str,
         start_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
         end_date: Optional[Union[str, datetime, pd.Timestamp]] = None,
     ) -> pd.DataFrame:
@@ -669,6 +669,52 @@ class Stock:
         df_daily["roi"] = np.where(df_daily["cost"] > 0, df_daily["profit"] / df_daily["cost"], 0.0)
 
         return df_daily.set_index("Date")[["cost", "shares", "value", "profit", "roi"]]
+
+    def get_yearly_dca_performance(
+        self,
+        money: float,
+        frequency: str = "M",
+        start_date: Optional[pd.Timestamp] = None,
+        end_date: Optional[pd.Timestamp] = None,
+    ) -> pd.DataFrame:
+        """統計定期定額的單年度獲利與績效表現，回傳以年份為 Index 的 DataFrame，並夾帶精確起訖日期。"""
+        # 1. 取得每日連續的 DCA 數據
+        df_daily = self.dollar_cost_averaging(money, frequency, start_date, end_date)
+        if df_daily.empty:
+            return pd.DataFrame(columns=["year_cost", "year_end_value", "year_profit", "year_roi"])
+
+        # 紀錄這檔股票在這個時間區間內真正的起訖交易日（精確到日）
+        exact_start_str = df_daily.index[0].strftime("%Y-%m-%d")
+        exact_end_str = df_daily.index[-1].strftime("%Y-%m-%d")
+
+        # 2. 依據新版規範，直接採用 'YE' 進行每年最後一個交易日的累積狀態抽取
+        df_yearly = df_daily.resample("YE").last().copy()
+
+        # 3. 計算「當年新增投入成本」 (當年累積成本 - 前年累積成本)
+        df_yearly["year_cost"] = df_yearly["cost"].diff().fillna(df_yearly["cost"].iloc[0])
+
+        # 4. 重新命名年末市值欄位
+        df_yearly = df_yearly.rename(columns={"value": "year_end_value"})
+
+        # 5. 計算「單年度淨獲利」 (當年累積獲利 - 前年累積獲利)
+        df_yearly["year_profit"] = df_yearly["profit"].diff().fillna(df_yearly["profit"].iloc[0])
+
+        # 6. 計算「單年度投資報酬率 (ROI)」
+        prev_value = df_yearly["year_end_value"].shift(1).fillna(0)
+        total_risk_capital = prev_value + df_yearly["year_cost"]
+        df_yearly["year_roi"] = np.where(
+            total_risk_capital > 0, df_yearly["year_profit"] / total_risk_capital, 0.0
+        )
+
+        # 調整 Index 為單純年份數字
+        df_yearly.index = df_yearly.index.year
+        df_yearly.index.name = "Year"
+
+        # 將精確的日期字串綁定在 DataFrame 的屬性中，方便上層提取
+        df_yearly.attrs["exact_start"] = exact_start_str
+        df_yearly.attrs["exact_end"] = exact_end_str
+
+        return df_yearly[["year_cost", "year_end_value", "year_profit", "year_roi"]]
 
     def identify_bull_bear_markets(
         self,
@@ -1456,7 +1502,7 @@ class Figure:
             "yaxis": {"ticksuffix": "%"},
             "annotations": [
                 {
-                    "text": f"<b>Cost vs. Profit of Investing Once a Year<b>",
+                    "text": f"<b>Cost vs. Profit of Investing Once a Month<b>",
                     "font": {"size": 16},
                     "showarrow": False,
                     "xref": "x domain",
@@ -2572,7 +2618,7 @@ class Figure:
     def daily_invest_cost_graph(self) -> str:
         data = []
         for st in self.stocks:
-            df_dollar_cost_averaging = st.dollar_cost_averaging()
+            df_dollar_cost_averaging = st.dollar_cost_averaging(DEFAULT_DCA_MONEY, "M")
             data.append(
                 (
                     st.name,
@@ -2743,21 +2789,12 @@ class Figure:
         end_str = df.index[-1]
         df = df.T.sort_values(by=[end_str], ascending=False).T
 
-        lines = self._plotLine_without_markers(
+        return self._plotLine_without_markers(
             df,
             title=title_template.format(start=start_str, end=end_str),
             filename=filename_template.format(start=start_str, end=end_str),
             additional_layout={"xaxis": {"type": "category"}},
         )
-        lines = self._mergeDict(
-            json.loads(lines),
-            {
-                "layout": {
-                    "title": {"x": 0.08},
-                }
-            },
-        )
-        return json.dumps(lines)
 
     def growth(self, init_money: int) -> str:
         return self._growth_retire_graph(
@@ -2796,7 +2833,8 @@ class Figure:
             f"Retire Simulation_money {init_money}_expense {init_expense}"
             f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        return self._growth_retire_graph(
+
+        lines = self._growth_retire_graph(
             init_money,
             init_expense,
             inflation_percent,
@@ -2805,6 +2843,16 @@ class Figure:
             title_template=title,
             filename_template=filename,
         )
+
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        return json.dumps(lines)
 
     def retire_separate_graph(self) -> str:
         init_money = DEFAULT_RETIRE_INIT_MONEY
@@ -2821,7 +2869,8 @@ class Figure:
             f"Retire Simulation Separate_money {init_money}_expense {init_expense}"
             f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        return self._growth_retire_graph(
+
+        lines = self._growth_retire_graph(
             init_money,
             init_expense,
             inflation_percent,
@@ -2830,6 +2879,16 @@ class Figure:
             title_template=title,
             filename_template=filename,
         )
+
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        return json.dumps(lines)
 
     def retire_adj_graph(self) -> str:
         init_money = DEFAULT_RETIRE_INIT_MONEY
@@ -2846,7 +2905,8 @@ class Figure:
             f"Retire Simulation_money {init_money}_expense {init_expense}"
             f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        return self._growth_retire_graph(
+
+        lines = self._growth_retire_graph(
             init_money,
             init_expense,
             inflation_percent,
@@ -2855,6 +2915,16 @@ class Figure:
             title_template=title,
             filename_template=filename,
         )
+
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        return json.dumps(lines)
 
     def retire_adj_separate_graph(self) -> str:
         init_money = DEFAULT_RETIRE_INIT_MONEY
@@ -2871,7 +2941,8 @@ class Figure:
             f"Retire Simulation Separate_money {init_money}_expense {init_expense}"
             f"_inflation {inflation_percent}%_{{start}}~{{end}}"
         )
-        return self._growth_retire_graph(
+
+        lines = self._growth_retire_graph(
             init_money,
             init_expense,
             inflation_percent,
@@ -2880,6 +2951,16 @@ class Figure:
             title_template=title,
             filename_template=filename,
         )
+
+        lines = self._mergeDict(
+            json.loads(lines),
+            {
+                "layout": {
+                    "title": {"x": 0.08},
+                }
+            },
+        )
+        return json.dumps(lines)
 
     def history_adj_graph(self) -> str:
         data = []
@@ -2934,7 +3015,7 @@ class Figure:
 
         # 合併並調換欄位順序，讓外層是指標 (value/cost/profit)，內層是股票名稱
         df_all = pd.concat(data_dict, axis="columns", sort=False).sort_index()
-        return df_all.swaplevel(axis="columns").sort_index(axis="columns")
+        return df_all.swaplevel(axis="columns")
 
     def _dca_month_graph(
         self,
@@ -2955,7 +3036,9 @@ class Figure:
             end_date = df_intersection.index[-1]
 
         # 1. 取得大表
-        df_all = self._prepare_dca_datasets(money, frequency, start_date, end_date)
+        df_all = self._prepare_dca_datasets(money, frequency, start_date, end_date).sort_index(
+            axis="columns"
+        )
 
         # 2. 根據場景切下需要的指標
         df_plot = df_all["profit"] if separate else df_all["value"]
@@ -2991,7 +3074,6 @@ class Figure:
                     trace["line"] = {"dash": "dash", "color": "#7F7F7F"}
                     break
 
-        lines_dict = self._mergeDict(lines_dict, {"layout": {"title": {"x": 0.08}}})
         return json.dumps(lines_dict)
 
     def dca_month_individual(self, money: int) -> str:
@@ -3112,6 +3194,175 @@ class Figure:
             filename_template=f"DCA_Month_of_{money}_{{start}}~{{end}}",
         )
 
+    def dca_yearly_profit_summary(
+        self,
+        money: float,
+        frequency: str = "M",
+        separate: bool = False,
+    ) -> Tuple[str, str, pd.DataFrame]:
+        """整合所有股票的單年度獲利數據，回傳格式化後的精確起訖時間字串與橫向對比的大表。"""
+        start_date, end_date = None, None
+        if not separate:
+            df_intersection = self.intersection_history()
+            if not df_intersection.empty:
+                start_date = df_intersection.index[0]
+                end_date = df_intersection.index[-1]
+
+        yearly_dict = {}
+        # 用來記錄所有股票在 separate=True 時各自真正的起訖交易日字串
+        all_starts = []
+        all_ends = []
+
+        for st in self.stocks:
+            df_y = st.get_yearly_dca_performance(money, frequency, start_date, end_date)
+            if df_y.empty:
+                continue
+            yearly_dict[st.name] = df_y[["year_cost", "year_profit", "year_roi"]]
+
+            st_start = df_y.attrs.get("exact_start")
+            st_end = df_y.attrs.get("exact_end")
+            if st_start:
+                all_starts.append(st_start)
+            if st_end:
+                all_ends.append(st_end)
+
+        if not yearly_dict:
+            raise ValueError("所有股票的單年度獲利統計皆為空！")
+
+        df_all_yearly = pd.concat(yearly_dict, axis="columns", sort=False).sort_index()
+
+        if not separate and start_date is not None and end_date is not None:
+            # 交集模式：直接將歷史交集的精確 Timestamp 轉成 YYYY-MM-DD
+            start_date_str = start_date.strftime("%Y-%m-%d")
+            end_date_str = end_date.strftime("%Y-%m-%d")
+        else:
+            # 獨立最大時間區間模式：從所有股票真正的第一個交易日中取最老 (min)，最後交易日中取最新 (max)
+            # 因為 YYYY-MM-DD 格式的字串排序與時間完全一致，直接用 min/max 是最精確且高效的
+            start_date_str = min(all_starts) if all_starts else ""
+            end_date_str = max(all_ends) if all_ends else ""
+
+        return start_date_str, end_date_str, df_all_yearly
+
+    def dca_yearly_profit_graph(self, money: int) -> str:
+        """生成各股票單年度絕對獲利對比的群組長條圖 JSON 設定。"""
+        # 1. 直接呼叫大表獲取數據 (時間交集模式)
+        start_date_str, end_date_str, df_all_yearly = self.dca_yearly_profit_summary(
+            money, frequency="M", separate=False
+        )
+
+        # 2. 從 MultiIndex 大表中，把所有股票的 "year_profit" 獨立抽出來變成一個簡單的 DataFrame
+        #    原本欄位結構為 (股票名稱, 指標)，使用 .xs 可以完美把第二層為 'year_profit' 的資料全部切下來
+        df_yearly_plot = df_all_yearly.xs("year_profit", level=1, axis="columns")
+
+        return self._plotBar_with_group(
+            df=df_yearly_plot,
+            title=f"<b>DCA Month of {money} Yearly Profit<b><br><i>{start_date_str} ~ {end_date_str}<i>",
+            filename=f"DCA_Month_of_{money}_Yearly_Profit_{start_date_str}~{end_date_str}",
+        )
+
+    def dca_yearly_profit_individual(self, money: int) -> str:
+        """生成單獨股票單年度獲利長條圖切換圖表 (Dropdown 模式，直接從 Stock 歷史撈取最精確起訖日)。"""
+
+        # 1. 取得各自獨立最大時間區間的年度數據大表 (separate=True)
+        _, _, df_all_yearly = self.dca_yearly_profit_summary(money, frequency="M", separate=True)
+        stock_names = df_all_yearly.columns.levels[0].tolist()
+
+        dataList = []
+        buttons = []
+        title_init = ""
+
+        # 2. 遍歷每檔股票，建立單年度獲利 Bar Trace
+        for i, name in enumerate(stock_names):
+            if "year_profit" in df_all_yearly[name].columns:
+                s_profit = df_all_yearly[name]["year_profit"].dropna()
+            else:
+                continue
+
+            # 直接從原始的 self.stocks 物件中抓取這檔股票最精確的起訖日期
+            target_stock = next((st for st in self.stocks if st.name == name), None)
+            if (
+                target_stock is not None
+                and target_stock.history is not None
+                and not target_stock.history.empty
+            ):
+                start_date_str = target_stock.history["Date"].iloc[0].strftime("%Y-%m-%d")
+                end_date_str = target_stock.history["Date"].iloc[-1].strftime("%Y-%m-%d")
+            else:
+                # 備用方案：如果找不到，才退回顯示年份
+                start_date_str = str(s_profit.index[0])
+                end_date_str = str(s_profit.index[-1])
+
+            # 建立 Bar Trace 物件
+            bar_yearly_profit = {
+                "type": "bar",
+                "name": "單年度損益",
+                "x": s_profit.index.tolist(),  # X 軸保持年份整數 (2021, 2022...)
+                "y": s_profit.values.tolist(),  # Y 軸為獲利金額
+                "visible": i == 0,
+                "showlegend": True,
+            }
+            dataList.append(bar_yearly_profit)
+
+            # 3. 計算遮罩
+            total_graphs = len(stock_names)
+            visible = [False] * total_graphs
+            visible[i] = True
+
+            # 標題完美顯示精確的 YYYY-MM-DD
+            title = f"<b>DCA Year Profit (每月投入 {money})<b><br><i>{start_date_str} ~ {end_date_str}<i>"
+            if i == 0:
+                title_init = title
+
+            # 4. 建立 Plotly Dropdown 按鈕
+            buttons.append(
+                {
+                    "method": "update",
+                    "label": name,
+                    "args": [{"visible": visible}, {"title.text": title}],
+                }
+            )
+
+        # 5. 整體 Layout 定義 (以年份為分類軸)
+        layout = {
+            "title": {"text": title_init, "x": None, "y": None},
+            "hovermode": "x unified",
+            "xaxis": {"type": "category", "title": {"text": "年份"}},
+            "yaxis": {"title": {"text": "金額 (元)"}, "type": "linear"},
+            "updatemenus": [
+                {
+                    "x": 0,
+                    "y": 1.03,
+                    "xanchor": "left",
+                    "yanchor": "bottom",
+                    "pad": {"r": 10, "t": 10},
+                    "buttons": buttons,
+                    "type": "dropdown",
+                    "direction": "down",
+                    "font": {"color": "#AAAAAA"},
+                }
+            ],
+        }
+        config = {"toImageButtonOptions": {"filename": f"DCA_Yearly_Profit_Individual_{money}"}}
+
+        # 6. 整合 Template 與多軸自動配置
+        graph = {"data": dataList, "layout": layout, "config": config}
+        graph = self._mergeDict(copy.deepcopy(self.default_template), graph)
+
+        axis_n = 0
+        for key in graph["layout"].keys():
+            if ("xaxis" in key or "yaxis" in key) and len(key) > 5:
+                axis_n = max(axis_n, int(key.split("axis", 1)[1]))
+
+        for i in range(2, axis_n + 1):
+            graph["layout"][f"xaxis{i}"] = self._mergeDict(
+                graph["layout"].get(f"xaxis{i}", {}), self.default_template["layout"]["xaxis"]
+            )
+            graph["layout"][f"yaxis{i}"] = self._mergeDict(
+                graph["layout"].get(f"yaxis{i}", {}), self.default_template["layout"]["yaxis"]
+            )
+
+        return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
+
 
 def report(
     symbols,
@@ -3153,6 +3404,8 @@ def report(
     plots["growth_of_10000_separate"] = fig.growth_separate(10000)
     plots["dca_month_10000"] = fig.dca_month(10000)
     plots["dca_month_individual_10000"] = fig.dca_month_individual(10000)
+    plots["dca_month_10000_yearly_profit"] = fig.dca_yearly_profit_graph(10000)
+    plots["dca_month_individual_10000_yearly_profit"] = fig.dca_yearly_profit_individual(10000)
     plots["retire"] = fig.retire_graph()
     plots["retire_separate"] = fig.retire_separate_graph()
     plots["retire_adj"] = fig.retire_adj_graph()

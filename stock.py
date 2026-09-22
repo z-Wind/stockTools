@@ -3363,6 +3363,128 @@ class Figure:
 
         return json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
 
+    def volatility_drag_quadrant_graph(self, additional_layout: Optional[dict] = None) -> str:
+        """期望報酬 (μ) vs. 波動損耗 (½σ²) 二維象限對決圖。
+
+        自動從各股票的 dailyReturn 日數據中提取 μ 與 σ，
+        以台股標準 252 個交易日進行年化，揭示「波動損耗」在複利世界中的扣血效應。
+        """
+        data_list, symbols = [], []
+
+        df_intersection = self.intersection_history()
+        intersect_start = df_intersection.index[0]
+        intersect_end = df_intersection.index[-1]
+
+        stock_stats = []
+        for stock in self.stocks:
+            # 暫存股票原本的時間軸設定
+            orig_start = stock.start
+            orig_end = stock.end
+
+            try:
+                # 強制將股票的時間軸定錨在全體交集範圍內
+                stock.set_start_datetime(intersect_start)
+                stock.set_end_datetime(intersect_end)
+
+                df_daily = stock.dailyReturn
+                if df_daily.empty:
+                    continue
+
+                daily_ret_series = df_daily["Return"]
+
+                # 計算日算術平均數 (μ) 與日標準差 (σ)
+                mu_daily = daily_ret_series.mean()
+                sigma_daily = daily_ret_series.std()
+
+                # 將日數據精準年化 (年交易日以台股標準 252 天計算)
+                mu_ann = mu_daily * 252
+                sigma_ann = sigma_daily * np.sqrt(252)
+
+                # 計算核心物理量：年化波動損耗（海浪阻力 ½σ²）
+                vol_drag_ann = 0.5 * (sigma_ann**2)
+
+                # 計算長期的實質幾何複利成長率 (μ - ½σ²)
+                real_geo_growth = mu_ann - vol_drag_ann
+                status_str = "長期向上 (μ > σ²/2)" if real_geo_growth > 0 else "損耗拖垮 (μ < σ²/2)"
+
+                stock_stats.append(
+                    {
+                        "name": stock.name,
+                        "mu_ann": mu_ann,
+                        "sigma_ann": sigma_ann,
+                        "vol_drag_ann": vol_drag_ann,
+                        "real_geo_growth": real_geo_growth,
+                        "status": status_str,
+                    }
+                )
+            finally:
+                # 務必還原股票原始的時間軸狀態，避免污染其他報表
+                stock.set_start_datetime(orig_start)
+                stock.set_end_datetime(orig_end)
+
+        for stats in stock_stats:
+            symbols.append(stats["name"])
+
+            hover_html = (
+                f"<b>{stats['name']}</b><br>"
+                f"------------------------------------<br>"
+                f"年化期望報酬 (μ): <b>{stats['mu_ann']:.2%}</b><br>"
+                f"年化波動度 (σ): <b>{stats['sigma_ann']:.2%}</b><br>"
+                f"複利波動損耗 (σ²/2): <b>{stats['vol_drag_ann']:.2%}</b><br>"
+                f"------------------------------------<br>"
+                f"實質幾何成長率: <b>{stats['real_geo_growth']:>.2%}</b><br>"
+                f"<b>結論: {stats['status']}</b>"
+            )
+
+            # 精簡圖表標籤名稱，避免字體過長干擾視覺
+            display_name = stats["name"].split()[0]
+            data_list.append(
+                {
+                    "type": "scatter",
+                    "x": [stats["vol_drag_ann"]],
+                    "y": [stats["mu_ann"]],
+                    "mode": "markers+text",
+                    "name": stats["name"],
+                    "text": [f" {display_name}"],
+                    "textposition": "bottom",
+                    "hovertext": hover_html,
+                    "hoverinfo": "text",
+                }
+            )
+
+        start_str = intersect_start.strftime("%Y-%m-%d")
+        end_str = intersect_end.strftime("%Y-%m-%d")
+
+        title_text = (
+            "<b>期望報酬 (μ) vs. 波動損耗 (½σ²)</b><br>"
+            "μ > ½σ² 表示長期向上，反之則長期向下<br>"
+            f"<i>{start_str} ~ {end_str}</i>"
+        )
+
+        extra_layout = {
+            "hovermode": "closest",
+            "xaxis": {
+                "title": {
+                    "text": "$\\text{{年化波動損耗}} (\\frac{{1}}{{2}}\\sigma^2)$",
+                },
+                "tickformat": ".1%",
+            },
+            "yaxis": {
+                "title": {"text": "$\\text{{年化期望報酬}} (\\mu)$"},
+                "tickformat": ".1%",
+            },
+        }
+
+        filename = f"Volatility_Drag_Quadrant_{start_str}~{end_str}"
+        return self._finalize_graph(
+            data_list,
+            symbols,
+            title_text,
+            filename,
+            extra_layout=extra_layout,
+            additional_layout=additional_layout,
+        )
+
 
 def report(
     symbols,
@@ -3398,6 +3520,7 @@ def report(
     plots["rollback"], plots["rollbackVolin"] = fig.rollback_graph()
     plots["correlationClose"], plots["correlationAdjClose"] = fig.correlation_heatmap()
     plots["dailyReturn"] = fig.daily_return_graph()
+    plots["dailyReturnVolatilityDragQuadrant"] = fig.volatility_drag_quadrant_graph()
     plots["dailyInvestCost"] = fig.daily_invest_cost_graph()
     plots["dailyInvestBullBear"] = fig.daily_invest_bull_bear_graph()
     plots["growth_of_10000"] = fig.growth(10000)

@@ -3036,9 +3036,10 @@ class Figure:
             end_date = df_intersection.index[-1]
 
         # 1. 取得大表
-        df_all = self._prepare_dca_datasets(money, frequency, start_date, end_date).sort_index(
-            axis="columns"
-        )
+        df_all = self._prepare_dca_datasets(money, frequency, start_date, end_date)
+        # 清除任何含有 NaN 的日期列（只保留全部股票都存在的日期）
+        df_all = df_all.dropna(axis="index", how="any")
+        df_all = df_all.sort_index(axis="columns")
 
         # 2. 根據場景切下需要的指標
         df_plot = df_all["profit"] if separate else df_all["value"]
@@ -3457,7 +3458,7 @@ class Figure:
 
         title_text = (
             "<b>期望報酬 (μ) vs. 波動損耗 (½σ²)</b><br>"
-            "μ > ½σ² 表示長期向上，反之則長期向下<br>"
+            '<span style="font-size:12px; color:#aaaaaa;">μ > ½σ² 表示長期向上，反之則長期向下</span><br>'
             f"<i>{start_str} ~ {end_str}</i>"
         )
 
@@ -3467,11 +3468,25 @@ class Figure:
                 "title": {
                     "text": "$\\text{{年化波動損耗}} (\\frac{{1}}{{2}}\\sigma^2)$",
                 },
-                "tickformat": ".1%",
+                "tickformat": ".2%",
+                "gridcolor": "rgba(255,255,255,0.05)",
+                "zerolinecolor": "rgba(255,255,255,0.2)",
+                "showspikes": True,
+                "spikethickness": 1,
+                "spikedash": "dash",
+                "spikecolor": "#17a2b8",
+                "spikemode": "across",
             },
             "yaxis": {
                 "title": {"text": "$\\text{{年化期望報酬}} (\\mu)$"},
-                "tickformat": ".1%",
+                "tickformat": ".2%",
+                "gridcolor": "rgba(255,255,255,0.05)",
+                "zerolinecolor": "rgba(255,255,255,0.2)",
+                "showspikes": True,
+                "spikethickness": 1,
+                "spikedash": "dash",
+                "spikecolor": "#17a2b8",
+                "spikemode": "across",
             },
         }
 

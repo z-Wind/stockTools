@@ -906,8 +906,10 @@ class Figure:
                     symbol["name"],
                     remark=symbol.get("remark", ""),
                     groups=symbol["groups"],
-                    start=start,
-                    end=end,
+                    start=(
+                        max(start, symbol["start"]) if symbol.get("start") is not None else start
+                    ),
+                    end=max(end, symbol["end"]) if symbol.get("end") is not None else end,
                     extraDiv=symbol.get("extraDiv", {}),
                     replaceDiv=symbol.get("replaceDiv", False),
                     extraSplit=symbol.get("extraSplit", {}),
@@ -2229,14 +2231,23 @@ class Figure:
         if self.intersection_history_val is not None:
             return self.intersection_history_val
 
-        # 1. 建立各個股票的 Series 清單
+        # 1. 建立各個股票的 Series 清單，並嚴格限制在 self.start 與 self.end 範圍內
         series_list = []
         for st in self.stocks:
+            # 建立以 Date 為 Index 的完整 Series
             s = pd.Series(
                 data=st.rawData["Adj Close Cal"].values,
                 index=st.rawData["Date"],
                 name=st.name,
             )
+
+            # 確保 Index 排序以利於進行日期區間切片 (Slicing)
+            s = s.sort_index()
+
+            # 根據 self.start 與 self.end 進行範圍過濾
+            # 使用 loc 進行切片時，包含 start 與 end 本身
+            s = s.loc[self.start : self.end]
+
             series_list.append(s)
 
         detect_duplicated(series_list)
@@ -2567,11 +2578,19 @@ class Figure:
                 index=st.rawData["Date"],
                 name=st.name,
             )
+            # 排序並限制在 self.start 與 self.end 範圍內
+            s = s.sort_index().loc[self.start : self.end]
             data.append(s)
 
         df = pd.concat(data, axis=1, sort=True)
-        start = df.dropna().index[0].strftime("%Y-%m-%d")
-        end = df.dropna().index[-1].strftime("%Y-%m-%d")
+
+        # 安全取得實質交集的起訖日期，若無資料則採用預設範圍
+        df_dropped = df.dropna()
+        start = (
+            df_dropped.index[0].strftime("%Y-%m-%d") if not df_dropped.empty else str(self.start)
+        )
+        end = df_dropped.index[-1].strftime("%Y-%m-%d") if not df_dropped.empty else str(self.end)
+
         close = self._plotHeatmap(
             df.corr(),
             title=f"<b>Correlation of Close<b><br><i>{start} ~ {end}<i>",
@@ -2587,11 +2606,19 @@ class Figure:
                 index=st.rawData["Date"],
                 name=st.name,
             )
+            # 排序並限制在 self.start 與 self.end 範圍內
+            s = s.sort_index().loc[self.start : self.end]
             data.append(s)
 
         df = pd.concat(data, axis=1, sort=True)
-        start = df.dropna().index[0].strftime("%Y-%m-%d")
-        end = df.dropna().index[-1].strftime("%Y-%m-%d")
+
+        # 安全取得實質交集的起訖日期，若無資料則採用預設範圍
+        df_dropped = df.dropna()
+        start = (
+            df_dropped.index[0].strftime("%Y-%m-%d") if not df_dropped.empty else str(self.start)
+        )
+        end = df_dropped.index[-1].strftime("%Y-%m-%d") if not df_dropped.empty else str(self.end)
+
         closeAdj = self._plotHeatmap(
             df.corr(),
             title=f"<b>Correlation of Adj Close<b><br><i>{start} ~ {end}<i>",
@@ -2966,7 +2993,7 @@ class Figure:
         data = []
         for st in self.stocks:
             df_bull_bear_markets, _ = st.identify_bull_bear_markets()
-            history_adj = st.rawData[["Date", "Adj Close Cal"]].set_index("Date")
+            history_adj = st.history[["Date", "Adj Close Cal"]].set_index("Date")
             data.append(
                 (
                     st.name,
@@ -3653,7 +3680,12 @@ def tw_stock():
             "groups": ["常用", "ETF"],
             "extraSplit": {"2025/06/11 00:00:00+08:00": 4},
         },
-        {"name": "00631L.TW", "remark": "元大台灣50正2", "groups": ["日正"]},
+        {
+            "name": "00631L.TW",
+            "remark": "元大台灣50正2",
+            "groups": ["日正"],
+            "start": "2015-01-01",  # 因之前的 yahoo 資料有誤
+        },
         {
             "name": "00675L.TW",
             "remark": "富邦臺灣加權正2",

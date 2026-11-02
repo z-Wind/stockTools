@@ -116,7 +116,9 @@ def main() -> None:
 
     detail_links = _build_detail_pages(df, subreport_folder)
 
-    df["細項資料"] = [f"<a href='{detail_links[idx]}' target='_blank'>連結</a>" for idx in df.index]
+    df.loc[:, ("細項資料", "", "")] = [
+        f"<a href='{detail_links[idx]}' target='_blank'>連結</a>" for idx in df.index
+    ]
     df = df.set_index("細項資料", append=True)
     df_sorted_idx = df.sort_index().copy()
 
@@ -381,7 +383,13 @@ def get_data() -> pd.DataFrame:
     # _log(f"讀取完成，資料筆數：{len(data)}")
 
     data = data.fillna(value={"俗名": ""})
-    data = data.fillna(0)
+    # 1. 針對數值型欄位（如 float64, int64）補 0
+    num_cols = data.select_dtypes(include=["number"]).columns
+    data[num_cols] = data[num_cols].fillna(0)
+
+    # 2. 針對非數值型欄位（如 object, string）補 "0" 或 ""
+    non_num_cols = data.select_dtypes(exclude=["number"]).columns
+    data[non_num_cols] = data[non_num_cols].fillna("0")
     return data
 
 

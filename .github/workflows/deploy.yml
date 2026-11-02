@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: 3.12.4
+  PYTHON_VERSION: 3.14.10
   PYTHONUTF8: 1
   TZ: 'Asia/Taipei' # 設定環境變數時區
 

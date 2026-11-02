@@ -50,10 +50,19 @@ retry_strategy = Retry(
 _thread_local = threading.local()
 
 
+# 建立一個自訂的 Session 類別，強制將所有請求的 verify 設為 False
+class DisabledSSLVerifySession(requests.Session):
+    def request(self, method, url, *args, **kwargs):
+        kwargs.setdefault("verify", False)
+        return super().request(method, url, *args, **kwargs)
+
+
 def _get_session() -> requests.Session:
     """取得目前執行緒的 Session，不存在則建立。"""
     if not hasattr(_thread_local, "session"):
-        s = requests.Session()
+        # 改用自訂的、免 SSL 驗證的 Session
+        s = DisabledSSLVerifySession()
+
         if sys.platform.startswith("linux"):
             s.headers = {
                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
@@ -2207,7 +2216,7 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                         sheet_name=i,
                     ),
                 )
-                data.rename(columns={"Unnamed: 0": "特性"}, inplace=True)
+                data = data.rename(columns={"Unnamed: 0": "特性"})
                 data = data.dropna().set_index("特性")
                 data = data.filter(regex=r"^\d+年$", axis=1)
                 data.columns = [int(col.split("年")[0]) + 1911 for col in data.columns]  # 轉西元
@@ -2243,7 +2252,7 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                         sheet_name=i,
                     ),
                 )
-                data.rename(columns={"Unnamed: 0": "特性"}, inplace=True)
+                data = data.rename(columns={"Unnamed: 0": "特性"})
                 data = data.dropna().set_index("特性")
                 data = data.filter(regex=r"^\d+年$", axis=1)
                 data.columns = [int(col.split("年")[0]) + 1911 for col in data.columns]  # 轉西元
@@ -2280,7 +2289,7 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                     ),
                 )
                 data = data.dropna(axis="columns", how="all")
-                data.rename(
+                data = data.rename(
                     columns={
                         "Unnamed: 0": "特性",
                         "Unnamed: 4": "Q1",
@@ -2288,7 +2297,6 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                         "Unnamed: 12": "Q3",
                         "Unnamed: 19": "平均",
                     },
-                    inplace=True,
                 )
                 data.columns = [col.strip() for col in data.columns]
                 data = (
@@ -2328,7 +2336,7 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                     ),
                 )
                 data = data.dropna(axis="columns", how="all")
-                data.rename(
+                data = data.rename(
                     columns={
                         "Unnamed: 0": "特性",
                         "Unnamed: 4": "Q1",
@@ -2336,7 +2344,6 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                         "Unnamed: 12": "Q3",
                         "Unnamed: 19": "平均",
                     },
-                    inplace=True,
                 )
                 data.columns = [col.strip() for col in data.columns]
                 data = (
@@ -2373,11 +2380,10 @@ def df_工業及服務業受僱員工全年總薪資中位數及分布統計結�
                 ),
             )
             data = data.dropna(axis="columns", how="all")
-            data.rename(
+            data = data.rename(
                 columns={
                     "Unnamed: 0": "年",
                 },
-                inplace=True,
             )
             data.columns = [col.strip() for col in data.columns]
             data = (
@@ -2537,7 +2543,11 @@ def df_各業廠商僱用職缺按月計薪者每人每月平均最低薪資_按
 def df_各業廠商調升經常性薪資參考各項因素之廠商比率_按行業分() -> pd.DataFrame:
     key = "各業廠商調升經常性薪資參考各項因素之廠商比率－按行業分"
     key = sanitize_filename(key)
-    url = {112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05025a112.xml"}
+    url = {
+        112: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05025a112.xml",
+        113: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/235461/mp05025a113.xml",
+        114: "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/236793/mp05025a114.xml",
+    }
     lastyear = max(url.keys())
 
     if lastyear + 1911 + 2 < datetime.now().year and datetime.now().month > 10:
@@ -2613,6 +2623,14 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
             "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/234005/mp05023a112.xml",
             "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
         ],
+        113: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/235461/mp05023a113.xml",
+            "各業廠商調升員工經常性薪資方式與調薪項目_按行業分",
+        ],
+        114: [
+            "https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/236793/mp05023a114.xml",
+            "各業廠商調升員工經常性薪資之廠商與員工人數比率_按行業分",
+        ],
     }
     lastyear = max(url.keys())
 
@@ -2621,6 +2639,10 @@ def df_各業廠商調升員工經常性薪資之廠商與員工人數比率_按
 
     df = []
     for year in range(106, lastyear + 1):
+        # 113/114年主計處變更了調查主題
+        if year in [113, 114]:
+            continue
+
         data = read_xml_with_cache(
             EXTRA_DATA_DIR / key / f"{year}.xml.gz",
             url[year][0],
@@ -3877,7 +3899,7 @@ def df_現住人口性別_年齡_婚姻狀況() -> pd.DataFrame:
         data["statistic_yyy"] = (data["statistic_yyy"].astype(int) + 1911).astype(str)
 
         # 6. 移除 site_id 欄位，任務已完成
-        data.drop(columns=["site_id"], inplace=True)
+        data = data.drop(columns=["site_id"])
 
         return data
 
@@ -4065,7 +4087,7 @@ def df_動態資料統計表() -> pd.DataFrame:
 
     df["統計年月"] = (df["統計年月"].astype(int) + 191100).astype(str)  # 轉西元
 
-    df = df.fillna(0)
+    df = df.fillna("0")
     df[df.columns[4:]] = df[df.columns[4:]].astype(int)
     split = (
         df["統計年月"].str.replace("(^.{4})", r"\1|", regex=True).str.split("|", n=1, expand=True)
@@ -4713,7 +4735,7 @@ def df_銀行間市場新臺幣對美元收盤匯率() -> pd.DataFrame:
     )
     df = read_csv(url)
 
-    df.loc[:, "Date"] = pd.to_datetime(df["日期"], format="%Y%m%d")
+    df.loc[:, "Date"] = pd.to_datetime(df["日期"].astype(str), format="%Y%m%d")
     df.loc[:, "Close"] = df["NTD/USD"].astype(float)
     df.loc[:, "Adj Close"] = df["Close"]
     df.loc[:, "Dividends"] = 0
